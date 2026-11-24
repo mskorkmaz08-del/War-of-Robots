@@ -1,0 +1,85 @@
+using System;
+using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
+using UnityEngine;
+
+namespace RobotArena.EditorTools
+{
+    /// <summary>
+    /// Entry point for the cloud builds on GitHub Actions (GameCI).
+    /// Generates the test scene, applies player settings and builds for
+    /// whatever platform the build machine was started with (WebGL or iOS).
+    /// </summary>
+    public static class CIBuild
+    {
+        public const string ProductName = "War of Robots";
+        public const string CompanyName = "Mustafa";
+        public const string BundleId = "com.mustafa.warofrobots";
+
+        public static void Build()
+        {
+            string outputPath = GetArg("-customBuildPath");
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            Debug.Log($"[CIBuild] Target: {target}, output: {outputPath}");
+
+            if (string.IsNullOrEmpty(outputPath))
+            {
+                Debug.LogError("[CIBuild] Missing -customBuildPath argument.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            TestArenaBuilder.BuildScene();
+            ApplyPlayerSettings(target);
+
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { TestArenaBuilder.ScenePath },
+                locationPathName = outputPath,
+                target = target,
+                options = BuildOptions.None
+            };
+
+            BuildReport report = BuildPipeline.BuildPlayer(options);
+            BuildSummary summary = report.summary;
+            Debug.Log($"[CIBuild] Result: {summary.result}, size: {summary.totalSize} bytes, errors: {summary.totalErrors}");
+
+            EditorApplication.Exit(summary.result == BuildResult.Succeeded ? 0 : 1);
+        }
+
+        static void ApplyPlayerSettings(BuildTarget target)
+        {
+            PlayerSettings.productName = ProductName;
+            PlayerSettings.companyName = CompanyName;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+
+            if (target == BuildTarget.WebGL)
+            {
+                // GitHub Pages can't serve pre-compressed files with the right headers,
+                // so ship uncompressed files. Simple and works in Safari on iPhone.
+                PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+                PlayerSettings.WebGL.decompressionFallback = false;
+                PlayerSettings.runInBackground = false;
+            }
+            else if (target == BuildTarget.iOS)
+            {
+                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
+                PlayerSettings.iOS.appleEnableAutomaticSigning = false;
+                PlayerSettings.iOS.targetOSVersionString = "15.0";
+            }
+        }
+
+        static string GetArg(string name)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (args[i] == name) return args[i + 1];
+            return null;
+        }
+    }
+}

@@ -30,12 +30,12 @@ namespace RobotArena.EditorTools
                 return;
             }
 
-            TestArenaBuilder.BuildScene();
+            ArenaBuilder.BuildScene();
             ApplyPlayerSettings(target);
 
             var options = new BuildPlayerOptions
             {
-                scenes = new[] { TestArenaBuilder.ScenePath },
+                scenes = new[] { ArenaBuilder.ScenePath },
                 locationPathName = outputPath,
                 target = target,
                 options = BuildOptions.None
@@ -50,6 +50,20 @@ namespace RobotArena.EditorTools
 
         static void ApplyPlayerSettings(BuildTarget target)
         {
+            // Use both input backends: keyboard/touch code uses the classic one,
+            // UI works with either. Best effort; ignored if the setting moves.
+            var all = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (all != null && all.Length > 0)
+            {
+                var so = new SerializedObject(all[0]);
+                var handler = so.FindProperty("activeInputHandler");
+                if (handler != null)
+                {
+                    handler.intValue = 2;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
             PlayerSettings.productName = ProductName;
             PlayerSettings.companyName = CompanyName;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;

@@ -26,6 +26,8 @@ The game is built **in the cloud** by GitHub Actions, so you don't need Unity on
 
 Secrets are encrypted by GitHub. Nobody, including Claude, can read them back.
 
+**If the build log says "Failed to login - please check your username or password":** the email/password secrets don't work for signing in to Unity. Check for typos. If you created your Unity account with **Google or Apple sign-in**, it has no password yet: go to [id.unity.com](https://id.unity.com), use **Forgot password** to set one, then update `UNITY_PASSWORD`. Two-factor sign-in on the Unity account also blocks cloud builds.
+
 ### 2. GitHub Pages
 
 **Settings > Pages > Build and deployment > Source:** choose **GitHub Actions**.
@@ -34,29 +36,44 @@ Secrets are encrypted by GitHub. Nobody, including Claude, can read them back.
 
 **Actions > Build game > Run workflow**, or just push to `main`. The browser version takes about 10 to 20 minutes and the iPhone app takes a bit longer.
 
+## The game
+
+Pick your machine, then destroy the two enemy robots in the arena.
+
+- **TITAN**: a 15-metre walking giant. Heavy arm cannons, a 12-missile homing swarm, and jump jets. Landing from a jump sends out a shockwave.
+- **RAPTOR**: an armoured six-wheeler. Rapid pulse lasers, a charge-up plasma railgun, and ULTRA THRUST rockets for ramming. Its front is armoured, so ramming hurts the enemy more than you.
+
+Everything is physics-driven. Robots lose armour plates as they take damage, catch fire, and blow apart when destroyed. Shipping containers can be smashed around. Robots, sounds and effects are all generated in code, with no art or audio files yet.
+
 ## Controls
 
-| Action | Keyboard | Gamepad | Touch |
+| Action | Keyboard / mouse | Gamepad | Touch |
 |---|---|---|---|
-| Drive / turn | W A S D or arrows | Left stick | Joystick (bottom left) |
-| Fire flipper | Space | A / Cross, or right trigger | FLIP button (bottom right) |
+| Move / turn | W A S D or arrows | Left stick | Joystick (bottom left) |
+| Main gun | Space or left click | Right trigger / A | FIRE |
+| Special weapon | E or right click | Left trigger / X | SPECIAL |
+| Boost | Left Shift | Bumpers / B | BOOST |
+
+Aiming is automatic: the upper body turns toward the nearest enemy in front of you.
 
 ## Project layout
 
-- `Assets/Scripts/Robot`: driving (`RobotDrive`), flipper weapon (`RobotFlipper`) and controls (`RobotInput`)
-- `Assets/Scripts/Controls`: on-screen joystick and buttons for touch screens
-- `Assets/Scripts/Camera`: chase camera
-- `Assets/Editor/TestArenaBuilder.cs`: builds the test arena scene from code (menu **Robot Arena > Build Test Arena Scene**)
+- `Assets/Scripts/Robot`: robot construction (`RobotFactory`), walking (`WalkerLocomotion`, procedural IK legs), wheels (`WheeledLocomotion`, raycast suspension), health and damage (`Damageable`), controls (`RobotInput`)
+- `Assets/Scripts/Weapons`: auto-aim `Turret`, cannons, missiles, lasers, railgun, projectiles
+- `Assets/Scripts/Core`: generated meshes, materials, particle effects (`Fx`) and synthesized sound (`GameAudio`)
+- `Assets/Scripts/AI`: enemy behaviour
+- `Assets/Scripts/Game`: match flow and HUD
+- `Assets/Editor/ArenaBuilder.cs`: builds the arena scene (menu **Robot Arena > Build Arena Scene**)
 - `Assets/Editor/CIBuild.cs`: entry point used by the cloud builds
 - `.github/workflows/build.yml`: cloud builds for the browser (GitHub Pages) and iPhone (.ipa)
 
 ## Opening it in Unity (optional)
 
-If you get a computer that runs Unity 6, install **Unity 6000.0.47f1** with iOS and Web build support, open this folder as a project, choose **Robot Arena > Build Test Arena Scene**, and press Play.
+Install **Unity 6000.0.47f1** with iOS and Web build support, open this folder as a project, choose **Robot Arena > Build Arena Scene**, and press Play.
 
 ## Roadmap
 
-1. **Robot core**: driving, flipper, touch controls, test arena *(done, not yet tested)*
-2. **Arena fighting**: impact damage, parts that break off, health, AI opponent, sparks, debris, camera shake
+1. **Robot core**: driving and touch controls *(done)*
+2. **Giant robot battles**: walker and wheeled giants, weapons, damage, AI, effects, sound *(done, waiting for first cloud build)*
 3. **Garage and points**: earn points per match and spend them on parts and upgrades
 4. **Polish and builds**: tune for iPhone performance, PC build

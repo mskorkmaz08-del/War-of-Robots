@@ -20,7 +20,15 @@ namespace RobotArena
             if (assets == null) return;
 
             // Fireball
-            var fire = NewSystem("Fireball", pos, Quaternion.identity, assets.ParticleAdditive());
+            if (!FxPool.TryAcquire("Fireball", out var fire, out bool isNew)) return;
+            Place(fire, pos, Quaternion.identity);
+            if (isNew)
+            {
+                Setup(fire, assets.ParticleAdditive());
+                ColorFade(fire, Fire1, Fire2, Fire3);
+                SizeCurve(fire, 0.5f, 1.4f);
+                Drag(fire, 3f);
+            }
             var m = fire.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 1.0f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(2f * size, 7f * size);
@@ -30,13 +38,19 @@ namespace RobotArena
             m.gravityModifier = -0.15f;
             SphereShape(fire, 0.6f * size);
             Burst(fire, 26);
-            ColorFade(fire, Fire1, Fire2, Fire3);
-            SizeCurve(fire, 0.5f, 1.4f);
-            Drag(fire, 3f);
             Play(fire, 1.2f);
 
             // Smoke column
-            var smoke = NewSystem("Smoke", pos, Quaternion.identity, assets.ParticleAlpha());
+            if (FxPool.TryAcquire("Smoke", out var smoke, out isNew))
+            {
+            Place(smoke, pos, Quaternion.identity);
+            if (isNew)
+            {
+                Setup(smoke, assets.ParticleAlpha());
+                AlphaFade(smoke, new Color(0.2f, 0.19f, 0.18f));
+                SizeCurve(smoke, 0.6f, 2.2f);
+                Drag(smoke, 1.5f);
+            }
             m = smoke.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(2.5f, 4.5f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(1f * size, 4f * size);
@@ -46,10 +60,8 @@ namespace RobotArena
             m.gravityModifier = -0.08f;
             SphereShape(smoke, 1f * size);
             Burst(smoke, 18);
-            AlphaFade(smoke, new Color(0.2f, 0.19f, 0.18f));
-            SizeCurve(smoke, 0.6f, 2.2f);
-            Drag(smoke, 1.5f);
             Play(smoke, 5f);
+            }
 
             // Sparks and glowing debris
             Sparks(pos, Vector3.up, Mathf.RoundToInt(30 * Mathf.Clamp(size, 0.5f, 3f)), 25f * Mathf.Sqrt(size), 180f);
@@ -64,7 +76,17 @@ namespace RobotArena
         {
             var assets = GameAssets.Get();
             if (assets == null) return;
-            var ps = NewSystem("Sparks", pos, Quaternion.LookRotation(normal.sqrMagnitude > 0.001f ? normal : Vector3.up), assets.ParticleAdditive());
+            if (!FxPool.TryAcquire("Sparks", out var ps, out bool isNew)) return;
+            Place(ps, pos, Quaternion.LookRotation(normal.sqrMagnitude > 0.001f ? normal : Vector3.up));
+            if (isNew)
+            {
+                Setup(ps, assets.ParticleAdditive());
+                ColorFade(ps, Fire1, Fire2, Fire3);
+                var sr = ps.GetComponent<ParticleSystemRenderer>();
+                sr.renderMode = ParticleSystemRenderMode.Stretch;
+                sr.velocityScale = 0.06f;
+                sr.lengthScale = 1.5f;
+            }
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.9f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(speed * 0.4f, speed);
@@ -77,11 +99,6 @@ namespace RobotArena
             shape.angle = Mathf.Clamp(spreadDegrees * 0.5f, 1f, 89f);
             shape.radius = 0.2f;
             Burst(ps, count);
-            ColorFade(ps, Fire1, Fire2, Fire3);
-            var r = ps.GetComponent<ParticleSystemRenderer>();
-            r.renderMode = ParticleSystemRenderMode.Stretch;
-            r.velocityScale = 0.06f;
-            r.lengthScale = 1.5f;
             Play(ps, 1f);
         }
 
@@ -89,7 +106,15 @@ namespace RobotArena
         {
             var assets = GameAssets.Get();
             if (assets == null) return;
-            var ps = NewSystem("Dust", pos + Vector3.up * 0.3f, Quaternion.identity, assets.ParticleAlpha());
+            if (!FxPool.TryAcquire("Dust", out var ps, out bool isNew)) return;
+            Place(ps, pos + Vector3.up * 0.3f, Quaternion.identity);
+            if (isNew)
+            {
+                Setup(ps, assets.ParticleAlpha());
+                AlphaFade(ps, new Color(0.4f, 0.37f, 0.33f));
+                SizeCurve(ps, 0.7f, 2f);
+                Drag(ps, 4f);
+            }
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(1.2f, 2.4f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(4f * size, 9f * size);
@@ -104,9 +129,6 @@ namespace RobotArena
             shape.rotation = new Vector3(-90f, 0f, 0f);
             shape.radiusThickness = 0f;
             Burst(ps, 16);
-            AlphaFade(ps, new Color(0.4f, 0.37f, 0.33f));
-            SizeCurve(ps, 0.7f, 2f);
-            Drag(ps, 4f);
             Play(ps, 3f);
         }
 
@@ -114,7 +136,13 @@ namespace RobotArena
         {
             var assets = GameAssets.Get();
             if (assets == null) return;
-            var ps = NewSystem("Muzzle", pos, Quaternion.LookRotation(dir), assets.ParticleAdditive());
+            if (!FxPool.TryAcquire("Muzzle", out var ps, out bool isNew)) return;
+            Place(ps, pos, Quaternion.LookRotation(dir));
+            if (isNew)
+            {
+                Setup(ps, assets.ParticleAdditive());
+                ColorFade(ps, Fire1, Fire2, Fire3);
+            }
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(5f * size, 25f * size);
@@ -126,10 +154,18 @@ namespace RobotArena
             shape.angle = 12f;
             shape.radius = 0.1f;
             Burst(ps, 14);
-            ColorFade(ps, Fire1, Fire2, Fire3);
             Play(ps, 0.4f);
 
-            var smoke = NewSystem("MuzzleSmoke", pos, Quaternion.LookRotation(dir), assets.ParticleAlpha());
+            if (FxPool.TryAcquire("MuzzleSmoke", out var smoke, out isNew))
+            {
+            Place(smoke, pos, Quaternion.LookRotation(dir));
+            if (isNew)
+            {
+                Setup(smoke, assets.ParticleAlpha());
+                AlphaFade(smoke, new Color(0.55f, 0.55f, 0.55f));
+                SizeCurve(smoke, 0.6f, 2f);
+                Drag(smoke, 3f);
+            }
             m = smoke.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.6f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(2f, 8f * size);
@@ -140,10 +176,8 @@ namespace RobotArena
             s2.shapeType = ParticleSystemShapeType.Cone;
             s2.angle = 20f;
             Burst(smoke, 8);
-            AlphaFade(smoke, new Color(0.55f, 0.55f, 0.55f));
-            SizeCurve(smoke, 0.6f, 2f);
-            Drag(smoke, 3f);
             Play(smoke, 2f);
+            }
 
             if (size >= 1.5f) Flash(pos, new Color(1f, 0.7f, 0.35f), 12f * size, 5f, 0.08f);
         }
@@ -152,7 +186,14 @@ namespace RobotArena
         {
             var assets = GameAssets.Get();
             if (assets == null) return;
-            var ps = NewSystem("Energy", pos, Quaternion.identity, assets.ParticleAdditive());
+            if (!FxPool.TryAcquire("Energy" + ColorUtility.ToHtmlStringRGB(color), out var ps, out bool isNew)) return;
+            Place(ps, pos, Quaternion.identity);
+            if (isNew)
+            {
+                Setup(ps, assets.ParticleAdditive());
+                ColorFade(ps, Color.white, color, color * 0.3f);
+                Drag(ps, 2f);
+            }
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.25f, 0.6f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(3f * size, 14f * size);
@@ -160,8 +201,6 @@ namespace RobotArena
             m.startColor = new ParticleSystem.MinMaxGradient(Color.white, color);
             SphereShape(ps, 0.3f * size);
             Burst(ps, 24);
-            ColorFade(ps, Color.white, color, color * 0.3f);
-            Drag(ps, 2f);
             Play(ps, 0.8f);
             if (size >= 1f) Flash(pos, color, 15f * size, 6f, 0.15f);
         }
@@ -169,16 +208,10 @@ namespace RobotArena
         /// <summary>A short-lived point light. Kept rare and brief for mobile.</summary>
         public static void Flash(Vector3 pos, Color color, float range, float intensity, float duration)
         {
-            var go = new GameObject("Flash");
-            go.transform.position = pos;
-            var light = go.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.color = color;
-            light.range = range;
-            light.intensity = intensity;
-            light.shadows = LightShadows.None;
-            var fade = go.AddComponent<LightFade>();
-            fade.duration = duration;
+            var fade = FxPool.AcquireFlash();
+            if (fade == null) return;
+            fade.transform.position = pos;
+            fade.Begin(color, range, intensity, duration);
         }
 
         // ---------- Continuous effects ----------
@@ -188,7 +221,10 @@ namespace RobotArena
         {
             var assets = GameAssets.Get();
             if (assets == null) return null;
-            var ps = NewSystem("Thruster", nozzle.position, nozzle.rotation, assets.ParticleAdditive(), nozzle);
+            var ps = FxPool.AcquireContinuous("Thruster");
+            Place(ps, nozzle.position, nozzle.rotation);
+            ps.transform.SetParent(nozzle, true);
+            Setup(ps, assets.ParticleAdditive());
             var m = ps.main;
             m.loop = true;
             m.duration = 1f;
@@ -215,7 +251,10 @@ namespace RobotArena
         {
             var assets = GameAssets.Get();
             if (assets == null) return null;
-            var ps = NewSystem("SmokeTrail", parent.position, parent.rotation, assets.ParticleAlpha(), parent);
+            var ps = FxPool.AcquireContinuous("SmokeTrail");
+            Place(ps, parent.position, parent.rotation);
+            ps.transform.SetParent(parent, true);
+            Setup(ps, assets.ParticleAlpha());
             var m = ps.main;
             m.loop = true;
             m.duration = 1f;
@@ -238,9 +277,7 @@ namespace RobotArena
         public static void Detach(ParticleSystem ps, float linger = 3f)
         {
             if (ps == null) return;
-            ps.transform.SetParent(null, true);
-            ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-            Object.Destroy(ps.gameObject, linger);
+            FxPool.Release(ps, linger);
         }
 
         public static void SetRate(ParticleSystem ps, float rate)
@@ -252,15 +289,24 @@ namespace RobotArena
 
         // ---------- Helpers ----------
 
-        static ParticleSystem NewSystem(string name, Vector3 pos, Quaternion rot, Material mat, Transform parent = null)
+        internal static ParticleSystem CreateSystem(string name)
         {
             var go = new GameObject(name);
-            go.transform.SetPositionAndRotation(pos, rot);
-            if (parent != null) go.transform.SetParent(parent, true);
-
             var ps = go.AddComponent<ParticleSystem>();
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.playOnAwake = false;
+            return ps;
+        }
 
+        static void Place(ParticleSystem ps, Vector3 pos, Quaternion rot)
+        {
+            ps.transform.SetPositionAndRotation(pos, rot);
+        }
+
+        /// <summary>Baseline settings shared by every effect.</summary>
+        static void Setup(ParticleSystem ps, Material mat)
+        {
             var main = ps.main;
             main.playOnAwake = false;
             main.loop = false;
@@ -275,19 +321,21 @@ namespace RobotArena
             var shape = ps.shape;
             shape.enabled = false;
 
-            var r = go.GetComponent<ParticleSystemRenderer>();
+            var r = ps.GetComponent<ParticleSystemRenderer>();
             r.sharedMaterial = mat;
             r.renderMode = ParticleSystemRenderMode.Billboard;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.receiveShadows = false;
-            return ps;
         }
+
+        static readonly ParticleSystem.Burst[] OneBurst = new ParticleSystem.Burst[1];
 
         static void Burst(ParticleSystem ps, int count)
         {
             var e = ps.emission;
             e.enabled = true;
-            e.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)Mathf.Clamp(count, 1, 200)) });
+            OneBurst[0] = new ParticleSystem.Burst(0f, (short)Mathf.Clamp(count, 1, 200));
+            e.SetBursts(OneBurst, 1);
         }
 
         static void SphereShape(ParticleSystem ps, float radius)
@@ -340,29 +388,50 @@ namespace RobotArena
         static void Play(ParticleSystem ps, float lifetime)
         {
             ps.Play();
-            Object.Destroy(ps.gameObject, lifetime + 0.5f);
+            FxPool.Release(ps, lifetime + 0.5f);
         }
     }
 
-    /// <summary>Fades a light out and removes it.</summary>
+    /// <summary>Fades a pooled light out, then switches it off for reuse.</summary>
     public class LightFade : MonoBehaviour
     {
-        public float duration = 0.2f;
         Light lightComp;
         float startIntensity;
+        float duration = 0.2f;
         float t;
 
-        void Start()
+        public bool Busy => enabled;
+
+        public void Init()
         {
-            lightComp = GetComponent<Light>();
-            startIntensity = lightComp.intensity;
+            lightComp = gameObject.AddComponent<Light>();
+            lightComp.type = LightType.Point;
+            lightComp.shadows = LightShadows.None;
+            lightComp.enabled = false;
+            enabled = false;
+        }
+
+        public void Begin(Color color, float range, float intensity, float seconds)
+        {
+            lightComp.color = color;
+            lightComp.range = range;
+            lightComp.intensity = intensity;
+            lightComp.enabled = true;
+            startIntensity = intensity;
+            duration = Mathf.Max(0.01f, seconds);
+            t = 0f;
+            enabled = true;
         }
 
         void Update()
         {
             t += Time.deltaTime;
-            if (lightComp != null) lightComp.intensity = Mathf.Lerp(startIntensity, 0f, t / duration);
-            if (t >= duration) Destroy(gameObject);
+            lightComp.intensity = Mathf.Lerp(startIntensity, 0f, t / duration);
+            if (t >= duration)
+            {
+                lightComp.enabled = false;
+                enabled = false;
+            }
         }
     }
 }

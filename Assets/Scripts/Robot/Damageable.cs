@@ -226,6 +226,10 @@ namespace RobotArena
     public static class Explosions
     {
         static readonly Collider[] Buffer = new Collider[128];
+        // Separate buffer: a robot dying inside Detonate calls ApplyForce, which reuses Buffer.
+        static readonly Collider[] DetonateBuffer = new Collider[128];
+        static readonly HashSet<Damageable> HitRobots = new HashSet<Damageable>();
+        static readonly HashSet<Rigidbody> Pushed = new HashSet<Rigidbody>();
 
         /// <summary>Damages robots in range (with falloff) and pushes physics objects.</summary>
         public static void Detonate(Vector3 pos, float radius, float damage, float force, Damageable attacker, float fxSize)
@@ -234,15 +238,16 @@ namespace RobotArena
             GameAudio.Play(fxSize > 1.5f ? Sfx.BigExplosion : Sfx.Explosion, pos, 1f, Random.Range(0.85f, 1.1f));
             FollowCamera.Shake(0.35f * fxSize, pos, 120f);
 
-            var hitRobots = new HashSet<Damageable>();
-            int n = Physics.OverlapSphereNonAlloc(pos, radius, Buffer, ~0, QueryTriggerInteraction.Ignore);
+            var hitRobots = HitRobots;
+            hitRobots.Clear();
+            int n = Physics.OverlapSphereNonAlloc(pos, radius, DetonateBuffer, ~0, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
             {
-                var d = Buffer[i].GetComponentInParent<Damageable>();
+                var d = DetonateBuffer[i].GetComponentInParent<Damageable>();
                 if (d == null || d.IsDead || !hitRobots.Add(d)) continue;
                 if (attacker != null && d.team == attacker.team && d != attacker) continue;
                 if (d == attacker) continue;
-                Vector3 closest = Buffer[i].ClosestPoint(pos);
+                Vector3 closest = DetonateBuffer[i].ClosestPoint(pos);
                 float falloff = Mathf.Clamp01(1f - Vector3.Distance(closest, pos) / radius);
                 d.TakeDamage(damage * Mathf.Lerp(0.35f, 1f, falloff), closest, attacker);
             }
@@ -253,7 +258,8 @@ namespace RobotArena
         /// <summary>Physics push only. Force is roughly the speed change (m/s) at the centre.</summary>
         public static void ApplyForce(Vector3 pos, float radius, float force, Damageable ignore)
         {
-            var pushed = new HashSet<Rigidbody>();
+            var pushed = Pushed;
+            pushed.Clear();
             int n = Physics.OverlapSphereNonAlloc(pos, radius, Buffer, ~0, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
             {

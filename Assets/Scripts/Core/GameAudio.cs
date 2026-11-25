@@ -31,7 +31,9 @@ namespace RobotArena
 
         static GameAudio instance;
         readonly Dictionary<Sfx, AudioClip> clips = new Dictionary<Sfx, AudioClip>();
+        readonly Dictionary<Sfx, System.Func<AudioClip>> recipes = new Dictionary<Sfx, System.Func<AudioClip>>();
         readonly List<AudioSource> pool = new List<AudioSource>();
+        bool prewarming;
         AudioSource uiSource;
         int next;
 
@@ -45,6 +47,8 @@ namespace RobotArena
                 if (instance == null)
                 {
                     var go = new GameObject("GameAudio");
+                    // Survives "fight again" scene reloads so sounds are only made once.
+                    DontDestroyOnLoad(go);
                     instance = go.AddComponent<GameAudio>();
                     instance.Init();
                 }
@@ -68,18 +72,53 @@ namespace RobotArena
             uiSource.spatialBlend = 0f;
             uiSource.playOnAwake = false;
 
-            clips[Sfx.Footstep] = Make("Footstep", 0.9f, Footstep);
-            clips[Sfx.Servo] = Make("Servo", 0.35f, Servo);
-            clips[Sfx.Cannon] = Make("Cannon", 1.4f, Cannon);
-            clips[Sfx.Explosion] = Make("Explosion", 2.2f, t => Explosion(t, 2.2f, 0.9f));
-            clips[Sfx.BigExplosion] = Make("BigExplosion", 4f, t => Explosion(t, 4f, 1.3f));
-            clips[Sfx.MissileLaunch] = Make("MissileLaunch", 1.1f, MissileLaunch);
-            clips[Sfx.Laser] = Make("Laser", 0.28f, Laser);
-            clips[Sfx.RailCharge] = Make("RailCharge", 1.5f, RailCharge);
-            clips[Sfx.RailFire] = Make("RailFire", 2.2f, RailFire);
-            clips[Sfx.MetalHit] = Make("MetalHit", 0.8f, MetalHit);
-            clips[Sfx.Landing] = Make("Landing", 2f, Landing);
-            clips[Sfx.UiClick] = Make("UiClick", 0.08f, t => Mathf.Sin(t * 2f * Mathf.PI * 1200f) * (1f - t / 0.08f) * 0.4f);
+            // Sounds are synthesised lazily (or ahead of time by Prewarm) instead of all at once,
+            // so tapping a button never waits for the whole sound bank.
+            recipes[Sfx.Footstep] = () => Make("Footstep", 0.9f, Footstep);
+            recipes[Sfx.Servo] = () => Make("Servo", 0.35f, Servo);
+            recipes[Sfx.Cannon] = () => Make("Cannon", 1.4f, Cannon);
+            recipes[Sfx.Explosion] = () => Make("Explosion", 2.2f, t => Explosion(t, 2.2f, 0.9f));
+            recipes[Sfx.BigExplosion] = () => Make("BigExplosion", 4f, t => Explosion(t, 4f, 1.3f));
+            recipes[Sfx.MissileLaunch] = () => Make("MissileLaunch", 1.1f, MissileLaunch);
+            recipes[Sfx.Laser] = () => Make("Laser", 0.28f, Laser);
+            recipes[Sfx.RailCharge] = () => Make("RailCharge", 1.5f, RailCharge);
+            recipes[Sfx.RailFire] = () => Make("RailFire", 2.2f, RailFire);
+            recipes[Sfx.MetalHit] = () => Make("MetalHit", 0.8f, MetalHit);
+            recipes[Sfx.Landing] = () => Make("Landing", 2f, Landing);
+            recipes[Sfx.UiClick] = () => Make("UiClick", 0.08f, t => Mathf.Sin(t * 2f * Mathf.PI * 1200f) * (1f - t / 0.08f) * 0.4f);
+            clips[Sfx.UiClick] = recipes[Sfx.UiClick]();
+        }
+
+        AudioClip Clip(Sfx sfx)
+        {
+            if (clips.TryGetValue(sfx, out var clip)) return clip;
+            if (!recipes.TryGetValue(sfx, out var recipe)) return null;
+            clip = recipe();
+            clips[sfx] = clip;
+            return clip;
+        }
+
+        /// <summary>Synthesises the sound bank a little at a time (one sound per frame) while the menu is open.</summary>
+        public static void Prewarm()
+        {
+            var a = Instance;
+            if (!a.prewarming) a.StartCoroutine(a.PrewarmRoutine());
+        }
+
+        System.Collections.IEnumerator PrewarmRoutine()
+        {
+            prewarming = true;
+            foreach (Sfx sfx in System.Enum.GetValues(typeof(Sfx)))
+            {
+                if (!clips.ContainsKey(sfx))
+                {
+                    Clip(sfx);
+                    yield return null;
+                }
+            }
+            EngineLoop();
+            yield return null;
+            ThrustLoop();
         }
 
         public static void Configure3D(AudioSource src, float minDistance, float maxDistance)
@@ -95,7 +134,8 @@ namespace RobotArena
         public static void Play(Sfx sfx, Vector3 position, float volume = 1f, float pitch = 1f)
         {
             var a = Instance;
-            if (!a.clips.TryGetValue(sfx, out var clip)) return;
+            var clip = a.Clip(sfx);
+            if (clip == null) return;
             var src = a.pool[a.next];
             a.next = (a.next + 1) % a.pool.Count;
             src.transform.position = position;
@@ -109,7 +149,8 @@ namespace RobotArena
         public static void Play2D(Sfx sfx, float volume = 1f)
         {
             var a = Instance;
-            if (!a.clips.TryGetValue(sfx, out var clip)) return;
+            var clip = a.Clip(sfx);
+            if (clip == null) return;
             a.uiSource.PlayOneShot(clip, volume);
         }
 

@@ -79,12 +79,41 @@ namespace RobotArena.EditorTools
                 PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
                 PlayerSettings.WebGL.decompressionFallback = false;
                 PlayerSettings.runInBackground = false;
+                // Our page: renders phones at normal pixel density and fills the screen.
+                PlayerSettings.WebGL.template = "PROJECT:WarOfRobots";
+                PlayerSettings.WebGL.dataCaching = true;
+                // Best effort: these settings moved between Unity versions, so set them by name.
+                SetStaticByName("UnityEditor.PlayerSettings+WebGL", "powerPreference", "HighPerformance");
+                SetStaticByName("UnityEditor.WebGL.UserBuildSettings", "codeOptimization", "RuntimeSpeed");
             }
             else if (target == BuildTarget.iOS)
             {
                 PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
                 PlayerSettings.iOS.appleEnableAutomaticSigning = false;
                 PlayerSettings.iOS.targetOSVersionString = "15.0";
+            }
+        }
+
+        static void SetStaticByName(string typeName, string property, string enumValue)
+        {
+            try
+            {
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var type = asm.GetType(typeName, false);
+                    if (type == null) continue;
+                    var prop = type.GetProperty(property, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    if (prop == null || !prop.CanWrite) continue;
+                    object value = prop.PropertyType.IsEnum ? Enum.Parse(prop.PropertyType, enumValue) : (object)enumValue;
+                    prop.SetValue(null, value);
+                    Debug.Log($"[CIBuild] {typeName}.{property} = {enumValue}");
+                    return;
+                }
+                Debug.Log($"[CIBuild] {typeName}.{property} not found, skipped.");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[CIBuild] Could not set {typeName}.{property}: {e.Message}");
             }
         }
 

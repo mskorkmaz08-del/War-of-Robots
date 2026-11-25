@@ -18,6 +18,10 @@ namespace RobotArena
         GameObject selectPanel;
         GameObject fightPanel;
         GameObject endPanel;
+        GameObject deployPanel;
+        Weapon special;
+        Locomotion playerLoco;
+        string lastSpecialText;
         GameObject touchControls;
         Text endTitle;
         Text endSub;
@@ -73,6 +77,7 @@ namespace RobotArena
             BuildSelect();
             BuildFight();
             BuildEnd();
+            BuildDeploying();
         }
 
         // ---------- Robot select ----------
@@ -125,6 +130,7 @@ namespace RobotArena
         public void ShowSelect()
         {
             selectPanel.SetActive(true);
+            deployPanel.SetActive(false);
             fightPanel.SetActive(false);
             endPanel.SetActive(false);
         }
@@ -217,8 +223,17 @@ namespace RobotArena
         public void ShowFight()
         {
             selectPanel.SetActive(false);
+            deployPanel.SetActive(false);
             endPanel.SetActive(false);
             fightPanel.SetActive(true);
+            special = null;
+            playerLoco = null;
+            lastSpecialText = null;
+            if (match.Player != null)
+            {
+                playerLoco = match.Player.GetComponent<Locomotion>();
+                foreach (var w in match.Player.GetComponents<Weapon>()) if (w.slot == Weapon.Slot.Special) special = w;
+            }
 
             foreach (var e in enemyBars) if (e.fill != null) Destroy(e.fill.parent.parent.gameObject);
             enemyBars.Clear();
@@ -246,17 +261,19 @@ namespace RobotArena
             if (p != null)
             {
                 SetFill(healthFill, p.HealthFraction);
-                var loco = p.GetComponent<Locomotion>();
-                if (loco != null) SetFill(fuelFill, loco.Fuel01);
+                if (playerLoco != null) SetFill(fuelFill, playerLoco.Fuel01);
 
-                Weapon special = null;
-                foreach (var w in p.GetComponents<Weapon>()) if (w.slot == Weapon.Slot.Special) special = w;
                 if (special != null)
                 {
                     SetFill(specialFill, special.Ready01);
                     var rail = special as PlasmaRailgun;
                     string state = rail != null && rail.IsCharging ? "CHARGING..." : (special.IsReady ? "READY" : "RELOADING");
-                    specialLabel.text = "  " + special.displayName.ToUpper() + "  -  " + state;
+                    // Only touch the text when it changes: rebuilding text every frame is slow on phones.
+                    if (!ReferenceEquals(state, lastSpecialText))
+                    {
+                        lastSpecialText = state;
+                        specialLabel.text = "  " + special.displayName.ToUpper() + "  -  " + state;
+                    }
                 }
 
                 if (lastHealth >= 0f && p.HealthFraction < lastHealth)
@@ -271,7 +288,11 @@ namespace RobotArena
             {
                 if (e.d == null) continue;
                 SetFill(e.fill, e.d.HealthFraction);
-                if (e.d.IsDead) e.label.text = e.d.displayName + "  -  DESTROYED";
+                if (e.d.IsDead && e.label.color.a > 0.99f)
+                {
+                    e.label.text = e.d.displayName + "  -  DESTROYED";
+                    e.label.color = new Color(e.label.color.r, e.label.color.g, e.label.color.b, 0.98f);
+                }
             }
 
             UpdateTargetMarker(p);
@@ -310,15 +331,56 @@ namespace RobotArena
             endSub = Label(endPanel.transform, "", 40, Color.white, TextAnchor.MiddleCenter);
             Place(endSub.rectTransform, new Vector2(0.5f, 0.48f), new Vector2(1400f, 80f));
 
-            var btnRt = MakeRect("Again", endPanel.transform, new Vector2(0.5f, 0.3f), new Vector2(0.5f, 0.3f), Vector2.zero, new Vector2(520f, 130f));
+            EndButton("FIGHT AGAIN", new Vector2(0.37f, 0.28f), Orange, Color.black, () => match.Restart());
+            EndButton("CHANGE ROBOT", new Vector2(0.63f, 0.28f), new Color(0.2f, 0.24f, 0.3f, 0.95f), Color.white, () => match.ChangeRobot());
+        }
+
+        void EndButton(string label, Vector2 anchor, Color color, Color textColor, UnityEngine.Events.UnityAction onClick)
+        {
+            var btnRt = MakeRect(label, endPanel.transform, anchor, anchor, Vector2.zero, new Vector2(560f, 130f));
             var img = btnRt.gameObject.AddComponent<Image>();
-            img.color = Orange;
+            img.color = color;
             var btn = btnRt.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
-            btn.onClick.AddListener(() => match.Restart());
-            var t = Label(btnRt, "FIGHT AGAIN", 52, Color.black, TextAnchor.MiddleCenter);
+            btn.onClick.AddListener(() =>
+            {
+                // Show the tap straight away; the reload happens on the next frames.
+                ShowLoading();
+                onClick();
+            });
+            var t = Label(btnRt, label, 50, textColor, TextAnchor.MiddleCenter);
             t.fontStyle = FontStyle.Bold;
             Stretch(t.rectTransform);
+        }
+
+        // ---------- Deploying / loading screen ----------
+
+        Text deployText;
+
+        void BuildDeploying()
+        {
+            deployPanel = MakeRect("Deploying", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
+            deployPanel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+            deployText = Label(deployPanel.transform, "DEPLOYING...", 90, Orange, TextAnchor.MiddleCenter);
+            deployText.fontStyle = FontStyle.Bold;
+            Place(deployText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(1600f, 160f));
+            deployPanel.SetActive(false);
+        }
+
+        public void ShowDeploying()
+        {
+            selectPanel.SetActive(false);
+            endPanel.SetActive(false);
+            fightPanel.SetActive(false);
+            deployText.text = "DEPLOYING...";
+            deployPanel.SetActive(true);
+        }
+
+        void ShowLoading()
+        {
+            endPanel.SetActive(false);
+            deployText.text = "LOADING...";
+            deployPanel.SetActive(true);
         }
 
         public void ShowEnd(bool won)
@@ -412,7 +474,10 @@ namespace RobotArena
         static void SetFill(RectTransform fill, float fraction)
         {
             if (fill == null) return;
-            fill.anchorMax = new Vector2(Mathf.Clamp01(fraction), 1f);
+            // Skip tiny changes so the UI isn't rebuilt every frame.
+            float f = Mathf.Round(Mathf.Clamp01(fraction) * 200f) / 200f;
+            if (Mathf.Approximately(fill.anchorMax.x, f)) return;
+            fill.anchorMax = new Vector2(f, 1f);
             fill.offsetMax = Vector2.zero;
         }
 

@@ -11,7 +11,7 @@ namespace RobotArena
     /// </summary>
     public class MatchManager : MonoBehaviour
     {
-        public enum State { Select, Fighting, Won, Lost }
+        public enum State { Select, Deploying, Fighting, Won, Lost }
 
         public static MatchManager Instance { get; private set; }
 
@@ -25,26 +25,57 @@ namespace RobotArena
         Hud hud;
         const float BaseFixedDelta = 0.02f;
 
+        // Remembered across "fight again" reloads, so the next match starts straight away.
+        static RobotType? redeploy;
+
         void Awake()
         {
             Instance = this;
             Time.timeScale = 1f;
             Time.fixedDeltaTime = BaseFixedDelta;
-            Application.targetFrameRate = 60;
+            Performance.Apply();
+            Performance.TuneCamera(Camera.main);
         }
 
         void Start()
         {
             hud = gameObject.AddComponent<Hud>();
             hud.Build(this);
-            hud.ShowSelect();
+            // Fill the effect pools and compile effect shaders out of sight.
+            FxPool.Prewarm(new Vector3(0f, -40f, 0f));
+
+            if (redeploy.HasValue)
+            {
+                var type = redeploy.Value;
+                redeploy = null;
+                StartMatch(type);
+            }
+            else
+            {
+                hud.ShowSelect();
+                // Make the sounds while the player picks.
+                GameAudio.Prewarm();
+            }
         }
+
+        public RobotType PlayerType { get; private set; }
 
         public void StartMatch(RobotType type)
         {
             if (Current != State.Select) return;
-            Current = State.Fighting;
+            Current = State.Deploying;
+            PlayerType = type;
             GameAudio.Play2D(Sfx.UiClick);
+            hud.ShowDeploying();
+            StartCoroutine(Deploy(type));
+        }
+
+        /// <summary>Builds one robot per frame so the screen never freezes on a tap.</summary>
+        IEnumerator Deploy(RobotType type)
+        {
+            // Let the "deploying" screen draw before the heavy work starts.
+            yield return null;
+            yield return null;
 
             Vector3 pPos = playerSpawn != null ? playerSpawn.position : new Vector3(0f, 0f, -60f);
             Quaternion pRot = playerSpawn != null ? playerSpawn.rotation : Quaternion.identity;
@@ -60,6 +91,7 @@ namespace RobotArena
                 if (type == RobotType.Titan) cam.SetTarget(playerGo.transform, 32f, -1f, 2.5f);
                 else cam.SetTarget(playerGo.transform, 23f, 5.5f, 2.5f);
             }
+            yield return null;
 
             // Enemies: one of each kind, so both styles fight you.
             var enemyTypes = new[] { RobotType.Titan, RobotType.Raptor, RobotType.Raptor };
@@ -90,9 +122,12 @@ namespace RobotArena
                 var d = e.GetComponent<Damageable>();
                 d.Died += OnEnemyDied;
                 Enemies.Add(d);
+                yield return null;
             }
 
+            Current = State.Fighting;
             hud.ShowFight();
+            GameAudio.Prewarm();
         }
 
         void OnEnemyDied(Damageable d)
@@ -135,11 +170,37 @@ namespace RobotArena
             hud.ShowEnd(won);
         }
 
+        /// <summary>Same robot again, straight into the fight.</summary>
         public void Restart()
         {
+            redeploy = PlayerType;
+            Reload();
+        }
+
+        /// <summary>Back to the robot select screen.</summary>
+        public void ChangeRobot()
+        {
+            redeploy = null;
+            Reload();
+        }
+
+        bool reloading;
+
+        void Reload()
+        {
+            if (reloading) return;
+            reloading = true;
             GameAudio.Play2D(Sfx.UiClick);
             Time.timeScale = 1f;
             Time.fixedDeltaTime = BaseFixedDelta;
+            StartCoroutine(ReloadNextFrame());
+        }
+
+        IEnumerator ReloadNextFrame()
+        {
+            // Let the "loading" screen draw first so the tap feels instant.
+            yield return null;
+            yield return null;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
     }

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace RobotArena
 {
-    public enum RobotType { Titan, Raptor }
+    public enum RobotType { Titan, Raptor, Arachne, Hornet, Juggernaut }
 
     /// <summary>Paint scheme for a robot.</summary>
     public struct Livery
@@ -44,7 +44,7 @@ namespace RobotArena
     /// the Titan walker stands about 15 m tall, the Raptor is a 10 m long armoured
     /// six-wheeler.
     /// </summary>
-    public static class RobotFactory
+    public static partial class RobotFactory
     {
         static GameAssets A => GameAssets.Get();
 
@@ -67,9 +67,15 @@ namespace RobotArena
         public static GameObject Build(RobotType type, Vector3 groundPos, Quaternion rotation, int team, Livery livery, bool player, string name)
         {
             PrepareMaterials(livery);
-            var go = type == RobotType.Titan
-                ? BuildTitan(groundPos, rotation, team, player, name)
-                : BuildRaptor(groundPos, rotation, team, player, name);
+            GameObject go;
+            switch (type)
+            {
+                case RobotType.Raptor: go = BuildRaptor(groundPos, rotation, team, player, name); break;
+                case RobotType.Arachne: go = BuildArachne(groundPos, rotation, team, player, name); break;
+                case RobotType.Hornet: go = BuildHornet(groundPos, rotation, team, player, name); break;
+                case RobotType.Juggernaut: go = BuildJuggernaut(groundPos, rotation, team, player, name); break;
+                default: go = BuildTitan(groundPos, rotation, team, player, name); break;
+            }
             if (!player) MakeEnemyFair(go);
             return go;
         }

@@ -25,7 +25,8 @@ namespace RobotArena
         Defeat,
         HitTaken,
         Sizzle,
-        Confirm
+        Confirm,
+        Gatling
     }
 
     /// <summary>
@@ -110,6 +111,7 @@ namespace RobotArena
             recipes[Sfx.HitTaken] = () => Make("HitTaken", 0.7f, HitTaken);
             recipes[Sfx.Sizzle] = () => Make("Sizzle", 0.35f, Sizzle);
             recipes[Sfx.Confirm] = () => Make("Confirm", 0.35f, Confirm);
+            recipes[Sfx.Gatling] = () => Make("Gatling", 0.16f, Gatling);
             clips[Sfx.UiClick] = recipes[Sfx.UiClick]();
 
             musicSource = gameObject.AddComponent<AudioSource>();
@@ -467,6 +469,14 @@ namespace RobotArena
         {
             float hiss = (LowPass(ref lp1, Noise(), 6000f) - LowPass(ref lp2, Noise(), 1500f)) * 2f;
             return hiss * Env(t, 0.002f, 0.1f) + Sine(t, 2400f) * Env(t, 0.001f, 0.03f) * 0.2f;
+        }
+
+        static float Gatling(float t)
+        {
+            float crack = Noise() * Env(t, 0.0005f, 0.012f);
+            float thump = Sine(t, Mathf.Lerp(180f, 70f, Mathf.Clamp01(t / 0.08f))) * Env(t, 0.001f, 0.04f);
+            float body = LowPass(ref lp1, Noise(), 900f) * Env(t, 0.001f, 0.05f) * 1.5f;
+            return crack * 0.7f + thump + body;
         }
 
         static float Confirm(float t)

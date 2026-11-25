@@ -20,6 +20,10 @@ namespace RobotArena
             public Transform shin;
             public Transform foot;
             public float side = 1f;
+            [Tooltip("Where the foot rests relative to the hip (local, flat). Zero = just under the hip.")]
+            public Vector3 footOffset;
+            [Tooltip("Which way the knee bends (local). Zero = forward, like a person.")]
+            public Vector3 bendHint;
             [System.NonSerialized] public Vector3 footPos;
             [System.NonSerialized] public Vector3 stepFrom;
             [System.NonSerialized] public Vector3 stepTo;
@@ -292,7 +296,10 @@ namespace RobotArena
             Vector3 hip = leg.hip.position;
             Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             Vector3 flatRight = Vector3.Cross(Vector3.up, flatForward);
-            Vector3 start = hip + flatRight * leg.side * 0.4f + lead + Vector3.up * 2f;
+            Vector3 offset = leg.footOffset == Vector3.zero
+                ? flatRight * leg.side * 0.4f
+                : flatRight * leg.footOffset.x + flatForward * leg.footOffset.z;
+            Vector3 start = hip + offset + lead + Vector3.up * 2f;
             if (GroundProbe.Cast(start, Vector3.down, 30f, rb, out RaycastHit hit, true))
                 return hit.point;
             return new Vector3(start.x, groundY, start.z);
@@ -313,7 +320,8 @@ namespace RobotArena
 
             float a = (thighLength * thighLength - shinLength * shinLength + d * d) / (2f * d);
             float h = Mathf.Sqrt(Mathf.Max(0f, thighLength * thighLength - a * a));
-            Vector3 bend = Vector3.ProjectOnPlane(transform.forward, dir).normalized;
+            Vector3 hint = leg.bendHint == Vector3.zero ? transform.forward : transform.TransformDirection(leg.bendHint);
+            Vector3 bend = Vector3.ProjectOnPlane(hint, dir).normalized;
             Vector3 knee = hip + dir * a + bend * h;
 
             PlaceSegment(leg.thigh, hip, knee);

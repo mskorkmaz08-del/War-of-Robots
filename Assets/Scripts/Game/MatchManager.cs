@@ -126,37 +126,31 @@ namespace RobotArena
             var cam = FollowCamera.Main;
             if (cam != null)
             {
-                if (type == RobotType.Titan) cam.SetTarget(playerGo.transform, 34f, -2f, 3f);
-                else cam.SetTarget(playerGo.transform, 24f, 0f, 2.5f);
+                var pi = RobotCatalog.Get(type);
+                cam.SetTarget(playerGo.transform, pi.camDistance, pi.camHeight, pi.camPivot);
             }
             yield return null;
 
-            // Enemies: one of each kind, so both styles fight you.
-            var enemyTypes = new[] { RobotType.Titan, RobotType.Raptor, RobotType.Raptor };
+            // Enemies: two different robots picked at random from the catalog.
+            var pool = new List<RobotInfo>(RobotCatalog.All);
             var liveries = new[] { Livery.Enemy, Livery.Enemy2, Livery.Enemy };
-            var names = new[] { "GOLIATH", "VIPER", "HAVOC" };
+            var namePool = new List<string> { "GOLIATH", "VIPER", "HAVOC", "MAULER", "WRAITH", "KRAKEN", "BRUTUS", "STINGER", "OGRE", "VENOM" };
             int count = Mathf.Min(2, enemySpawns.Length > 0 ? enemySpawns.Length : 2);
             for (int i = 0; i < count; i++)
             {
+                var info = pool[Random.Range(0, pool.Count)];
+                pool.Remove(info);
+                string enemyName = namePool[Random.Range(0, namePool.Count)];
+                namePool.Remove(enemyName);
                 Vector3 ePos = enemySpawns.Length > i ? enemySpawns[i].position : new Vector3((i - 0.5f) * 60f, 0f, 60f);
                 Quaternion eRot = enemySpawns.Length > i ? enemySpawns[i].rotation : Quaternion.Euler(0f, 180f, 0f);
-                var e = RobotFactory.Build(enemyTypes[i], ePos, eRot, 1, liveries[i], false, names[i]);
+                var e = RobotFactory.Build(info.type, ePos, eRot, 1, liveries[i], false, enemyName);
                 var brain = e.AddComponent<AIBrain>();
-                if (enemyTypes[i] == RobotType.Titan)
-                {
-                    brain.preferredRange = 70f;
-                    brain.fireRange = 190f;
-                    brain.specialRange = 160f;
-                    brain.aggression = 0.5f;
-                }
-                else
-                {
-                    brain.preferredRange = 45f;
-                    brain.fireRange = 150f;
-                    brain.specialRange = 180f;
-                    brain.aggression = 0.7f;
-                    brain.usesBoostToCharge = true;
-                }
+                brain.preferredRange = info.aiPreferredRange;
+                brain.fireRange = info.aiFireRange;
+                brain.specialRange = info.aiSpecialRange;
+                brain.aggression = info.aiAggression;
+                brain.usesBoostToCharge = info.aiBoostCharge;
                 var d = e.GetComponent<Damageable>();
                 d.Died += OnEnemyDied;
                 Enemies.Add(d);

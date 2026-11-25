@@ -104,7 +104,7 @@ namespace RobotArena
 
         /// <summary>Faint lighter band along the top edge (replaces the old glossy blob).</summary>
         public static Sprite Sheen => sheen != null ? sheen : sheen =
-            MakeSprite("Sheen", 96, (x, y, s) => (0.5f - ChamferDist(x, y, s, 28f)) * Mathf.Clamp01((y / s - 0.5f) * 2f) * 0.12f, new Vector4(32, 32, 32, 32));
+            MakeSprite("Sheen", 96, (x, y, s) => Mathf.Clamp01(0.5f - ChamferDist(x, y, s, 28f)) * Mathf.Clamp01((y / s - 0.5f) * 2f) * 0.1f, new Vector4(32, 32, 32, 32));
 
         /// <summary>Vertical fade: opaque at the bottom, clear at the top.</summary>
         public static Sprite VGrad => vgrad != null ? vgrad : vgrad =

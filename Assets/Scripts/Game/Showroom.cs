@@ -42,7 +42,7 @@ namespace RobotArena
             // Turntable: heavy steel plate with a thin amber edge light.
             Part(Shape.Cylinder, new Vector3(0f, 0.3f, 0f), Vector3.zero, new Vector3(34f, 0.6f, 34f), plateMat);
             Part(Shape.Cylinder, new Vector3(0f, 0.62f, 0f), Vector3.zero, new Vector3(31f, 0.1f, 31f), darkMat);
-            Part(Shape.Cylinder, new Vector3(0f, 0.12f, 0f), Vector3.zero, new Vector3(34.4f, 0.12f, 34.4f), amber);
+            Part(Shape.Cylinder, new Vector3(0f, 0.12f, 0f), Vector3.zero, new Vector3(34.4f, 0.12f, 34.4f), darkMat);
             // Hangar back wall: steel panels with recessed warm light bars.
             Part(Shape.Box, new Vector3(0f, 20f, 60f), Vector3.zero, new Vector3(160f, 40f, 2f), plateMat);
             for (int i = -3; i <= 3; i++)

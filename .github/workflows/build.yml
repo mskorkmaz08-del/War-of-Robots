@@ -62,6 +62,16 @@ jobs:
           key: Library-WebGL-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-WebGL-
 
+      # The WebAssembly linker needs more memory than the runner has; extra swap stops it being killed.
+      - name: Add swap for the WebGL linker
+        run: |
+          sudo fallocate -l 12G /mnt/extra.swap || sudo dd if=/dev/zero of=/mnt/extra.swap bs=1M count=12288
+          sudo chmod 600 /mnt/extra.swap
+          sudo mkswap /mnt/extra.swap
+          sudo swapon /mnt/extra.swap
+          free -h
+          df -h / /mnt
+
       - uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE || secrets.UNITY_LICENCE }}

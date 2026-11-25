@@ -88,6 +88,9 @@ namespace RobotArena.EditorTools
                 // Best effort: these settings moved between Unity versions, so set them by name.
                 SetStaticByName("UnityEditor.PlayerSettings+WebGL", "powerPreference", "HighPerformance");
                 SetStaticByName("UnityEditor.WebGL.UserBuildSettings", "codeOptimization", "RuntimeSpeed");
+                // The online packages make the WebAssembly link big; smaller generated
+                // code keeps the linker within the build machine's memory.
+                PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
             }
             else if (target == BuildTarget.iOS)
             {

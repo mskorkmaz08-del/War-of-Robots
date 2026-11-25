@@ -97,7 +97,7 @@ namespace RobotArena
             GameAudio.Configure3D(humAudio, 15f, 160f);
             humAudio.clip = GameAudio.EngineLoop();
             humAudio.loop = true;
-            humAudio.volume = 0.25f;
+            humAudio.volume = 0.14f;
             humAudio.pitch = 0.6f;
             humAudio.Play();
         }
@@ -172,7 +172,8 @@ namespace RobotArena
             Vector3 pos = new Vector3(rb.position.x, groundY, rb.position.z);
             float strength = Mathf.Clamp01(fallSpeed / 20f);
             bodyDip = Mathf.Lerp(0.6f, 2.2f, strength);
-            GameAudio.Play(Sfx.Landing, pos, Mathf.Lerp(0.6f, 1f, strength), 0.8f);
+            GameAudio.Play(Sfx.Landing, pos, Mathf.Lerp(0.6f, 1f, strength), 0.9f);
+            GameAudio.Play(Sfx.Hiss, pos + Vector3.up * 6f, 0.35f);
             Fx.Dust(pos, Mathf.Lerp(2f, 5f, strength));
             FollowCamera.Shake(Mathf.Lerp(0.3f, 0.9f, strength), pos, 160f);
 

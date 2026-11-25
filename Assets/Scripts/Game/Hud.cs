@@ -205,7 +205,7 @@ namespace RobotArena
             var info = RobotCatalog.All[hangarIndex];
             FillHangar(info);
             match.PreviewRobot(info);
-            GameAudio.Play2D(Sfx.Whoosh, 0.7f);
+            GameAudio.Play2D(Sfx.Servo, 0.5f);
         }
 
         void FillHangar(RobotInfo info)
@@ -231,7 +231,6 @@ namespace RobotArena
             hangarPanel.SetActive(true);
             GameAudio.PlayMusic(0.9f);
             GameAudio.PlayAmbience(false);
-            GameAudio.Play2D(Sfx.Whoosh, 0.8f);
         }
 
         // =====================================================================
@@ -351,7 +350,7 @@ namespace RobotArena
         {
             HideAll();
             fightPanel.SetActive(true);
-            GameAudio.PlayMusic(0.6f);
+            GameAudio.StopMusic();
             GameAudio.PlayAmbience(true);
             special = null;
             playerLoco = null;
@@ -433,7 +432,6 @@ namespace RobotArena
                 if (hp > 0f && hp < 0.25f && Time.unscaledTime - lastAlarm > 1.6f)
                 {
                     lastAlarm = Time.unscaledTime;
-                    GameAudio.Play2D(Sfx.Alarm, 0.4f);
                 }
                 if (lastHealth >= 0f && hp < lastHealth)
                     damageFlash.color = new Color(1f, 0.1f, 0f, Mathf.Min(0.35f, damageFlash.color.a + (lastHealth - hp) * 4f));
@@ -491,7 +489,6 @@ namespace RobotArena
             if (turret.Target != lastTarget)
             {
                 lastTarget = turret.Target;
-                GameAudio.Play2D(Sfx.LockOn, 0.5f);
             }
             var parentRt = (RectTransform)targetMarker.parent;
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRt, sp, null, out Vector2 local))
@@ -636,7 +633,7 @@ namespace RobotArena
             endTitle.text = won ? "VICTORY!" : "DESTROYED";
             endTitle.color = won ? UiKit.Yellow : UiKit.Red;
             GameAudio.Play2D(won ? Sfx.Victory : Sfx.Defeat, 1f);
-            GameAudio.PlayMusic(0.35f);
+            GameAudio.StopMusic();
             endSub.text = won ? "Every enemy machine is scrap metal." : "Your machine has fallen. Rebuild and return.";
         }
 
@@ -659,7 +656,6 @@ namespace RobotArena
             deployText.text = "DEPLOYING...";
             deployPanel.SetActive(true);
             GameAudio.Play2D(Sfx.Confirm, 0.9f);
-            GameAudio.Play2D(Sfx.Whoosh, 0.9f);
         }
 
         void ShowLoading()

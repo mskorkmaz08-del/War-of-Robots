@@ -10,12 +10,27 @@ namespace RobotArena
         public float range = 240f;
         public Transform[] spinners = new Transform[0];
         float spinSpeed;
+        AudioSource fireLoop;
+
+        void Start()
+        {
+            fireLoop = gameObject.AddComponent<AudioSource>();
+            GameAudio.Configure3D(fireLoop, 25f, 380f);
+            fireLoop.clip = GameAudio.GatlingLoop();
+            fireLoop.loop = true;
+            fireLoop.volume = 0f;
+            fireLoop.Play();
+        }
+
+        void OnDisable() { if (fireLoop != null) fireLoop.volume = 0f; }
 
         protected override void Update()
         {
             // Barrels spin up while firing and wind down after.
             spinSpeed = Mathf.MoveTowards(spinSpeed, Triggered ? 1440f : 0f, Time.deltaTime * 1800f);
             foreach (var s in spinners) if (s != null) s.Rotate(0f, 0f, spinSpeed * Time.deltaTime, Space.Self);
+            bool firing = Triggered && spinSpeed >= 700f;
+            if (fireLoop != null) fireLoop.volume = Mathf.MoveTowards(fireLoop.volume, firing ? 0.75f : 0f, Time.deltaTime * (firing ? 12f : 6f));
             if (Triggered && spinSpeed < 700f) return; // spinning up
             base.Update();
         }
@@ -39,7 +54,6 @@ namespace RobotArena
             }
             Beam.Spawn(from, to, 0.22f, new Color(1f, 0.85f, 0.4f), 0.05f);
             Fx.MuzzleFlash(from, dir, 0.45f);
-            GameAudio.Play(Sfx.Gatling, from, 0.55f, Random.Range(0.92f, 1.08f));
             if (IsPlayer) FollowCamera.Shake(0.03f, from, 40f);
         }
     }
@@ -129,7 +143,7 @@ namespace RobotArena
         {
             charging = true;
             chargeStart = Time.time;
-            GameAudio.Play(Sfx.RailCharge, transform.position, 0.6f, 1.6f);
+            GameAudio.Play(Sfx.RailCharge, transform.position, 0.6f, 1.4f);
         }
 
         void Discharge()
@@ -167,8 +181,8 @@ namespace RobotArena
             }
 
             Fx.EnergyBurst(from, color, 1.4f);
-            GameAudio.Play(Sfx.RailFire, from, 0.9f, 1.5f);
-            GameAudio.Play(Sfx.Sizzle, from, 1f, 0.7f);
+            GameAudio.Play(Sfx.Tesla, from, 1f);
+            GameAudio.Play(Sfx.Sizzle, p, 0.9f);
             FollowCamera.Shake(IsPlayer ? 0.4f : 0.15f, from, 120f);
         }
 
@@ -216,6 +230,7 @@ namespace RobotArena
         public float coneAngle = 16f;
         ParticleSystem[] flames;
         AudioSource roar;
+        bool wasOn;
         static readonly Collider[] Hits = new Collider[64];
 
         void Start()
@@ -237,16 +252,18 @@ namespace RobotArena
             }
             roar = gameObject.AddComponent<AudioSource>();
             GameAudio.Configure3D(roar, 20f, 200f);
-            roar.clip = GameAudio.ThrustLoop();
+            roar.clip = GameAudio.FlameLoop();
             roar.loop = true;
             roar.volume = 0f;
-            roar.pitch = 1.4f;
+            roar.pitch = 1f;
             roar.Play();
         }
 
         protected override void Update()
         {
             bool on = Triggered;
+            if (on && !wasOn && muzzles.Length > 0) GameAudio.Play(Sfx.FlameStart, muzzles[0].position, 0.8f);
+            wasOn = on;
             if (flames != null) foreach (var f in flames) Fx.SetRate(f, on ? 140f : 0f);
             if (roar != null) roar.volume = Mathf.MoveTowards(roar.volume, on ? 0.8f : 0f, Time.deltaTime * 5f);
             if (!on || muzzles.Length == 0) return;

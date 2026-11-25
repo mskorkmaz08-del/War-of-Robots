@@ -271,7 +271,8 @@ namespace RobotArena
 
             // Radar and pause, top right
             Minimap.Create(fightPanel.transform, new Vector2(1f, 1f), new Vector2(-175f, -175f), 300f);
-            UiKit.IconButton(fightPanel.transform, UiKit.PauseIcon, "II", new Vector2(1f, 1f), new Vector2(-395f, -70f), 100f, () => Pause(true));
+            var pauseBtn = UiKit.IconButton(fightPanel.transform, UiKit.PauseIcon, "II", new Vector2(1f, 1f), new Vector2(-395f, -70f), 100f, () => Pause(true));
+            UiKit.Label(UiKit.Rect("Caption", pauseBtn.transform, new Vector2(0.5f, 0f), new Vector2(0f, -22f), new Vector2(140f, 30f)), "PAUSE", 22, UiKit.TextDim);
 
             // Crosshair
             var cross = UiKit.Rect("Crosshair", fightPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(80f, 80f));
@@ -304,6 +305,8 @@ namespace RobotArena
             }
 
             BuildTouchControls();
+            // The full-screen look pad must not swallow taps on the pause button.
+            pauseBtn.transform.SetAsLastSibling();
         }
 
         void BuildTouchControls()

@@ -41,8 +41,8 @@ namespace RobotArena
             // The player's guns swing faster so shots line up while moving.
             if (turret != null)
             {
-                turret.yawSpeed *= 1.7f;
-                turret.pitchSpeed *= 1.5f;
+                turret.yawSpeed *= 2.8f;
+                turret.pitchSpeed *= 2.6f;
             }
         }
 
@@ -134,7 +134,12 @@ namespace RobotArena
             look *= GameSettings.LookSensitivity;
             if (cam != null) cam.AddLook(look.x, look.y);
 
-            DriveTowards(Vector2.ClampMagnitude(move, 1f), cam, fire || special, look.sqrMagnitude > 0.0001f);
+            bool looking = look.sqrMagnitude > 0.0001f;
+            DriveTowards(Vector2.ClampMagnitude(move, 1f), cam, fire || special, looking);
+
+            // Keep a locked enemy under the crosshair while moving or shooting.
+            if (cam != null && turret != null && turret.Target != null && (fire || special || move.sqrMagnitude > 0.02f))
+                cam.Assist(turret.Target.Center, looking ? 0.3f : 1f);
             commands.primary = fire;
             commands.special = special;
             commands.boost = boost;

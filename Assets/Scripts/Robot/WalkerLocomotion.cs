@@ -79,6 +79,8 @@ namespace RobotArena
         float uphill;
         float jumpCrouch;
         bool boostHeld;
+        float weightShift;   // -1 leaning on the left foot, +1 on the right
+        float SizeScale => Mathf.Max(0.6f, standHeight / 7f);
         const float SwingFraction = 0.42f;
 
         public override bool IsGrounded => grounded;
@@ -160,6 +162,9 @@ namespace RobotArena
                 Vector3 axis = Vector3.Cross(Vector3.up, flatVel.normalized);
                 targetUp = Quaternion.AngleAxis(Mathf.Clamp(uphill * 45f, -9f, 9f), axis) * Vector3.up;
             }
+            // Heavy side-to-side weight shift onto the standing foot.
+            if (grounded)
+                targetUp = Quaternion.AngleAxis(-weightShift * (legs.Length <= 2 ? 4f : 1.5f), flatForward) * targetUp;
 
             // Stay upright (or leaning as above), allow yaw. Firm and well damped so it doesn't wobble.
             Vector3 tilt = Vector3.Cross(transform.up, targetUp);
@@ -304,18 +309,21 @@ namespace RobotArena
             }
 
             // Cycles per second: follows speed, within limits so steps never get frantic or sluggish.
-            float cycle = strideLength * 2f;
-            float minRate = 0.5f / (stepDuration * 2f);
-            float maxRate = 1f / (stepDuration * 1.25f);
+            // Long strides at a slow, heavy cadence: a giant takes few big steps.
+            float cycle = strideLength * 2.4f;
+            float minRate = 0.22f;
+            float maxRate = 1f / (Mathf.Max(stepDuration, 0.4f) * 1.8f);
             float rate = 0f;
             if (drive > 0.4f) rate = Mathf.Clamp(drive / cycle, minRate, maxRate);
-            else if (anySwing || needSettle) rate = minRate * 1.4f;
+            else if (anySwing || needSettle) rate = 0.4f;
             gaitPhase = Mathf.Repeat(gaitPhase + rate * dt, 1f);
 
             float lift = stepHeight * (1f + Mathf.Clamp01(uphill * 3f) * 0.8f);
             float stanceTime = rate > 0.01f ? (1f - SwingFraction) / rate : 0f;
             Vector3 lead = flatVel * stanceTime * 0.5f;
             float bob = 0f;
+            float shift = 0f;
+            float moving01 = Mathf.Clamp01(speed / 2.5f);
 
             foreach (var leg in legs)
             {
@@ -333,11 +341,17 @@ namespace RobotArena
                     }
                     leg.stepT = s;
                     leg.stepTo = FootHome(leg, lead);
-                    float e = s * s * (3f - 2f * s);
+                    // Heavy step: the foot lifts first, swings through high, then drops
+                    // down hard at the end instead of hopping in a quick arc.
+                    float hs = Mathf.Clamp01((s - 0.12f) / 0.76f);
+                    float e = hs * hs * (3f - 2f * hs);
                     Vector3 pos = Vector3.Lerp(leg.stepFrom, leg.stepTo, e);
-                    pos.y += Mathf.Sin(s * Mathf.PI) * lift * Mathf.Clamp(drive / 3f, 0.45f, 1f);
+                    float arc = Mathf.Sin(Mathf.Pow(s, 0.7f) * Mathf.PI);
+                    pos.y += arc * lift * Mathf.Clamp(drive / 3f, 0.45f, 1f);
                     leg.footPos = pos;
-                    bob = Mathf.Max(bob, Mathf.Sin(s * Mathf.PI) * 0.3f * Mathf.Clamp01(speed / 2f));
+                    // The hull rises over the standing leg and sinks as the foot comes down.
+                    bob = Mathf.Max(bob, Mathf.Sin(s * Mathf.PI) * 0.5f * SizeScale * moving01);
+                    shift += -leg.side * Mathf.Sin(s * Mathf.PI) * moving01;
                 }
                 else if (leg.swinging)
                 {
@@ -348,12 +362,15 @@ namespace RobotArena
                 }
             }
             gaitBob = bob;
+            float swingCount = Mathf.Max(1f, legs.Length * 0.5f);
+            weightShift = Mathf.Lerp(weightShift, Mathf.Clamp(shift / swingCount, -1f, 1f), 1f - Mathf.Exp(-8f * dt));
         }
 
         /// <summary>Still leg poses in the air, held relative to the hull and blended smoothly.</summary>
         void UpdateAirPose(Vector3 velocity, Vector3 flatVel, float dt)
         {
             gaitBob = 0f;
+            weightShift = 0f;
             float reach = thighLength + shinLength;
             Vector3 localVel = transform.InverseTransformDirection(flatVel);
             foreach (var leg in legs)
@@ -393,9 +410,8 @@ namespace RobotArena
             GameAudio.Play(Sfx.Footstep, p, 1f, Random.Range(0.85f, 1f));
             Fx.Dust(p, 1.2f);
             FollowCamera.Shake(0.12f, p, 90f);
-            bodyDip = Mathf.Max(bodyDip, 0.3f);
-            // Sway the hull toward the planted foot for weight.
-            rb.AddTorque(transform.forward * -leg.side * 0.05f, ForceMode.VelocityChange);
+            // The whole hull sinks a little under its weight on every footfall.
+            bodyDip = Mathf.Max(bodyDip, 0.45f * SizeScale);
             Explosions.ApplyForce(p, 5f, 3f, GetComponent<Damageable>());
         }
 

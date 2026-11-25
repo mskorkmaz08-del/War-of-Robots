@@ -37,6 +37,7 @@ namespace RobotArena
 
         Damageable self;
         float retargetTimer;
+        float keepLockUntil;
         float yaw;
         float pitch;
 
@@ -129,6 +130,13 @@ namespace RobotArena
                 {
                     best = current;
                     bestAngle = Mathf.Min(bestAngle, a) - 5f; // others must be clearly closer
+                    keepLockUntil = Time.time + 0.6f;
+                }
+                else if (Time.time < keepLockUntil)
+                {
+                    // Briefly slid off (a sharp step or a jolt): hold the lock a moment
+                    // unless another enemy is right under the crosshair.
+                    best = current;
                 }
             }
             foreach (var d in Damageable.All)

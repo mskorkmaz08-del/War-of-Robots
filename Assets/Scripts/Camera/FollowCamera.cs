@@ -72,6 +72,28 @@ namespace RobotArena
             lastLookTime = Time.unscaledTime;
         }
 
+        float lastAssistTime = -999f;
+
+        /// <summary>
+        /// Aim assist: gently turns the view to keep a locked enemy under the crosshair,
+        /// so strafing or backing up doesn't slide the aim off it. Only pulls when the
+        /// enemy is already near the centre, so it never yanks the view around.
+        /// </summary>
+        public void Assist(Vector3 point, float strength)
+        {
+            Vector3 dir = point - transform.position;
+            if (dir.sqrMagnitude < 1f) return;
+            dir.Normalize();
+            float off = Vector3.Angle(transform.forward, dir);
+            if (off > 30f) return;
+            float wantedYaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+            float wantedPitch = Mathf.Clamp(-Mathf.Asin(Mathf.Clamp(dir.y, -1f, 1f)) * Mathf.Rad2Deg, minPitch, maxPitch);
+            float k = 1f - Mathf.Exp(-6f * strength * Time.unscaledDeltaTime);
+            yaw = Mathf.LerpAngle(yaw, wantedYaw, k);
+            pitch = Mathf.Lerp(pitch, wantedPitch, k * 0.6f);
+            lastAssistTime = Time.unscaledTime;
+        }
+
         /// <summary>The flat direction the camera faces; movement is relative to this.</summary>
         public Quaternion FlatRotation => Quaternion.Euler(0f, yaw, 0f);
 
@@ -94,7 +116,7 @@ namespace RobotArena
 
             // Drift back behind the robot when the player stops looking around and drives.
             float speedNow = targetBody != null ? Compat.GetVelocity(targetBody).magnitude : 0f;
-            if (Time.unscaledTime - lastLookTime > recenterDelay && speedNow > 3f)
+            if (Time.unscaledTime - lastLookTime > recenterDelay && Time.unscaledTime - lastAssistTime > 1f && speedNow > 3f)
             {
                 Vector3 flatForward = Vector3.ProjectOnPlane(target.forward, Vector3.up);
                 if (flatForward.sqrMagnitude > 0.01f)

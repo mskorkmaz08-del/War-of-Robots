@@ -48,6 +48,8 @@ namespace RobotArena
             hud = gameObject.AddComponent<Hud>();
             hud.Build(this);
             showroom = Showroom.Create();
+            // The Foundry's baked blocks get windows, doors and roofs.
+            BuildingKit.DressFoundry();
             // Fill the effect pools and compile effect shaders out of sight.
             FxPool.Prewarm(new Vector3(0f, -40f, 0f));
 

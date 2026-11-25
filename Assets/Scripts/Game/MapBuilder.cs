@@ -57,7 +57,7 @@ namespace RobotArena
         public static void Build(MapId map)
         {
             if (map == MapId.Foundry || A == null) return;
-            foreach (var name in new[] { "Arena", "Containers" })
+            foreach (var name in new[] { "Arena", "Containers", "BuildingDetails" })
             {
                 var old = GameObject.Find(name);
                 if (old != null) Object.Destroy(old);
@@ -177,13 +177,20 @@ namespace RobotArena
                 (new Vector3(-100f, 11f, -100f), new Vector3(34f, 22f, 30f)),
                 (new Vector3(100f, 11f, 100f), new Vector3(34f, 22f, 30f)),
             };
+            int hs = 11;
             foreach (var h in houses)
             {
-                Prim(PrimitiveType.Cube, root, h.p, 0f, h.s, A.buildingMat);
-                Prim(PrimitiveType.Cube, root, h.p + Vector3.up * (h.s.y * 0.5f + 0.4f), 0f, new Vector3(h.s.x + 1f, 0.8f, h.s.z + 1f), A.wallMat);
-                Prim(PrimitiveType.Cube, root, h.p + new Vector3(0f, -h.s.y * 0.5f + 5f, Mathf.Sign(-h.p.z) * (h.s.z * 0.5f + 0.05f)), 0f, new Vector3(12f, 10f, 0.2f), A.hazardMat);
-                for (int k = -1; k <= 1; k++)
-                    Prim(PrimitiveType.Cube, root, h.p + new Vector3(k * 10f, h.s.y * 0.5f - 3f, Mathf.Sign(-h.p.z) * (h.s.z * 0.5f + 0.1f)), 0f, new Vector3(2.2f, 0.5f, 0.3f), A.glowMat);
+                // Door side faces the middle of the yard.
+                float yaw = h.p.z < 0f ? 180f : 0f;
+                Prim(PrimitiveType.Cube, root, h.p, yaw, h.s, A.buildingMat);
+                BuildingKit.Dress(root, h.p, yaw, h.s, BuildingKit.Style.Industrial, hs++);
+            }
+            // Harbour offices in the other two corners.
+            foreach (var (p, yaw) in new[] { (new Vector3(-110f, 0f, 112f), 0f), (new Vector3(110f, 0f, -112f), 180f) })
+            {
+                var size = new Vector3(18f, 16f, 14f);
+                Prim(PrimitiveType.Cube, root, p + Vector3.up * size.y * 0.5f, yaw, size, A.buildingMat);
+                BuildingKit.Dress(root, p, yaw, size, BuildingKit.Style.Office, hs++);
             }
 
             // Bollards around the capture points
@@ -258,11 +265,12 @@ namespace RobotArena
 
             // Outpost: bunkers with sandbags and a comm mast in the middle.
             var bunkers = new[] { new Vector3(-22f, 0f, -70f), new Vector3(24f, 0f, -72f), new Vector3(-24f, 0f, 70f), new Vector3(22f, 0f, 72f) };
+            int bs = 31;
             foreach (var b in bunkers)
             {
+                float yaw = b.z < 0f ? 0f : 180f;
                 Prim(PrimitiveType.Cube, root, b + Vector3.up * 3f, 0f, new Vector3(12f, 6f, 8f), A.buildingMat);
-                Prim(PrimitiveType.Cube, root, b + Vector3.up * 6.3f, 0f, new Vector3(13f, 0.6f, 9f), A.hazardMat);
-                Prim(PrimitiveType.Cube, root, b + new Vector3(0f, 3.5f, Mathf.Sign(-b.z) * 4.05f), 0f, new Vector3(8f, 0.8f, 0.2f), A.glowMat);
+                BuildingKit.Dress(root, b, yaw, new Vector3(12f, 6f, 8f), BuildingKit.Style.Bunker, bs++);
                 for (int k = -2; k <= 2; k++)
                     Prim(PrimitiveType.Cylinder, root, b + new Vector3(k * 2.6f, 0.6f, Mathf.Sign(-b.z) * 7f), 90f, new Vector3(1.2f, 1.3f, 1.2f), rockDark, 0f, 90f);
             }

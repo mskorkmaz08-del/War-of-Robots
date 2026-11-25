@@ -32,26 +32,30 @@ namespace RobotArena
         {
             var a = GameAssets.Get();
             transform.position = Spot;
-            var floorMat = a.Paint(new Color(0.08f, 0.1f, 0.14f), 0.6f, 0.65f, false);
-            var plateMat = a.Paint(new Color(0.18f, 0.2f, 0.24f), 0.85f, 0.6f, true);
-            var glowCyan = a.Glow(UiKit.Cyan, 2.5f);
-            var glowOrange = a.Glow(UiKit.Orange, 2.5f);
+            var floorMat = a.Paint(new Color(0.16f, 0.17f, 0.19f), 0.4f, 0.5f, true);
+            var plateMat = a.Paint(new Color(0.22f, 0.23f, 0.25f), 0.6f, 0.55f, true);
+            var darkMat = a.Paint(new Color(0.08f, 0.085f, 0.095f), 0.5f, 0.45f, false);
+            var lamp = a.Glow(new Color(1f, 0.93f, 0.82f), 1.6f);
+            var amber = a.Glow(UiKit.Orange, 1.4f);
 
             Part(Shape.Box, new Vector3(0f, -0.5f, 0f), Vector3.zero, new Vector3(400f, 1f, 400f), floorMat);
-            // Turntable: layered discs with a glowing rim.
+            // Turntable: heavy steel plate with a thin amber edge light.
             Part(Shape.Cylinder, new Vector3(0f, 0.3f, 0f), Vector3.zero, new Vector3(34f, 0.6f, 34f), plateMat);
-            Part(Shape.Cylinder, new Vector3(0f, 0.62f, 0f), Vector3.zero, new Vector3(30f, 0.1f, 30f), floorMat);
-            Part(Shape.Cylinder, new Vector3(0f, 0.25f, 0f), Vector3.zero, new Vector3(34.6f, 0.3f, 34.6f), glowCyan);
-            // Hangar back wall with light strips and hazard stripes.
+            Part(Shape.Cylinder, new Vector3(0f, 0.62f, 0f), Vector3.zero, new Vector3(31f, 0.1f, 31f), darkMat);
+            Part(Shape.Cylinder, new Vector3(0f, 0.12f, 0f), Vector3.zero, new Vector3(34.4f, 0.12f, 34.4f), amber);
+            // Hangar back wall: steel panels with recessed warm light bars.
             Part(Shape.Box, new Vector3(0f, 20f, 60f), Vector3.zero, new Vector3(160f, 40f, 2f), plateMat);
             for (int i = -3; i <= 3; i++)
-                Part(Shape.Box, new Vector3(i * 20f, 20f, 58.8f), Vector3.zero, new Vector3(1.2f, 34f, 0.4f), i % 2 == 0 ? glowCyan : glowOrange);
-            Part(Shape.Box, new Vector3(0f, 38f, 58.8f), Vector3.zero, new Vector3(150f, 0.8f, 0.4f), glowOrange);
+            {
+                Part(Shape.Box, new Vector3(i * 20f, 20f, 58.6f), Vector3.zero, new Vector3(4f, 40f, 1.2f), darkMat);
+                Part(Shape.Box, new Vector3(i * 20f, 20f, 58f), Vector3.zero, new Vector3(0.5f, 30f, 0.2f), lamp);
+            }
+            Part(Shape.Box, new Vector3(0f, 38.5f, 58.6f), Vector3.zero, new Vector3(160f, 3f, 1.5f), darkMat);
             // Side pylons.
             foreach (float x in new[] { -46f, 46f })
             {
                 Part(Shape.Box, new Vector3(x, 14f, 30f), Vector3.zero, new Vector3(6f, 28f, 6f), plateMat);
-                Part(Shape.Box, new Vector3(x, 14f, 26.9f), Vector3.zero, new Vector3(1f, 24f, 0.3f), glowCyan);
+                Part(Shape.Box, new Vector3(x, 26f, 26.9f), Vector3.zero, new Vector3(3f, 0.4f, 0.3f), amber);
             }
             MeshMerge.Merge(transform);
 
@@ -64,7 +68,7 @@ namespace RobotArena
             keyLight.type = LightType.Point;
             keyLight.range = 90f;
             keyLight.intensity = 1.6f;
-            keyLight.color = new Color(0.75f, 0.9f, 1f);
+            keyLight.color = new Color(1f, 0.95f, 0.88f);
             keyLight.shadows = LightShadows.None;
 
             var rim = new GameObject("Rim light");

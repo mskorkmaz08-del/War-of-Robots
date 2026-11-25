@@ -33,8 +33,12 @@
         (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
       // Phones have very dense screens. Rendering at full density (3x on iPhone)
-      // makes every frame up to 9 times more work, so render at normal density.
-      var pixelRatio = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+      // makes every frame up to 9 times more work, so render at 1.5x by default.
+      // The GRAPHICS setting in the game changes this (LOW 1x, MEDIUM 1.5x, HIGH 2x).
+      var stored = null;
+      try { stored = parseFloat(localStorage.getItem("wor_dpr")); } catch (e) {}
+      var wanted = stored > 0 ? stored : 1.5;
+      var pixelRatio = Math.min(window.devicePixelRatio || 1, wanted);
 
       var buildUrl = "Build";
       var config = {
@@ -67,6 +71,9 @@
       document.addEventListener("touchmove", function (e) { e.preventDefault(); }, { passive: false });
       document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
       document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+      window.worConfig = config;
+      window.worResize = function () { window.dispatchEvent(new Event("resize")); };
 
       var script = document.createElement("script");
       script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";

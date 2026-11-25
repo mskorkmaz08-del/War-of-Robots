@@ -13,15 +13,15 @@ namespace RobotArena
         public Material material;
 
         [Header("Bloom")]
-        public float threshold = 0.72f;
-        public float intensity = 0.9f;
+        public float threshold = 0.9f;
+        public float intensity = 0.55f;
         public int iterations = 4;
 
         [Header("Grading")]
-        public float contrast = 1.12f;
-        public float saturation = 1.18f;
+        public float contrast = 1.08f;
+        public float saturation = 1.04f;
         public Color tint = new Color(1.02f, 1f, 0.97f);
-        public float vignette = 1.1f;
+        public float vignette = 1.0f;
 
         static readonly int ThresholdId = Shader.PropertyToID("_Threshold");
         static readonly int IntensityId = Shader.PropertyToID("_Intensity");

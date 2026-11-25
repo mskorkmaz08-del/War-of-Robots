@@ -32,8 +32,23 @@ namespace RobotArena
         }
 
         /// <summary>Graphics quality from the settings menu.</summary>
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void WorSetPixelRatio(float ratio);
+#endif
+
+        /// <summary>Render resolution on the web page: sharper text and edges on higher settings.</summary>
+        static void ApplyPixelRatio(GameSettings.Quality q)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            float r = q == GameSettings.Quality.Low ? 1f : q == GameSettings.Quality.Medium ? 1.5f : 2f;
+            try { WorSetPixelRatio(r); } catch (System.Exception) { }
+#endif
+        }
+
         public static void ApplyQuality(GameSettings.Quality q)
         {
+            ApplyPixelRatio(q);
             QualitySettings.antiAliasing = 0;
             QualitySettings.shadowProjection = ShadowProjection.StableFit;
             QualitySettings.softParticles = false;

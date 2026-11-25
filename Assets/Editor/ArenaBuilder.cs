@@ -36,7 +36,8 @@ namespace RobotArena.EditorTools
             EnsureFolder(TextureDir);
 
             // ---- Material templates used at runtime ----
-            var lit = Mat("LitTemplate", "Standard", Color.white, 0.5f, 0.5f);
+            // Robots: scratched paint over steel with panel seams (triplanar, see RobotArenaTriplanar.shader).
+            var lit = Pbr("LitTemplate", "robot", Color.white, 3.5f, 0.35f, 1.2f, 1f);
             var emissive = Mat("EmissiveTemplate", "Standard", Color.white, 0f, 0.6f);
             emissive.EnableKeyword("_EMISSION");
             emissive.SetColor("_EmissionColor", Color.white);
@@ -53,24 +54,20 @@ namespace RobotArena.EditorTools
             ga.particleAlpha = alpha;
 
             // ---- Arena materials ----
-            var floorTex = FloorTexture();
-            var floor = Mat("Floor", "Standard", new Color(0.55f, 0.55f, 0.53f), 0.1f, 0.25f);
-            floor.mainTexture = floorTex;
-            floor.mainTextureScale = new Vector2(ArenaSize / 32f, ArenaSize / 32f);
-            EditorUtility.SetDirty(floor);
-            var concrete = Mat("Concrete", "Standard", new Color(0.42f, 0.42f, 0.44f), 0.05f, 0.2f);
-            var building = Mat("Building", "Standard", new Color(0.28f, 0.3f, 0.33f), 0.4f, 0.35f);
-            var hazard = Mat("Hazard", "Standard", new Color(0.95f, 0.72f, 0.08f), 0.1f, 0.4f);
-            var glowStrip = Mat("GlowStrip", "Standard", new Color(1f, 0.5f, 0.1f), 0f, 0.5f);
+            var floor = Pbr("Floor", "floor", new Color(0.78f, 0.77f, 0.75f), 7f, 0f, 0.9f, 1.2f);
+            var concrete = Pbr("Concrete", "wall", new Color(0.72f, 0.71f, 0.69f), 8f, 0f, 0.8f, 1.2f);
+            var building = Pbr("Building", "plates", new Color(0.85f, 0.85f, 0.85f), 6f, 0f, 1f, 1.3f);
+            var hazard = Pbr("Hazard", "hazard", new Color(0.95f, 0.68f, 0.08f), 3f, 0.2f, 1.1f, 1f);
+            var glowStrip = Mat("GlowStrip", "Standard", new Color(1f, 0.6f, 0.3f), 0f, 0.5f);
             glowStrip.EnableKeyword("_EMISSION");
-            glowStrip.SetColor("_EmissionColor", new Color(1f, 0.45f, 0.1f) * 2f);
+            glowStrip.SetColor("_EmissionColor", new Color(1f, 0.55f, 0.25f) * 1.1f);
             EditorUtility.SetDirty(glowStrip);
             var containerMats = new[]
             {
-                Mat("ContainerRed", "Standard", new Color(0.6f, 0.15f, 0.1f), 0.3f, 0.3f),
-                Mat("ContainerBlue", "Standard", new Color(0.12f, 0.3f, 0.55f), 0.3f, 0.3f),
-                Mat("ContainerGreen", "Standard", new Color(0.2f, 0.4f, 0.22f), 0.3f, 0.3f),
-                Mat("ContainerGrey", "Standard", new Color(0.5f, 0.5f, 0.52f), 0.3f, 0.3f)
+                Pbr("ContainerRed", "robot", new Color(0.55f, 0.16f, 0.1f), 2.5f, 0.3f, 1f, 1f),
+                Pbr("ContainerBlue", "robot", new Color(0.14f, 0.28f, 0.45f), 2.5f, 0.3f, 1f, 1f),
+                Pbr("ContainerGreen", "robot", new Color(0.22f, 0.33f, 0.2f), 2.5f, 0.3f, 1f, 1f),
+                Pbr("ContainerGrey", "robot", new Color(0.5f, 0.5f, 0.5f), 2.5f, 0.3f, 1f, 1f)
             };
 
             // ---- Arena ----
@@ -85,7 +82,9 @@ namespace RobotArena.EditorTools
                 Vector3 c = r * new Vector3(0f, 9f, half + 2f);
                 Static(Prim(PrimitiveType.Cube, "Wall", arena, c, new Vector3(0f, yaw, 0f), new Vector3(ArenaSize + 8f, 18f, 4f), concrete));
                 Static(Prim(PrimitiveType.Cube, "WallTrim", arena, r * new Vector3(0f, 18.3f, half + 2f), new Vector3(0f, yaw, 0f), new Vector3(ArenaSize + 8f, 0.6f, 4.4f), hazard));
-                Static(Prim(PrimitiveType.Cube, "WallLights", arena, r * new Vector3(0f, 6f, half - 0.05f), new Vector3(0f, yaw, 0f), new Vector3(ArenaSize, 0.4f, 0.2f), glowStrip));
+                // Small warm floodlights along the wall instead of a neon strip.
+                for (int k = -3; k <= 2; k++)
+                    Static(Prim(PrimitiveType.Cube, "WallLamp", arena, r * new Vector3(k * 38f + 19f, 15f, half - 0.3f), new Vector3(0f, yaw, 0f), new Vector3(2.2f, 0.5f, 0.6f), glowStrip));
                 // Buttresses
                 for (int k = -3; k <= 3; k++)
                     Static(Prim(PrimitiveType.Cube, "Buttress", arena, r * new Vector3(k * 38f, 10f, half - 1f), new Vector3(0f, yaw, 0f), new Vector3(4f, 20f, 4f), building));
@@ -93,7 +92,7 @@ namespace RobotArena.EditorTools
 
             // Central structures for cover
             Static(Prim(PrimitiveType.Cube, "Tower", arena, new Vector3(0f, 14f, 0f), new Vector3(0f, 45f, 0f), new Vector3(16f, 28f, 16f), building));
-            Static(Prim(PrimitiveType.Cube, "TowerBand", arena, new Vector3(0f, 20f, 0f), new Vector3(0f, 45f, 0f), new Vector3(16.4f, 0.8f, 16.4f), glowStrip));
+            Static(Prim(PrimitiveType.Cube, "TowerBand", arena, new Vector3(0f, 20f, 0f), new Vector3(0f, 45f, 0f), new Vector3(16.3f, 0.5f, 16.3f), glowStrip));
             Static(Prim(PrimitiveType.Cube, "TowerBand2", arena, new Vector3(0f, 8f, 0f), new Vector3(0f, 45f, 0f), new Vector3(16.4f, 0.8f, 16.4f), hazard));
 
             var blocks = new (Vector3 pos, Vector3 size, float yaw)[]
@@ -123,7 +122,7 @@ namespace RobotArena.EditorTools
                 float a = i * 60f * Mathf.Deg2Rad + 0.3f;
                 Vector3 p = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 105f;
                 Static(Prim(PrimitiveType.Cylinder, "Pillar", arena, p + Vector3.up * 12f, Vector3.zero, new Vector3(5f, 12f, 5f), concrete));
-                Static(Prim(PrimitiveType.Cylinder, "PillarRing", arena, p + Vector3.up * 16f, Vector3.zero, new Vector3(5.6f, 0.4f, 5.6f), glowStrip));
+                Static(Prim(PrimitiveType.Cylinder, "PillarRing", arena, p + Vector3.up * 16f, Vector3.zero, new Vector3(5.4f, 0.9f, 5.4f), hazard));
             }
 
             // Shipping containers (physics props to smash through)
@@ -156,15 +155,17 @@ namespace RobotArena.EditorTools
             var sun = Object.FindAnyObjectByType<Light>();
             if (sun != null)
             {
-                sun.transform.rotation = Quaternion.Euler(38f, -40f, 0f);
-                sun.color = new Color(1f, 0.9f, 0.78f);
-                sun.intensity = 1.25f;
+                // Same compass direction as the sun in the sky photo, a bit higher for gameplay.
+                sun.transform.rotation = Quaternion.Euler(28f, -53.6f, 0f);
+                sun.color = new Color(1f, 0.84f, 0.68f);
+                sun.intensity = 1.35f;
                 sun.shadows = LightShadows.Soft;
                 sun.shadowStrength = 0.85f;
             }
-            // Sky: Unity's procedural sky, late-afternoon tint.
-            var skyShader = Shader.Find("Skybox/Procedural");
-            if (skyShader != null)
+            // Sky: a real sky photo (Poly Haven "industrial sunset", CC0) on a panoramic skybox.
+            var skyShader = Shader.Find("Skybox/Panoramic");
+            var skyTex = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureDir + "/Sky.jpg");
+            if (skyShader != null && skyTex != null)
             {
                 string skyPath = MaterialDir + "/Sky.mat";
                 var sky = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
@@ -174,24 +175,25 @@ namespace RobotArena.EditorTools
                     AssetDatabase.CreateAsset(sky, skyPath);
                 }
                 sky.shader = skyShader;
-                if (sky.HasProperty("_SunSize")) sky.SetFloat("_SunSize", 0.05f);
-                if (sky.HasProperty("_AtmosphereThickness")) sky.SetFloat("_AtmosphereThickness", 1.25f);
-                if (sky.HasProperty("_SkyTint")) sky.SetColor("_SkyTint", new Color(0.55f, 0.6f, 0.75f));
-                if (sky.HasProperty("_GroundColor")) sky.SetColor("_GroundColor", new Color(0.32f, 0.3f, 0.29f));
-                if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1.25f);
+                sky.SetTexture("_MainTex", skyTex);
+                if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1f);
+                if (sky.HasProperty("_Rotation")) sky.SetFloat("_Rotation", 0f);
+                if (sky.HasProperty("_Mapping")) sky.SetFloat("_Mapping", 1f);
+                if (sky.HasProperty("_ImageType")) sky.SetFloat("_ImageType", 0f);
                 EditorUtility.SetDirty(sky);
                 RenderSettings.skybox = sky;
             }
+            else Debug.LogWarning("[ArenaBuilder] Sky texture or panoramic shader missing.");
             if (sun != null) RenderSettings.sun = sun;
 
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = new Color(0.66f, 0.68f, 0.72f);
-            RenderSettings.fogStartDistance = 90f;
-            RenderSettings.fogEndDistance = 650f;
+            RenderSettings.fogColor = new Color(0.43f, 0.45f, 0.5f);
+            RenderSettings.fogStartDistance = 110f;
+            RenderSettings.fogEndDistance = 720f;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.55f, 0.6f, 0.7f);
-            RenderSettings.ambientEquatorColor = new Color(0.45f, 0.44f, 0.42f);
+            RenderSettings.ambientSkyColor = new Color(0.5f, 0.55f, 0.65f);
+            RenderSettings.ambientEquatorColor = new Color(0.46f, 0.44f, 0.43f);
             RenderSettings.ambientGroundColor = new Color(0.2f, 0.19f, 0.18f);
 
             // ---- Camera ----
@@ -298,6 +300,38 @@ namespace RobotArena.EditorTools
             mat.color = color;
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", metallic);
             if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", smoothness);
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        /// <summary>Triplanar PBR material from a texture set in Assets/Textures/Pbr ({set}_albedo/_mask/_n).</summary>
+        static Material Pbr(string name, string set, Color color, float tiling, float metallic, float gloss, float bump)
+        {
+            var shader = Shader.Find("RobotArena/Triplanar");
+            if (shader == null)
+            {
+                Debug.LogWarning("[ArenaBuilder] Triplanar shader missing; using Standard for " + name);
+                return Mat(name, "Standard", color, metallic, 0.4f);
+            }
+            string path = MaterialDir + "/" + name + ".mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.shader = shader;
+            string dir = TextureDir + "/Pbr/";
+            string albedoSet = set == "hazard" ? "hazard" : set;
+            string dataSet = set == "hazard" ? "robot" : set;
+            mat.SetTexture("_MainTex", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + albedoSet + "_albedo.jpg"));
+            mat.SetTexture("_MaskTex", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + dataSet + "_mask.jpg"));
+            mat.SetTexture("_BumpMap", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + dataSet + "_n.jpg"));
+            mat.SetColor("_Color", color);
+            mat.SetFloat("_Tiling", tiling);
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Glossiness", gloss);
+            mat.SetFloat("_BumpScale", bump);
             EditorUtility.SetDirty(mat);
             return mat;
         }

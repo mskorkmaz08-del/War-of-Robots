@@ -45,13 +45,24 @@ namespace RobotArena
             if (cache.TryGetValue(key, out var m)) return m;
 
             m = new Material(litTemplate) { name = key, color = color };
+            bool pbr = m.HasProperty("_MaskTex");
             SetFloatIfPresent(m, "_Metallic", metallic);
-            SetFloatIfPresent(m, "_Glossiness", smoothness);
-            SetFloatIfPresent(m, "_Smoothness", smoothness);
-            if (panels)
+            if (pbr)
             {
-                m.mainTexture = PanelTexture();
-                m.mainTextureScale = new Vector2(1f, 1f);
+                // Textured template: smoothness scales the scratched-paint roughness map.
+                SetFloatIfPresent(m, "_Glossiness", Mathf.Lerp(0.55f, 1.4f, smoothness));
+                // Plain (unpanelled) parts get finer, fainter detail.
+                if (!panels) { SetFloatIfPresent(m, "_Tiling", 1.6f); SetFloatIfPresent(m, "_BumpScale", 0.5f); }
+            }
+            else
+            {
+                SetFloatIfPresent(m, "_Glossiness", smoothness);
+                SetFloatIfPresent(m, "_Smoothness", smoothness);
+                if (panels)
+                {
+                    m.mainTexture = PanelTexture();
+                    m.mainTextureScale = new Vector2(1f, 1f);
+                }
             }
             cache[key] = m;
             return m;

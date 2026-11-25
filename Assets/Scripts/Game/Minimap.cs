@@ -31,7 +31,7 @@ namespace RobotArena
         void Build(RectTransform rt, float size)
         {
             mapRadius = size * 0.5f - 10f;
-            var bg = UiKit.Image(rt, UiKit.Circle, new Color(0.03f, 0.07f, 0.13f, 0.82f));
+            var bg = UiKit.Image(rt, UiKit.Circle, new Color(0.03f, 0.04f, 0.05f, 0.8f));
             var mask = rt.gameObject.AddComponent<Mask>();
             mask.showMaskGraphic = true;
 
@@ -66,7 +66,7 @@ namespace RobotArena
             var rim = UiKit.Rect("Rim", rt.parent, rt.anchorMin, rt.anchoredPosition, Vector2.one * size);
             UiKit.Image(rim, UiKit.Ring, UiKit.Cyan);
             var label = UiKit.Rect("Label", rim, new Vector2(0.5f, 0f), new Vector2(0f, -22f), new Vector2(200f, 34f));
-            UiKit.Label(label, "RADAR", 22, UiKit.TextDim, TextAnchor.MiddleCenter, true);
+            UiKit.Label(label, UiKit.Spaced("RADAR"), 20, UiKit.TextDim, TextAnchor.MiddleCenter, true);
 
             playerArrow = UiKit.Rect("Player", rt, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34f, 40f));
             UiKit.Image(playerArrow, UiKit.Triangle, UiKit.Cyan);

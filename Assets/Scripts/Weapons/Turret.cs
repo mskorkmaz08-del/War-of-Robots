@@ -24,6 +24,9 @@ namespace RobotArena
         [Tooltip("Speed of the main gun's projectile, used to lead targets. 0 = instant.")]
         public float projectileSpeed;
         public bool compensateGravity;
+        [Tooltip("Player robots aim where this camera looks, locking onto enemies near the crosshair.")]
+        public FollowCamera aimCamera;
+        public float crosshairLockAngle = 9f;
 
         public Damageable Target { get; private set; }
         public Vector3 AimPoint { get; private set; }
@@ -43,8 +46,8 @@ namespace RobotArena
             retargetTimer -= Time.deltaTime;
             if (retargetTimer <= 0f || Target == null || Target.IsDead)
             {
-                retargetTimer = 0.3f;
-                Target = FindTarget();
+                retargetTimer = aimCamera != null ? 0.1f : 0.3f;
+                Target = aimCamera != null ? FindTargetNearCrosshair() : FindTarget();
             }
 
             Vector3 origin = pitchPivot != null ? pitchPivot.position : transform.position;
@@ -59,6 +62,14 @@ namespace RobotArena
                     if (compensateGravity) aim += Vector3.up * 0.5f * Physics.gravity.magnitude * t * t;
                 }
                 AimPoint = aim;
+            }
+            else if (aimCamera != null)
+            {
+                // Aim at whatever is under the crosshair.
+                Ray ray = aimCamera.AimRay;
+                AimPoint = GroundProbe.Cast(ray.origin, ray.direction, 600f, self != null ? self.Body : null, out RaycastHit hit)
+                    ? hit.point
+                    : ray.origin + ray.direction * 600f;
             }
             else
             {
@@ -90,6 +101,29 @@ namespace RobotArena
         {
             if (muzzle == null) return 180f;
             return Vector3.Angle(muzzle.forward, AimPoint - muzzle.position);
+        }
+
+        /// <summary>The enemy closest to the centre of the screen, if any is near it.</summary>
+        Damageable FindTargetNearCrosshair()
+        {
+            Damageable best = null;
+            float bestAngle = crosshairLockAngle;
+            Ray ray = aimCamera.AimRay;
+            foreach (var d in Damageable.All)
+            {
+                if (d == null || d == self || d.IsDead) continue;
+                if (self != null && d.team == self.team) continue;
+                Vector3 to = d.Center - ray.origin;
+                if (Vector3.Distance(d.Center, transform.position) > range) continue;
+                // Big robots are easier to lock: allow a wider angle when they're close.
+                float angle = Vector3.Angle(ray.direction, to) - Mathf.Atan2(d.size * 6f, to.magnitude) * Mathf.Rad2Deg;
+                if (angle < bestAngle)
+                {
+                    bestAngle = angle;
+                    best = d;
+                }
+            }
+            return best;
         }
 
         Damageable FindTarget()

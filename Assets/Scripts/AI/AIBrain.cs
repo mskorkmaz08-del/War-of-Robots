@@ -27,7 +27,9 @@ namespace RobotArena
         float stuckTimer;
         float reverseTimer;
         float thinkTimer;
-        float startDelay = 2.5f;
+        float burstTimer;
+        bool burstOn;
+        float startDelay = 4f;
 
         void Awake()
         {
@@ -105,14 +107,20 @@ namespace RobotArena
                 commands.steer = strafeSign;
             }
 
-            // Weapons.
+            // Weapons: fire in bursts with pauses, so the player gets breathing room.
+            burstTimer -= Time.deltaTime;
+            if (burstTimer <= 0f)
+            {
+                burstOn = !burstOn;
+                burstTimer = burstOn ? Random.Range(1.5f, 3f) : Random.Range(1.2f, 2.5f);
+            }
             bool onTarget = turret != null && turret.Target == target;
             foreach (var w in weapons)
             {
                 if (w == null || w.muzzles.Length == 0 || !onTarget) continue;
                 float err = turret.AimError(w.muzzles[0]);
-                if (w.slot == Weapon.Slot.Primary && dist < fireRange && err < 12f) commands.primary = true;
-                if (w.slot == Weapon.Slot.Special && dist < specialRange && err < 25f && w.IsReady && Random.value < 0.02f + aggression * 0.03f)
+                if (w.slot == Weapon.Slot.Primary && dist < fireRange && err < 6f && burstOn) commands.primary = true;
+                if (w.slot == Weapon.Slot.Special && dist < specialRange && err < 25f && w.IsReady && Random.value < (0.004f + aggression * 0.006f) * Time.deltaTime * 60f)
                     commands.special = true;
             }
 

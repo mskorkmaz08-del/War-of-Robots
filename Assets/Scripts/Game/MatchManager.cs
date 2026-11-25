@@ -82,14 +82,16 @@ namespace RobotArena
             var playerGo = RobotFactory.Build(type, pPos, pRot, 0, Livery.Player, true, type == RobotType.Titan ? "TITAN" : "RAPTOR");
             var input = playerGo.AddComponent<RobotInput>();
             hud.ConnectControls(input);
+            var playerTurret = playerGo.GetComponent<Turret>();
+            if (playerTurret != null) playerTurret.aimCamera = FollowCamera.Main;
             Player = playerGo.GetComponent<Damageable>();
             Player.Died += OnPlayerDied;
 
             var cam = FollowCamera.Main;
             if (cam != null)
             {
-                if (type == RobotType.Titan) cam.SetTarget(playerGo.transform, 32f, -1f, 2.5f);
-                else cam.SetTarget(playerGo.transform, 23f, 5.5f, 2.5f);
+                if (type == RobotType.Titan) cam.SetTarget(playerGo.transform, 34f, -2f, 3f);
+                else cam.SetTarget(playerGo.transform, 24f, 0f, 2.5f);
             }
             yield return null;
 

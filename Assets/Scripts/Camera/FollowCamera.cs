@@ -26,7 +26,16 @@ namespace RobotArena
         public float maxShakeOffset = 0.8f;
         public float traumaDecay = 1.4f;
 
+        [Header("Free look")]
+        public float minPitch = -12f;
+        public float maxPitch = 60f;
+        public float defaultPitch = 12f;
+        [Tooltip("Seconds without look input before the camera drifts back behind the robot while it moves.")]
+        public float recenterDelay = 2.5f;
+
         float yaw;
+        float pitch;
+        float lastLookTime = -999f;
         float trauma;
         float seed;
         Camera cam;
@@ -49,9 +58,25 @@ namespace RobotArena
             if (target != null)
             {
                 yaw = target.eulerAngles.y;
+                pitch = defaultPitch;
                 transform.position = target.position + Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, height, -distance);
             }
         }
+
+        /// <summary>Rotates the view (degrees). Called by mouse, touch drag and gamepad.</summary>
+        public void AddLook(float yawDegrees, float pitchDegrees)
+        {
+            if (Mathf.Abs(yawDegrees) + Mathf.Abs(pitchDegrees) < 0.001f) return;
+            yaw += yawDegrees;
+            pitch = Mathf.Clamp(pitch + pitchDegrees, minPitch, maxPitch);
+            lastLookTime = Time.unscaledTime;
+        }
+
+        /// <summary>The flat direction the camera faces; movement is relative to this.</summary>
+        public Quaternion FlatRotation => Quaternion.Euler(0f, yaw, 0f);
+
+        /// <summary>The ray through the centre of the screen (the crosshair).</summary>
+        public Ray AimRay => new Ray(transform.position, transform.forward);
 
         /// <summary>Adds screen shake. Strength fades with distance from the camera.</summary>
         public static void Shake(float amount, Vector3 source, float radius = 120f)
@@ -67,16 +92,24 @@ namespace RobotArena
             if (target == null) return;
             float dt = Time.deltaTime;
 
-            Vector3 flatForward = Vector3.ProjectOnPlane(target.forward, Vector3.up);
-            if (flatForward.sqrMagnitude > 0.01f)
+            // Drift back behind the robot when the player stops looking around and drives.
+            float speedNow = targetBody != null ? Compat.GetVelocity(targetBody).magnitude : 0f;
+            if (Time.unscaledTime - lastLookTime > recenterDelay && speedNow > 3f)
             {
-                float targetYaw = Quaternion.LookRotation(flatForward).eulerAngles.y;
-                yaw = Mathf.LerpAngle(yaw, targetYaw, 1f - Mathf.Exp(-rotateSharpness * dt));
+                Vector3 flatForward = Vector3.ProjectOnPlane(target.forward, Vector3.up);
+                if (flatForward.sqrMagnitude > 0.01f)
+                {
+                    float targetYaw = Quaternion.LookRotation(flatForward).eulerAngles.y;
+                    yaw = Mathf.LerpAngle(yaw, targetYaw, 1f - Mathf.Exp(-rotateSharpness * 0.5f * dt));
+                    pitch = Mathf.Lerp(pitch, defaultPitch, 1f - Mathf.Exp(-1f * dt));
+                }
             }
 
-            Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+            Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 pivot = target.position + Vector3.up * lookHeight;
-            Vector3 desired = target.position + rotation * new Vector3(0f, height, -distance);
+            // Camera sits behind and above the pivot, so the robot stays in the lower
+            // part of the screen and the crosshair in the middle is free to aim.
+            Vector3 desired = pivot + rotation * new Vector3(0f, 0f, -distance) + Vector3.up * (height + distance * 0.45f);
 
             // Pull in if a wall or building is between the robot and the camera.
             Vector3 toCam = desired - pivot;
@@ -85,15 +118,15 @@ namespace RobotArena
             {
                 desired = pivot + toCam.normalized * Mathf.Max(6f, hit.distance - 1f);
             }
+            // Never go under the floor.
+            desired.y = Mathf.Max(desired.y, 2f);
 
-            transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-followSharpness * dt));
-            Vector3 lookPoint = pivot + rotation * Vector3.forward * lookAhead;
-            transform.rotation = Quaternion.LookRotation(lookPoint - transform.position, Vector3.up);
+            transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-followSharpness * 2f * dt));
+            transform.rotation = rotation;
 
             if (cam != null)
             {
-                float speed = targetBody != null ? Compat.GetVelocity(targetBody).magnitude : 0f;
-                float fov = baseFov + Mathf.Clamp01((speed - 15f) / 40f) * speedFovBoost;
+                float fov = baseFov + Mathf.Clamp01((speedNow - 15f) / 40f) * speedFovBoost;
                 cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, 1f - Mathf.Exp(-3f * dt));
             }
 

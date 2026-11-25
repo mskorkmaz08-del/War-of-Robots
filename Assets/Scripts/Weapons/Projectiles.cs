@@ -192,6 +192,10 @@ namespace RobotArena
     /// <summary>Short-lived glowing beam drawn with a LineRenderer.</summary>
     public class Beam : MonoBehaviour
     {
+        // Lasers fire many beams a second, so finished beams are kept and reused.
+        static readonly System.Collections.Generic.Stack<Beam> Free = new System.Collections.Generic.Stack<Beam>();
+        static readonly System.Collections.Generic.Dictionary<Color, Gradient> Gradients = new System.Collections.Generic.Dictionary<Color, Gradient>();
+
         LineRenderer line;
         float life;
         float age;
@@ -199,29 +203,42 @@ namespace RobotArena
 
         public static Beam Spawn(Vector3 from, Vector3 to, float width, Color color, float duration)
         {
-            var assets = GameAssets.Get();
-            var go = new GameObject("Beam");
-            var line = go.AddComponent<LineRenderer>();
-            line.positionCount = 2;
+            Beam b = null;
+            while (Free.Count > 0 && b == null) b = Free.Pop();
+            if (b == null)
+            {
+                var go = new GameObject("Beam");
+                var newLine = go.AddComponent<LineRenderer>();
+                newLine.positionCount = 2;
+                newLine.useWorldSpace = true;
+                newLine.numCapVertices = 4;
+                newLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                newLine.receiveShadows = false;
+                var assets = GameAssets.Get();
+                if (assets != null) newLine.sharedMaterial = assets.ParticleAdditive();
+                b = go.AddComponent<Beam>();
+                b.line = newLine;
+            }
+
+            if (!Gradients.TryGetValue(color, out var g))
+            {
+                g = new Gradient();
+                g.SetKeys(
+                    new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(color, 0.5f), new GradientColorKey(color, 1f) },
+                    new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+                Gradients[color] = g;
+            }
+
+            var line = b.line;
             line.SetPosition(0, from);
             line.SetPosition(1, to);
-            line.useWorldSpace = true;
             line.startWidth = width;
             line.endWidth = width * 0.7f;
-            line.numCapVertices = 4;
-            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            line.receiveShadows = false;
-            if (assets != null) line.sharedMaterial = assets.ParticleAdditive();
-            var g = new Gradient();
-            g.SetKeys(
-                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(color, 0.5f), new GradientColorKey(color, 1f) },
-                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
             line.colorGradient = g;
-
-            var b = go.AddComponent<Beam>();
-            b.line = line;
             b.life = duration;
             b.width = width;
+            b.age = 0f;
+            b.gameObject.SetActive(true);
             return b;
         }
 
@@ -231,7 +248,11 @@ namespace RobotArena
             float k = 1f - Mathf.Clamp01(age / life);
             line.startWidth = width * k;
             line.endWidth = width * 0.7f * k;
-            if (age >= life) Destroy(gameObject);
+            if (age >= life)
+            {
+                gameObject.SetActive(false);
+                Free.Push(this);
+            }
         }
     }
 

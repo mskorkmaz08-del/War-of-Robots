@@ -14,6 +14,8 @@ namespace RobotArena
         public float cooldown = 1f;
         [Tooltip("How far (degrees) shots may bend from the barrel toward the aim point.")]
         public float aimAssist = 8f;
+        [Tooltip("Random inaccuracy in degrees (used to make enemies miss sometimes).")]
+        public float spread;
         public Color color = new Color(1f, 0.6f, 0.2f);
 
         protected Turret turret;
@@ -58,9 +60,15 @@ namespace RobotArena
 
         protected Vector3 AimDirection(Transform muzzle)
         {
-            if (turret == null) return muzzle.forward;
-            Vector3 wanted = (turret.AimPoint - muzzle.position).normalized;
-            return Vector3.RotateTowards(muzzle.forward, wanted, aimAssist * Mathf.Deg2Rad, 0f).normalized;
+            Vector3 dir = muzzle.forward;
+            if (turret != null)
+            {
+                Vector3 wanted = (turret.AimPoint - muzzle.position).normalized;
+                dir = Vector3.RotateTowards(muzzle.forward, wanted, aimAssist * Mathf.Deg2Rad, 0f).normalized;
+            }
+            if (spread > 0f)
+                dir = Quaternion.AngleAxis(Random.Range(-spread, spread), Random.onUnitSphere) * dir;
+            return dir.normalized;
         }
 
         protected void Recoil(Vector3 dir, Vector3 at, float speedChange)

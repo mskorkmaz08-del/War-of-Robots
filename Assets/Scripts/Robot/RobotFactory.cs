@@ -67,9 +67,32 @@ namespace RobotArena
         public static GameObject Build(RobotType type, Vector3 groundPos, Quaternion rotation, int team, Livery livery, bool player, string name)
         {
             PrepareMaterials(livery);
-            return type == RobotType.Titan
+            var go = type == RobotType.Titan
                 ? BuildTitan(groundPos, rotation, team, player, name)
                 : BuildRaptor(groundPos, rotation, team, player, name);
+            if (!player) MakeEnemyFair(go);
+            return go;
+        }
+
+        /// <summary>Enemies are tougher-looking than they are: less armour, slower and less accurate weapons.</summary>
+        static void MakeEnemyFair(GameObject go)
+        {
+            var d = go.GetComponent<Damageable>();
+            if (d != null)
+            {
+                d.maxHealth *= 0.7f;
+                ResetHealth(d);
+            }
+            foreach (var w in go.GetComponents<Weapon>())
+            {
+                w.cooldown *= 1.4f;
+                w.spread = 2.5f;
+                w.aimAssist *= 0.5f;
+            }
+            var swarm = go.GetComponent<MissileSwarm>();
+            if (swarm != null) swarm.missilesPerSalvo = 6;
+            var rail = go.GetComponent<PlasmaRailgun>();
+            if (rail != null) rail.chargeTime = 1.8f;
         }
 
         // =====================================================================

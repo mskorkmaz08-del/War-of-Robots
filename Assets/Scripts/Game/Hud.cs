@@ -38,6 +38,7 @@ namespace RobotArena
         TouchButton fireButton;
         TouchButton specialButton;
         TouchButton boostButton;
+        LookPad lookPad;
 
         readonly List<(Damageable d, RectTransform fill, Text label)> enemyBars = new List<(Damageable, RectTransform, Text)>();
         float lastHealth = -1f;
@@ -72,7 +73,8 @@ namespace RobotArena
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
+            // Phones are wide: scale by height so buttons are a steady size.
+            scaler.matchWidthOrHeight = 1f;
 
             BuildSelect();
             BuildFight();
@@ -139,13 +141,28 @@ namespace RobotArena
 
         void BuildFight()
         {
-            fightPanel = MakeRect("Fight", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-
-            // Damage flash
-            var flash = MakeRect("DamageFlash", fightPanel.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            // Damage flash covers the whole screen, including round corners and the notch.
+            var flash = MakeRect("DamageFlash", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             damageFlash = flash.gameObject.AddComponent<Image>();
             damageFlash.color = new Color(1f, 0.1f, 0f, 0f);
             damageFlash.raycastTarget = false;
+
+            fightPanel = MakeRect("Fight", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
+            fightPanel.AddComponent<SafeArea>();
+
+            // Crosshair in the middle of the screen: weapons fire where it points.
+            var cross = MakeRect("Crosshair", fightPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 64f));
+            foreach (var (pos, size) in new[] { (new Vector2(0f, 22f), new Vector2(4f, 16f)), (new Vector2(0f, -22f), new Vector2(4f, 16f)), (new Vector2(22f, 0f), new Vector2(16f, 4f)), (new Vector2(-22f, 0f), new Vector2(16f, 4f)) })
+            {
+                var tick = MakeRect("Tick", cross, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, size);
+                var ti = tick.gameObject.AddComponent<Image>();
+                ti.color = new Color(1f, 1f, 1f, 0.8f);
+                ti.raycastTarget = false;
+            }
+            var cdot = MakeRect("Dot", cross, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
+            var cdi = cdot.gameObject.AddComponent<Image>();
+            cdi.color = new Color(1f, 0.6f, 0.2f, 0.9f);
+            cdi.raycastTarget = false;
 
             // Player status, top left
             var status = MakeRect("Status", fightPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(330f, -110f), new Vector2(600f, 180f));
@@ -162,7 +179,7 @@ namespace RobotArena
             Place(specialLabel.rectTransform, new Vector2(0.5f, 0.14f), new Vector2(540f, 30f));
 
             // Target marker
-            targetMarker = MakeRect("Target", fightPanel.transform, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(140f, 140f));
+            targetMarker = MakeRect("Target", fightPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(140f, 140f));
             var ring = targetMarker.gameObject.AddComponent<Image>();
             ring.sprite = circle;
             ring.color = new Color(1f, 0.25f, 0.15f, 0.35f);
@@ -176,7 +193,7 @@ namespace RobotArena
             // Controls hint for desktop
             if (!ShowTouch)
             {
-                var hint = Label(fightPanel.transform, "W A S D  move    SPACE / LEFT CLICK  fire    E / RIGHT CLICK  special    SHIFT  boost", 26, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
+                var hint = Label(fightPanel.transform, "CLICK to aim with the mouse    W A S D  move    LEFT CLICK / SPACE  fire    RIGHT CLICK / E  special    SHIFT  boost    ESC  free cursor", 26, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
                 Place(hint.rectTransform, new Vector2(0.5f, 0.04f), new Vector2(1800f, 40f));
             }
 
@@ -187,6 +204,14 @@ namespace RobotArena
         {
             touchControls = MakeRect("TouchControls", fightPanel.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
 
+            // Drag anywhere that isn't a button to look around. Added first so buttons sit on top.
+            var pad = MakeRect("LookPad", touchControls.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var padImg = pad.gameObject.AddComponent<Image>();
+            padImg.color = new Color(0f, 0f, 0f, 0f);
+            lookPad = pad.gameObject.AddComponent<LookPad>();
+            var lookHint = Label(pad, "DRAG TO LOOK", 24, new Color(1f, 1f, 1f, 0.35f), TextAnchor.MiddleCenter);
+            Place(lookHint.rectTransform, new Vector2(0.62f, 0.12f), new Vector2(400f, 40f));
+
             var stickBg = Circle("Joystick", touchControls.transform, new Vector2(0f, 0f), new Vector2(270f, 270f), 330f, new Color(1f, 1f, 1f, 0.16f));
             var handle = Circle("Handle", stickBg, new Vector2(0.5f, 0.5f), Vector2.zero, 150f, new Color(1f, 1f, 1f, 0.5f));
             handle.GetComponent<Image>().raycastTarget = false;
@@ -194,6 +219,11 @@ namespace RobotArena
             joystick.background = stickBg;
             joystick.handle = handle;
             joystick.radius = 130f;
+            // Easier to hit: a bigger invisible touch area around the stick.
+            var stickArea = MakeRect("StickArea", stickBg, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 520f));
+            var areaImg = stickArea.gameObject.AddComponent<Image>();
+            areaImg.color = new Color(0f, 0f, 0f, 0f);
+            stickArea.SetAsFirstSibling();
 
             fireButton = TouchBtn("FIRE", new Vector2(-230f, 230f), 260f, new Color(1f, 0.3f, 0.15f, 0.5f));
             specialButton = TouchBtn("SPECIAL", new Vector2(-470f, 170f), 170f, new Color(1f, 0.6f, 0.1f, 0.45f));
@@ -218,6 +248,7 @@ namespace RobotArena
             input.fireButton = fireButton;
             input.specialButton = specialButton;
             input.boostButton = boostButton;
+            input.lookPad = lookPad;
         }
 
         public void ShowFight()
@@ -314,8 +345,9 @@ namespace RobotArena
                 return;
             }
             targetMarker.gameObject.SetActive(true);
-            float scale = canvas.transform.localScale.x;
-            targetMarker.anchoredPosition = new Vector2(sp.x, sp.y) / Mathf.Max(0.0001f, scale);
+            var parentRt = (RectTransform)targetMarker.parent;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRt, sp, null, out Vector2 local))
+                targetMarker.anchoredPosition = local;
             targetMarker.localRotation = Quaternion.Euler(0f, 0f, Time.time * 60f);
         }
 

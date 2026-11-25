@@ -30,6 +30,9 @@ namespace RobotArena
         public float impactThreshold = 9f;
         public float impactDamagePerMs = 14f;
 
+        /// <summary>Damage enemies deal to the player is multiplied by this (difficulty).</summary>
+        public static float EnemyDamageToPlayer = 0.45f;
+
         public float Health { get; private set; }
         public bool IsDead { get; private set; }
         public float HealthFraction => Mathf.Clamp01(Health / maxHealth);
@@ -64,6 +67,7 @@ namespace RobotArena
         {
             if (IsDead || amount <= 0f) return;
             if (attacker != null && attacker.team == team && attacker != this) return;
+            if (team == 0 && attacker != null && attacker.team != 0) amount *= EnemyDamageToPlayer;
 
             Health -= amount;
             Damaged?.Invoke(amount, point);

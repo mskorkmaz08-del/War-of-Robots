@@ -26,7 +26,7 @@ namespace RobotArena
         public bool compensateGravity;
         [Tooltip("Player robots aim where this camera looks, locking onto enemies near the crosshair.")]
         public FollowCamera aimCamera;
-        public float crosshairLockAngle = 9f;
+        public float crosshairLockAngle = 13f;
 
         /// <summary>Online: aim comes from the network instead of targeting here.</summary>
         public bool netControlled;
@@ -119,14 +119,24 @@ namespace RobotArena
             Damageable best = null;
             float bestAngle = crosshairLockAngle;
             Ray ray = aimCamera.AimRay;
+            // Sticky lock: keep the current enemy while it stays fairly near the
+            // crosshair, so strafing or backing up doesn't flick the aim elsewhere.
+            Damageable current = Target;
+            if (current != null && !current.IsDead && Vector3.Distance(current.Center, transform.position) <= range)
+            {
+                float a = CrosshairAngle(ray, current);
+                if (a < crosshairLockAngle * 2.2f)
+                {
+                    best = current;
+                    bestAngle = Mathf.Min(bestAngle, a) - 5f; // others must be clearly closer
+                }
+            }
             foreach (var d in Damageable.All)
             {
-                if (d == null || d == self || d.IsDead) continue;
+                if (d == null || d == self || d.IsDead || d == current) continue;
                 if (self != null && d.team == self.team) continue;
-                Vector3 to = d.Center - ray.origin;
                 if (Vector3.Distance(d.Center, transform.position) > range) continue;
-                // Big robots are easier to lock: allow a wider angle when they're close.
-                float angle = Vector3.Angle(ray.direction, to) - Mathf.Atan2(d.size * 6f, to.magnitude) * Mathf.Rad2Deg;
+                float angle = CrosshairAngle(ray, d);
                 if (angle < bestAngle)
                 {
                     bestAngle = angle;
@@ -134,6 +144,13 @@ namespace RobotArena
                 }
             }
             return best;
+        }
+
+        static float CrosshairAngle(Ray ray, Damageable d)
+        {
+            // Big robots are easier to lock: allow a wider angle when they're close.
+            Vector3 to = d.Center - ray.origin;
+            return Vector3.Angle(ray.direction, to) - Mathf.Atan2(d.size * 6f, to.magnitude) * Mathf.Rad2Deg;
         }
 
         Damageable FindTarget()

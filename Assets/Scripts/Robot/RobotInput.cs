@@ -28,11 +28,22 @@ namespace RobotArena
 
         RobotCommands commands;
         Turret turret;
+        bool walker;
+        bool reversing;
+        Vector3 latchedDir;
+        Vector2 latchedStick;
 
         void Awake()
         {
             commands = GetComponent<RobotCommands>();
             turret = GetComponent<Turret>();
+            walker = GetComponent<WalkerLocomotion>() != null;
+            // The player's guns swing faster so shots line up while moving.
+            if (turret != null)
+            {
+                turret.yawSpeed *= 1.7f;
+                turret.pitchSpeed *= 1.5f;
+            }
         }
 
         void OnDisable()
@@ -123,40 +134,76 @@ namespace RobotArena
             look *= GameSettings.LookSensitivity;
             if (cam != null) cam.AddLook(look.x, look.y);
 
-            DriveTowards(Vector2.ClampMagnitude(move, 1f), cam, fire || special);
+            DriveTowards(Vector2.ClampMagnitude(move, 1f), cam, fire || special, look.sqrMagnitude > 0.0001f);
             commands.primary = fire;
             commands.special = special;
             commands.boost = boost;
         }
 
-        /// <summary>Turns stick direction (relative to the camera) into throttle and steering.</summary>
-        void DriveTowards(Vector2 move, FollowCamera cam, bool shooting)
+        /// <summary>
+        /// Turns the stick (relative to the camera) into movement. Walkers walk in that direction
+        /// (forward, back or sideways) while the hull turns to face where you look. Wheeled robots
+        /// steer toward it, or reverse when it is behind them. The direction is fixed in the world
+        /// while the stick is held, so the robot doesn't chase the camera round in circles.
+        /// </summary>
+        void DriveTowards(Vector2 move, FollowCamera cam, bool shooting, bool looking)
         {
             Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             Quaternion camYaw = cam != null ? cam.FlatRotation : Quaternion.LookRotation(fwd);
+            Vector3 camFwd = camYaw * Vector3.forward;
             float mag = move.magnitude;
 
             if (mag < 0.12f)
             {
+                latchedStick = Vector2.zero;
                 commands.throttle = 0f;
                 commands.steer = 0f;
+                if (walker)
+                {
+                    commands.hasMove = true;
+                    commands.move = Vector3.zero;
+                    // Shooting turns the hull toward where you look; otherwise stand still.
+                    commands.hasFace = shooting;
+                    commands.face = camFwd;
+                    return;
+                }
                 // Standing still and shooting behind? Turn to face where the camera looks.
                 if (shooting && turret != null)
                 {
-                    float a = Vector3.SignedAngle(fwd, camYaw * Vector3.forward, Vector3.up);
+                    float a = Vector3.SignedAngle(fwd, camFwd, Vector3.up);
                     if (Mathf.Abs(a) > turret.maxYaw * 0.8f) commands.steer = Mathf.Clamp(a / 40f, -1f, 1f);
                 }
                 return;
             }
 
-            Vector3 wanted = camYaw * new Vector3(move.x, 0f, move.y).normalized;
-            float angle = Vector3.SignedAngle(fwd, wanted, Vector3.up);
-
-            if (Mathf.Abs(angle) > 140f && move.y < -0.5f)
+            // Re-read the direction when the stick moves a lot, or while the player looks around.
+            if (latchedStick == Vector2.zero || looking || Vector2.Angle(latchedStick, move) > 20f)
             {
-                // Pulling straight back: reverse instead of turning all the way round.
+                latchedStick = move;
+                latchedDir = camYaw * new Vector3(move.x, 0f, move.y).normalized;
+            }
+            Vector3 wanted = latchedDir;
+
+            if (walker)
+            {
+                commands.hasMove = true;
+                commands.move = wanted * mag;
+                commands.hasFace = true;
+                commands.face = camFwd;
+                commands.throttle = Vector3.Dot(wanted, fwd) * mag;
+                commands.steer = 0f;
+                return;
+            }
+
+            float angle = Vector3.SignedAngle(fwd, wanted, Vector3.up);
+            // Reverse when the wanted direction is behind; keep reversing until it's well in front.
+            if (reversing) { if (Mathf.Abs(angle) < 70f) reversing = false; }
+            else if (Mathf.Abs(angle) > 120f) reversing = true;
+
+            if (reversing)
+            {
                 float backAngle = Vector3.SignedAngle(-fwd, wanted, Vector3.up);
-                commands.throttle = -mag;
+                commands.throttle = -mag * Mathf.Clamp01(1.15f - Mathf.Abs(backAngle) / 110f);
                 commands.steer = Mathf.Clamp(backAngle / 35f, -1f, 1f);
                 return;
             }

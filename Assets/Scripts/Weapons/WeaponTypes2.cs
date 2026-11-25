@@ -48,7 +48,7 @@ namespace RobotArena
                 var d = hit.collider.GetComponentInParent<Damageable>();
                 if (d != null) d.TakeDamage(damage, hit.point, owner);
                 if (hit.rigidbody != null && !hit.rigidbody.isKinematic)
-                    hit.rigidbody.AddForceAtPosition(dir * Mathf.Min(1.5f, 300f / hit.rigidbody.mass), hit.point, ForceMode.VelocityChange);
+                    hit.rigidbody.AddForceAtPosition(dir * Mathf.Min(1.5f, 300f / hit.rigidbody.mass) * (d != null ? 0.5f : 1f), hit.point, ForceMode.VelocityChange);
                 Fx.Sparks(hit.point, hit.normal, 6, 16f, 80f);
                 if (Random.value < 0.3f) Fx.Dust(hit.point, 0.4f);
             }

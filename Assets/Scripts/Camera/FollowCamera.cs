@@ -84,7 +84,7 @@ namespace RobotArena
             if (Main == null || !GameSettings.CameraShake) return;
             float d = Vector3.Distance(Main.transform.position, source);
             float falloff = Mathf.Clamp01(1f - d / radius);
-            Main.trauma = Mathf.Clamp01(Main.trauma + amount * falloff);
+            Main.trauma = Mathf.Clamp01(Main.trauma + amount * falloff * 0.6f); // gentler overall
         }
 
         void LateUpdate()

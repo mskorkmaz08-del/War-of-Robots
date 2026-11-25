@@ -293,7 +293,15 @@ namespace RobotArena
                 // Giant robots shrug off small blasts; light objects fly.
                 float massScale = Mathf.Clamp(3000f / rb.mass, 0.08f, 1f);
                 Vector3 dir = (rb.worldCenterOfMass - pos).normalized + Vector3.up * 0.4f;
-                rb.AddForceAtPosition(dir.normalized * force * falloff * massScale, Buffer[i].ClosestPoint(pos), ForceMode.VelocityChange);
+                Vector3 at = Buffer[i].ClosestPoint(pos);
+                if (rb.GetComponent<Damageable>() != null)
+                {
+                    // Robots rock a little but don't get thrown about: softer push,
+                    // applied closer to the centre of mass so it spins them less.
+                    massScale *= 0.45f;
+                    at = Vector3.Lerp(at, rb.worldCenterOfMass, 0.6f);
+                }
+                rb.AddForceAtPosition(dir.normalized * force * falloff * massScale, at, ForceMode.VelocityChange);
             }
         }
     }

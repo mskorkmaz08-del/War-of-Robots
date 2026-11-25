@@ -19,6 +19,13 @@ namespace RobotArena
         /// <summary>Boost held (jump jets / ultra thrust).</summary>
         public bool boost;
 
+        /// <summary>Walkers: move in this flat world direction (length up to 1), any way the hull faces.</summary>
+        public Vector3 move;
+        public bool hasMove;
+        /// <summary>Walkers: turn the hull to face this flat world direction.</summary>
+        public Vector3 face;
+        public bool hasFace;
+
         public void Clear()
         {
             throttle = 0f;
@@ -26,6 +33,9 @@ namespace RobotArena
             primary = false;
             special = false;
             boost = false;
+            hasMove = false;
+            hasFace = false;
+            move = Vector3.zero;
         }
     }
 }

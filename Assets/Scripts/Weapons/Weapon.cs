@@ -27,7 +27,8 @@ namespace RobotArena
 
         public float Ready01 => Mathf.Clamp01((Time.time - lastFire) / Mathf.Max(0.01f, cooldown));
         public bool IsReady => Time.time >= lastFire + cooldown;
-        protected bool IsPlayer => GetComponent<RobotInput>() != null;
+        bool? isPlayer;
+        protected bool IsPlayer => isPlayer ??= GetComponent<RobotInput>() != null;
 
         protected virtual void Awake()
         {
@@ -41,7 +42,7 @@ namespace RobotArena
 
         protected virtual void Update()
         {
-            if (Triggered && IsReady)
+            if (Triggered && IsReady && !TurretStillSwinging())
             {
                 lastFire = Time.time;
                 Fire();
@@ -49,6 +50,16 @@ namespace RobotArena
         }
 
         protected abstract void Fire();
+
+        /// <summary>
+        /// Player only: while the guns are still swinging onto a locked enemy,
+        /// wait instead of spraying shots into the scenery.
+        /// </summary>
+        bool TurretStillSwinging()
+        {
+            if (!IsPlayer || turret == null || turret.Target == null || muzzles.Length == 0 || muzzles[0] == null) return false;
+            return turret.AimError(muzzles[0]) > 25f;
+        }
 
         protected Transform NextMuzzle()
         {
@@ -64,7 +75,8 @@ namespace RobotArena
             if (turret != null)
             {
                 Vector3 wanted = (turret.AimPoint - muzzle.position).normalized;
-                dir = Vector3.RotateTowards(muzzle.forward, wanted, aimAssist * Mathf.Deg2Rad, 0f).normalized;
+                float bend = IsPlayer ? Mathf.Max(aimAssist, 25f) : aimAssist;
+                dir = Vector3.RotateTowards(muzzle.forward, wanted, bend * Mathf.Deg2Rad, 0f).normalized;
             }
             if (spread > 0f)
                 dir = Quaternion.AngleAxis(Random.Range(-spread, spread), Random.onUnitSphere) * dir;
@@ -74,7 +86,7 @@ namespace RobotArena
         protected void Recoil(Vector3 dir, Vector3 at, float speedChange)
         {
             if (body == null) return;
-            body.AddForceAtPosition(-dir * speedChange * body.mass, at, ForceMode.Impulse);
+            body.AddForceAtPosition(-dir * speedChange * 0.5f * body.mass, at, ForceMode.Impulse);
         }
 
         /// <summary>Raycast that skips the owner's own colliders.</summary>

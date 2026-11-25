@@ -38,6 +38,9 @@ namespace RobotArena
             public Quaternion rot;
             public float throttle, steer, health;
             public bool primary, special, boost;
+            public bool hasMove, hasFace;
+            public Vector2 move;   // world XZ
+            public float faceYaw;  // degrees
         }
 
         MatchManager M;
@@ -171,6 +174,9 @@ namespace RobotArena
             {
                 s.throttle = cmd.throttle; s.steer = cmd.steer;
                 s.primary = cmd.primary; s.special = cmd.special; s.boost = cmd.boost;
+                s.hasMove = cmd.hasMove; s.move = new Vector2(cmd.move.x, cmd.move.z);
+                s.hasFace = cmd.hasFace && cmd.face.sqrMagnitude > 0.0001f;
+                s.faceYaw = s.hasFace ? Mathf.Atan2(cmd.face.x, cmd.face.z) * Mathf.Rad2Deg : 0f;
             }
             var turret = d.GetComponent<Turret>();
             s.aim = turret != null ? turret.AimPoint : d.transform.position + d.transform.forward * 100f;
@@ -375,9 +381,13 @@ namespace RobotArena
             w.WriteValueSafe(s.aim);
             w.WriteValueSafe((sbyte)Mathf.RoundToInt(Mathf.Clamp(s.throttle, -1f, 1f) * 100f));
             w.WriteValueSafe((sbyte)Mathf.RoundToInt(Mathf.Clamp(s.steer, -1f, 1f) * 100f));
-            byte flags = (byte)((s.primary ? 1 : 0) | (s.special ? 2 : 0) | (s.boost ? 4 : 0));
+            byte flags = (byte)((s.primary ? 1 : 0) | (s.special ? 2 : 0) | (s.boost ? 4 : 0)
+                | (s.hasMove ? 8 : 0) | (s.hasFace ? 16 : 0));
             w.WriteValueSafe(flags);
             w.WriteValueSafe(s.health);
+            w.WriteValueSafe((sbyte)Mathf.RoundToInt(Mathf.Clamp(s.move.x, -1f, 1f) * 100f));
+            w.WriteValueSafe((sbyte)Mathf.RoundToInt(Mathf.Clamp(s.move.y, -1f, 1f) * 100f));
+            w.WriteValueSafe((short)Mathf.RoundToInt(Mathf.Repeat(s.faceYaw, 360f) * 10f));
         }
 
         static RobotState ReadState(ref FastBufferReader r)
@@ -392,6 +402,13 @@ namespace RobotArena
             r.ReadValueSafe(out sbyte st);
             r.ReadValueSafe(out byte flags);
             r.ReadValueSafe(out s.health);
+            r.ReadValueSafe(out sbyte mx);
+            r.ReadValueSafe(out sbyte mz);
+            r.ReadValueSafe(out short fy);
+            s.move = new Vector2(mx / 100f, mz / 100f);
+            s.faceYaw = fy / 10f;
+            s.hasMove = (flags & 8) != 0;
+            s.hasFace = (flags & 16) != 0;
             s.throttle = th / 100f;
             s.steer = st / 100f;
             s.primary = (flags & 1) != 0;
@@ -443,6 +460,10 @@ namespace RobotArena
             commands.primary = last.primary;
             commands.special = last.special;
             commands.boost = last.boost;
+            commands.hasMove = last.hasMove;
+            commands.move = new Vector3(last.move.x, 0f, last.move.y);
+            commands.hasFace = last.hasFace;
+            commands.face = Quaternion.Euler(0f, last.faceYaw, 0f) * Vector3.forward;
             if (turret != null) turret.netAim = last.aim;
         }
 

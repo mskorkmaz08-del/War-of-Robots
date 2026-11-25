@@ -98,7 +98,7 @@ namespace RobotArena
                 var d = hit.collider.GetComponentInParent<Damageable>();
                 if (d != null) d.TakeDamage(damage, hit.point, owner);
                 if (hit.rigidbody != null && !hit.rigidbody.isKinematic)
-                    hit.rigidbody.AddForceAtPosition(dir * Mathf.Min(2f, 400f / hit.rigidbody.mass), hit.point, ForceMode.VelocityChange);
+                    hit.rigidbody.AddForceAtPosition(dir * Mathf.Min(2f, 400f / hit.rigidbody.mass) * (d != null ? 0.5f : 1f), hit.point, ForceMode.VelocityChange);
                 Fx.Sparks(hit.point, hit.normal, 10, 18f, 70f);
                 Fx.EnergyBurst(hit.point, color, 0.5f);
                 if (Random.value < 0.5f) GameAudio.Play(Sfx.Sizzle, hit.point, 0.5f, Random.Range(0.9f, 1.2f));
@@ -166,7 +166,7 @@ namespace RobotArena
                 if (d != null)
                 {
                     d.TakeDamage(damage, hit.point, owner);
-                    if (d.Body != null) d.Body.AddForceAtPosition(dir * knockback + Vector3.up * 2f, hit.point, ForceMode.VelocityChange);
+                    if (d.Body != null) d.Body.AddForceAtPosition((dir * knockback + Vector3.up * 2f) * 0.5f, Vector3.Lerp(hit.point, d.Body.worldCenterOfMass, 0.5f), ForceMode.VelocityChange);
                 }
                 Explosions.Detonate(hit.point, 10f, 70f, 16f, owner, 2f);
             }
@@ -177,7 +177,7 @@ namespace RobotArena
             Fx.MuzzleFlash(from, dir, 2.5f);
             GameAudio.Play(Sfx.RailFire, from, 1f, 1f);
             FollowCamera.Shake(IsPlayer ? 0.75f : 0.3f, from, 150f);
-            if (body != null) body.AddForce(-dir * 5f, ForceMode.VelocityChange);
+            if (body != null) body.AddForce(-dir * 2.5f, ForceMode.VelocityChange);
         }
 
         void OnDisable()

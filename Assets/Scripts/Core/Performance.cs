@@ -28,26 +28,38 @@ namespace RobotArena
 
             if (applied) return;
             applied = true;
+            GameSettings.Apply();
+        }
 
+        /// <summary>Graphics quality from the settings menu.</summary>
+        public static void ApplyQuality(GameSettings.Quality q)
+        {
             QualitySettings.antiAliasing = 0;
             QualitySettings.shadowProjection = ShadowProjection.StableFit;
-            if (IsPhone)
+            QualitySettings.softParticles = false;
+            switch (q)
             {
-                QualitySettings.shadows = ShadowQuality.HardOnly;
-                QualitySettings.shadowResolution = ShadowResolution.Medium;
-                QualitySettings.shadowCascades = 1;
-                QualitySettings.shadowDistance = 90f;
-                QualitySettings.pixelLightCount = 1;
-                QualitySettings.softParticles = false;
-                QualitySettings.lodBias = 0.7f;
-            }
-            else
-            {
-                QualitySettings.shadows = ShadowQuality.All;
-                QualitySettings.shadowResolution = ShadowResolution.High;
-                QualitySettings.shadowCascades = 2;
-                QualitySettings.shadowDistance = 170f;
-                QualitySettings.pixelLightCount = 2;
+                case GameSettings.Quality.Low:
+                    QualitySettings.shadows = ShadowQuality.Disable;
+                    QualitySettings.pixelLightCount = 0;
+                    QualitySettings.lodBias = 0.5f;
+                    break;
+                case GameSettings.Quality.Medium:
+                    QualitySettings.shadows = ShadowQuality.HardOnly;
+                    QualitySettings.shadowResolution = ShadowResolution.Medium;
+                    QualitySettings.shadowCascades = 1;
+                    QualitySettings.shadowDistance = 90f;
+                    QualitySettings.pixelLightCount = 1;
+                    QualitySettings.lodBias = 0.8f;
+                    break;
+                default:
+                    QualitySettings.shadows = ShadowQuality.All;
+                    QualitySettings.shadowResolution = IsPhone ? ShadowResolution.Medium : ShadowResolution.High;
+                    QualitySettings.shadowCascades = IsPhone ? 1 : 2;
+                    QualitySettings.shadowDistance = IsPhone ? 130f : 170f;
+                    QualitySettings.pixelLightCount = IsPhone ? 2 : 3;
+                    QualitySettings.lodBias = 1f;
+                    break;
             }
         }
 

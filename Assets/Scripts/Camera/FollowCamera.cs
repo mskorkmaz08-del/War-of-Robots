@@ -81,7 +81,7 @@ namespace RobotArena
         /// <summary>Adds screen shake. Strength fades with distance from the camera.</summary>
         public static void Shake(float amount, Vector3 source, float radius = 120f)
         {
-            if (Main == null) return;
+            if (Main == null || !GameSettings.CameraShake) return;
             float d = Vector3.Distance(Main.transform.position, source);
             float falloff = Mathf.Clamp01(1f - d / radius);
             Main.trauma = Mathf.Clamp01(Main.trauma + amount * falloff);

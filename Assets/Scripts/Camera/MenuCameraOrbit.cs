@@ -21,6 +21,7 @@ namespace RobotArena
         void LateUpdate()
         {
             if (follow != null && follow.target != null) return;
+            if (Showroom.Active) return;
             angle += speed * Time.deltaTime;
             float a = angle * Mathf.Deg2Rad;
             transform.position = center + new Vector3(Mathf.Cos(a) * radius, height, Mathf.Sin(a) * radius);

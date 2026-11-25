@@ -339,6 +339,19 @@ namespace RobotArena
             }
         }
 
+        /// <summary>Stands the legs on the ground without physics (for the hangar preview).</summary>
+        public void PoseLegs()
+        {
+            if (rb == null) rb = GetComponent<Rigidbody>();
+            foreach (var leg in legs)
+            {
+                leg.footPos = FootHome(leg, Vector3.zero);
+                leg.planted = true;
+                leg.stepT = 1f;
+                SolveLeg(leg);
+            }
+        }
+
         void PlaceSegment(Transform seg, Vector3 from, Vector3 to)
         {
             if (seg == null) return;

@@ -1,51 +1,52 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace RobotArena
 {
     /// <summary>
-    /// All on-screen UI, built in code: robot select, health and boost bars,
-    /// enemy status, target marker, touch controls and the end screen.
+    /// Every screen, built in code: main menu, hangar (robot preview), settings,
+    /// in-fight HUD with radar and touch controls, pause menu and the end screen.
     /// </summary>
     public class Hud : MonoBehaviour
     {
         MatchManager match;
         Canvas canvas;
-        Font font;
-        Sprite circle;
 
-        GameObject selectPanel;
-        GameObject fightPanel;
-        GameObject endPanel;
-        GameObject deployPanel;
+        GameObject menuPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel, rotatePanel;
+        GameObject settingsReturn;
+
+        // Hangar
+        int hangarIndex;
+        Text hName, hRole, hDesc, hPrimary, hSpecial, hMobility, hCount;
+        Image[] sArmour, sSpeed, sFire, sRange;
+
+        // Fight
         Weapon special;
         Locomotion playerLoco;
         string lastSpecialText;
-        GameObject touchControls;
-        Text endTitle;
-        Text endSub;
-
-        RectTransform healthFill;
-        RectTransform fuelFill;
-        RectTransform specialFill;
-        Text specialLabel;
-        Text playerName;
+        RectTransform healthFill, fuelFill, specialFill;
+        Image healthImg;
+        Text specialLabel, playerName, healthText;
         RectTransform targetMarker;
         Image damageFlash;
-
-        VirtualJoystick joystick;
-        TouchButton fireButton;
-        TouchButton specialButton;
-        TouchButton boostButton;
-        LookPad lookPad;
-
+        Text fpsText;
+        float fpsTimer;
+        int fpsFrames;
         readonly List<(Damageable d, RectTransform fill, Text label)> enemyBars = new List<(Damageable, RectTransform, Text)>();
+        RectTransform enemyBarRoot;
         float lastHealth = -1f;
 
-        static readonly Color Panel = new Color(0.03f, 0.04f, 0.06f, 0.82f);
-        static readonly Color Orange = new Color(1f, 0.55f, 0.1f);
-        static readonly Color Cyan = new Color(0.3f, 0.85f, 1f);
+        // Touch controls
+        GameObject touchControls;
+        VirtualJoystick joystick;
+        TouchButton fireButton, specialButton, boostButton;
+        Image specialCharge, boostCharge;
+        LookPad lookPad;
+
+        // End
+        Text endTitle, endSub;
 
         public bool ShowTouch => Application.isMobilePlatform || Application.isEditor || TouchAvailable();
 
@@ -63,9 +64,6 @@ namespace RobotArena
         public void Build(MatchManager m)
         {
             match = m;
-            font = LoadFont();
-            circle = GameAssets.Get() != null ? GameAssets.Get().CircleSprite() : null;
-
             var go = new GameObject("HUD", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvas = go.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -73,128 +71,210 @@ namespace RobotArena
             var scaler = go.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            // Phones are wide: scale by height so buttons are a steady size.
             scaler.matchWidthOrHeight = 1f;
 
-            BuildSelect();
+            var flash = UiKit.Fill("DamageFlash", canvas.transform);
+            damageFlash = UiKit.Image(flash, null, new Color(1f, 0.1f, 0f, 0f));
+
+            BuildMenu();
+            BuildHangar();
             BuildFight();
+            BuildPause();
             BuildEnd();
             BuildDeploying();
+            BuildSettings();
+            BuildRotate();
+            HideAll();
         }
 
-        // ---------- Robot select ----------
-
-        void BuildSelect()
+        GameObject Screen(string name, bool safe = true)
         {
-            selectPanel = MakeRect("Select", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            var bg = selectPanel.AddComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.45f);
-
-            var title = Label(selectPanel.transform, "WAR OF ROBOTS", 110, Orange, TextAnchor.MiddleCenter);
-            Place(title.rectTransform, new Vector2(0.5f, 0.85f), new Vector2(1400f, 160f));
-            title.fontStyle = FontStyle.Bold;
-            var sub = Label(selectPanel.transform, "CHOOSE YOUR MACHINE", 40, Color.white, TextAnchor.MiddleCenter);
-            Place(sub.rectTransform, new Vector2(0.5f, 0.74f), new Vector2(1200f, 60f));
-
-            Card(selectPanel.transform, new Vector2(0.3f, 0.4f), "TITAN",
-                "15-metre walking giant\n\nHeavy arm cannons\nHoming missile swarm\nJump jets + shockwave landing",
-                () => match.StartMatch(RobotType.Titan));
-            Card(selectPanel.transform, new Vector2(0.7f, 0.4f), "RAPTOR",
-                "Armoured six-wheel destroyer\n\nRapid pulse lasers\nPlasma railgun super weapon\nULTRA THRUST ramming booster",
-                () => match.StartMatch(RobotType.Raptor));
+            var rt = UiKit.Fill(name, canvas.transform);
+            if (safe) rt.gameObject.AddComponent<SafeArea>();
+            return rt.gameObject;
         }
 
-        void Card(Transform parent, Vector2 anchor, string name, string body, UnityEngine.Events.UnityAction onClick)
+        void HideAll()
         {
-            var rt = MakeRect(name, parent, anchor, anchor, Vector2.zero, new Vector2(620f, 560f));
-            var img = rt.gameObject.AddComponent<Image>();
-            img.color = Panel;
-            var btn = rt.gameObject.AddComponent<Button>();
-            btn.targetGraphic = img;
-            var colors = btn.colors;
-            colors.highlightedColor = new Color(0.25f, 0.3f, 0.4f, 1f);
-            colors.pressedColor = new Color(0.4f, 0.3f, 0.1f, 1f);
-            btn.colors = colors;
-            btn.onClick.AddListener(onClick);
-
-            var stripe = MakeRect("Stripe", rt, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -6f), new Vector2(0f, 12f));
-            stripe.gameObject.AddComponent<Image>().color = Orange;
-
-            var title = Label(rt, name, 90, Color.white, TextAnchor.MiddleCenter);
-            title.fontStyle = FontStyle.Bold;
-            Place(title.rectTransform, new Vector2(0.5f, 0.82f), new Vector2(560f, 120f));
-            var text = Label(rt, body, 34, new Color(0.85f, 0.9f, 1f), TextAnchor.UpperCenter);
-            Place(text.rectTransform, new Vector2(0.5f, 0.4f), new Vector2(560f, 300f));
-            var go = Label(rt, "TAP TO DEPLOY", 30, Orange, TextAnchor.MiddleCenter);
-            Place(go.rectTransform, new Vector2(0.5f, 0.08f), new Vector2(560f, 50f));
+            foreach (var p in new[] { menuPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel })
+                p.SetActive(false);
         }
 
-        public void ShowSelect()
+        // =====================================================================
+        // Main menu
+        // =====================================================================
+
+        void BuildMenu()
         {
-            selectPanel.SetActive(true);
-            deployPanel.SetActive(false);
-            fightPanel.SetActive(false);
-            endPanel.SetActive(false);
+            menuPanel = Screen("Menu");
+            var dim = UiKit.Fill("Dim", menuPanel.transform);
+            UiKit.Stretch(dim, -400f);
+            UiKit.Image(dim, null, new Color(0.01f, 0.03f, 0.08f, 0.35f));
+
+            var top = UiKit.Rect("Over", menuPanel.transform, new Vector2(0.5f, 0.86f), Vector2.zero, new Vector2(1200f, 80f));
+            UiKit.Label(top, "GIANT ROBOT BATTLES", 44, UiKit.Cyan, TextAnchor.MiddleCenter, true);
+            var title = UiKit.Rect("Title", menuPanel.transform, new Vector2(0.5f, 0.72f), Vector2.zero, new Vector2(1600f, 220f));
+            UiKit.Title(title, "WAR OF ROBOTS", 170, UiKit.Orange);
+            var line = UiKit.Rect("Line", menuPanel.transform, new Vector2(0.5f, 0.6f), Vector2.zero, new Vector2(700f, 8f));
+            UiKit.Image(line, UiKit.Rounded, UiKit.Cyan);
+
+            UiKit.Button(menuPanel.transform, "PLAY", new Vector2(0.5f, 0.43f), Vector2.zero, new Vector2(560f, 150f), UiKit.ButtonStyle.Primary, () => match.OpenHangar(), 72);
+            UiKit.Button(menuPanel.transform, "SETTINGS", new Vector2(0.5f, 0.25f), Vector2.zero, new Vector2(460f, 110f), UiKit.ButtonStyle.Secondary, () => OpenSettings(menuPanel), 44);
+
+            var foot = UiKit.Rect("Footer", menuPanel.transform, new Vector2(0.5f, 0.06f), Vector2.zero, new Vector2(1600f, 50f));
+            UiKit.Label(foot, "Pick a machine, enter the arena, destroy every enemy robot.", 30, UiKit.TextDim);
         }
 
-        // ---------- In-fight HUD ----------
+        public void ShowMenu()
+        {
+            HideAll();
+            menuPanel.SetActive(true);
+        }
+
+        // =====================================================================
+        // Hangar: robot preview and choice
+        // =====================================================================
+
+        void BuildHangar()
+        {
+            hangarPanel = Screen("Hangar");
+
+            // Drag anywhere on the left to spin the robot.
+            var spin = UiKit.Rect("Spin", hangarPanel.transform, Vector2.zero, new Vector2(0.6f, 1f), Vector2.zero, Vector2.zero);
+            UiKit.Image(spin, null, new Color(0f, 0f, 0f, 0f), true);
+            spin.gameObject.AddComponent<DragSpin>().onDrag = dx => match.SpinPreview(dx * 0.3f);
+
+            UiKit.Button(hangarPanel.transform, "< BACK", new Vector2(0f, 1f), new Vector2(150f, -70f), new Vector2(240f, 90f), UiKit.ButtonStyle.Secondary, () => match.BackToMenu(), 36);
+            var head = UiKit.Rect("Head", hangarPanel.transform, new Vector2(0.3f, 1f), new Vector2(0f, -70f), new Vector2(800f, 80f));
+            UiKit.Title(head, "CHOOSE YOUR MACHINE", 52, Color.white);
+
+            // Switch robots
+            UiKit.IconButton(hangarPanel.transform, null, "<", new Vector2(0.06f, 0.5f), Vector2.zero, 130f, () => StepRobot(-1));
+            UiKit.IconButton(hangarPanel.transform, null, ">", new Vector2(0.54f, 0.5f), Vector2.zero, 130f, () => StepRobot(1));
+            var countRt = UiKit.Rect("Count", hangarPanel.transform, new Vector2(0.3f, 0.07f), Vector2.zero, new Vector2(400f, 60f));
+            hCount = UiKit.Label(countRt, "", 34, UiKit.TextDim, TextAnchor.MiddleCenter, true);
+
+            // Info card on the right
+            var card = UiKit.Panel("Info", hangarPanel.transform, new Vector2(0.79f, 0.5f), new Vector2(-10f, 20f), new Vector2(700f, 900f));
+            var stripe = UiKit.Rect("Stripe", card, new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(640f, 10f));
+            UiKit.Image(stripe, UiKit.Rounded, UiKit.Orange);
+
+            hName = UiKit.Title(Place(card, 0.5f, 0.91f, 640f, 110f), "", 96, UiKit.Orange);
+            hRole = UiKit.Label(Place(card, 0.5f, 0.825f, 640f, 50f), "", 34, UiKit.Cyan, TextAnchor.MiddleCenter, true);
+            hDesc = UiKit.Label(Place(card, 0.5f, 0.73f, 600f, 110f), "", 30, Color.white);
+
+            float y = 0.6f;
+            sArmour = StatRow(card, "ARMOUR", y, UiKit.Green);
+            sSpeed = StatRow(card, "SPEED", y - 0.055f, UiKit.Cyan);
+            sFire = StatRow(card, "FIREPOWER", y - 0.11f, UiKit.Orange);
+            sRange = StatRow(card, "RANGE", y - 0.165f, UiKit.Yellow);
+
+            hPrimary = WeaponRow(card, "MAIN", 0.34f);
+            hSpecial = WeaponRow(card, "SPECIAL", 0.28f);
+            hMobility = WeaponRow(card, "MOVE", 0.22f);
+
+            UiKit.Button(card, "DEPLOY", new Vector2(0.5f, 0.09f), Vector2.zero, new Vector2(560f, 120f), UiKit.ButtonStyle.Primary,
+                () => match.StartMatch(RobotCatalog.All[hangarIndex].type), 60);
+        }
+
+        static RectTransform Place(Transform parent, float ax, float ay, float w, float h)
+        {
+            return UiKit.Rect("Slot", parent, new Vector2(ax, ay), Vector2.zero, new Vector2(w, h));
+        }
+
+        Image[] StatRow(Transform card, string label, float y, Color color)
+        {
+            UiKit.Label(Place(card, 0.24f, y, 220f, 40f), label, 26, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+            return UiKit.SegmentBar(card, new Vector2(0.67f, y), Vector2.zero, new Vector2(400f, 24f), color);
+        }
+
+        Text WeaponRow(Transform card, string label, float y)
+        {
+            UiKit.Label(Place(card, 0.2f, y, 180f, 40f), label, 26, UiKit.Orange, TextAnchor.MiddleLeft, true);
+            return UiKit.Label(Place(card, 0.62f, y, 460f, 40f), "", 28, Color.white, TextAnchor.MiddleLeft);
+        }
+
+        void StepRobot(int dir)
+        {
+            int n = RobotCatalog.All.Count;
+            hangarIndex = ((hangarIndex + dir) % n + n) % n;
+            var info = RobotCatalog.All[hangarIndex];
+            FillHangar(info);
+            match.PreviewRobot(info);
+        }
+
+        void FillHangar(RobotInfo info)
+        {
+            hangarIndex = RobotCatalog.All.IndexOf(info);
+            hName.text = info.name;
+            hRole.text = info.role;
+            hDesc.text = info.description;
+            hPrimary.text = info.primary;
+            hSpecial.text = info.special;
+            hMobility.text = info.mobility;
+            hCount.text = (hangarIndex + 1) + " / " + RobotCatalog.All.Count;
+            UiKit.SetSegments(sArmour, info.armour, UiKit.Green);
+            UiKit.SetSegments(sSpeed, info.speed, UiKit.Cyan);
+            UiKit.SetSegments(sFire, info.firepower, UiKit.Orange);
+            UiKit.SetSegments(sRange, info.range, UiKit.Yellow);
+        }
+
+        public void ShowHangar(RobotInfo info)
+        {
+            HideAll();
+            FillHangar(info);
+            hangarPanel.SetActive(true);
+        }
+
+        // =====================================================================
+        // Fight HUD
+        // =====================================================================
 
         void BuildFight()
         {
-            // Damage flash covers the whole screen, including round corners and the notch.
-            var flash = MakeRect("DamageFlash", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            damageFlash = flash.gameObject.AddComponent<Image>();
-            damageFlash.color = new Color(1f, 0.1f, 0f, 0f);
-            damageFlash.raycastTarget = false;
+            fightPanel = Screen("Fight");
 
-            fightPanel = MakeRect("Fight", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            fightPanel.AddComponent<SafeArea>();
+            // Status card, top left
+            var status = UiKit.Panel("Status", fightPanel.transform, new Vector2(0f, 1f), new Vector2(300f, -105f), new Vector2(560f, 190f));
+            playerName = UiKit.Title(Place(status, 0.3f, 0.82f, 300f, 50f), "", 40, UiKit.Orange);
+            playerName.alignment = TextAnchor.MiddleLeft;
+            healthText = UiKit.Label(Place(status, 0.78f, 0.82f, 200f, 50f), "", 30, Color.white, TextAnchor.MiddleRight, true);
+            healthFill = UiKit.Bar(status, new Vector2(0.5f, 0.57f), Vector2.zero, new Vector2(510f, 40f), UiKit.Green, out healthImg);
+            UiKit.Label(Place(status, 0.14f, 0.32f, 120f, 30f), "BOOST", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+            fuelFill = UiKit.Bar(status, new Vector2(0.6f, 0.32f), Vector2.zero, new Vector2(370f, 22f), UiKit.Cyan, out _);
+            specialLabel = UiKit.Label(Place(status, 0.14f, 0.12f, 120f, 30f), "", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+            specialLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            specialFill = UiKit.Bar(status, new Vector2(0.6f, 0.12f), Vector2.zero, new Vector2(370f, 22f), UiKit.Orange, out _);
 
-            // Crosshair in the middle of the screen: weapons fire where it points.
-            var cross = MakeRect("Crosshair", fightPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 64f));
-            foreach (var (pos, size) in new[] { (new Vector2(0f, 22f), new Vector2(4f, 16f)), (new Vector2(0f, -22f), new Vector2(4f, 16f)), (new Vector2(22f, 0f), new Vector2(16f, 4f)), (new Vector2(-22f, 0f), new Vector2(16f, 4f)) })
+            // Enemy bars, top centre
+            enemyBarRoot = UiKit.Rect("Enemies", fightPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(900f, 80f));
+
+            // Radar and pause, top right
+            Minimap.Create(fightPanel.transform, new Vector2(1f, 1f), new Vector2(-175f, -175f), 300f);
+            UiKit.IconButton(fightPanel.transform, UiKit.PauseIcon, "II", new Vector2(1f, 1f), new Vector2(-395f, -70f), 100f, () => Pause(true));
+
+            // Crosshair
+            var cross = UiKit.Rect("Crosshair", fightPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(80f, 80f));
+            UiKit.Image(cross, UiKit.Ring, new Color(1f, 1f, 1f, 0.55f));
+            var dot = UiKit.Rect("Dot", cross, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 10f));
+            UiKit.Image(dot, UiKit.Circle, UiKit.Orange);
+
+            // Lock-on marker
+            targetMarker = UiKit.Rect("Target", fightPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 150f));
+            UiKit.Image(targetMarker, UiKit.Ring, new Color(1f, 0.3f, 0.2f, 0.85f));
+            foreach (var p in new[] { new Vector2(0f, 75f), new Vector2(0f, -75f), new Vector2(75f, 0f), new Vector2(-75f, 0f) })
             {
-                var tick = MakeRect("Tick", cross, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, size);
-                var ti = tick.gameObject.AddComponent<Image>();
-                ti.color = new Color(1f, 1f, 1f, 0.8f);
-                ti.raycastTarget = false;
+                var tick = UiKit.Rect("Tick", targetMarker, new Vector2(0.5f, 0.5f), p, p.x == 0f ? new Vector2(6f, 26f) : new Vector2(26f, 6f));
+                UiKit.Image(tick, UiKit.Rounded, UiKit.Red);
             }
-            var cdot = MakeRect("Dot", cross, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
-            var cdi = cdot.gameObject.AddComponent<Image>();
-            cdi.color = new Color(1f, 0.6f, 0.2f, 0.9f);
-            cdi.raycastTarget = false;
 
-            // Player status, top left
-            var status = MakeRect("Status", fightPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(330f, -110f), new Vector2(600f, 180f));
-            var sbg = status.gameObject.AddComponent<Image>();
-            sbg.color = Panel;
-            sbg.raycastTarget = false;
-            playerName = Label(status, "", 36, Orange, TextAnchor.UpperLeft);
-            playerName.fontStyle = FontStyle.Bold;
-            Place(playerName.rectTransform, new Vector2(0.5f, 0.82f), new Vector2(560f, 50f));
-            healthFill = Bar(status, new Vector2(0.5f, 0.55f), new Vector2(560f, 30f), new Color(0.25f, 0.95f, 0.4f), "ARMOUR");
-            fuelFill = Bar(status, new Vector2(0.5f, 0.33f), new Vector2(560f, 18f), Cyan, "BOOST");
-            specialFill = Bar(status, new Vector2(0.5f, 0.14f), new Vector2(560f, 18f), Orange, "");
-            specialLabel = Label(status, "", 22, Color.white, TextAnchor.MiddleLeft);
-            Place(specialLabel.rectTransform, new Vector2(0.5f, 0.14f), new Vector2(540f, 30f));
+            // FPS counter (optional)
+            fpsText = UiKit.Label(Place(fightPanel.transform, 0.5f, 0.02f, 300f, 40f), "", 24, UiKit.TextDim);
 
-            // Target marker
-            targetMarker = MakeRect("Target", fightPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(140f, 140f));
-            var ring = targetMarker.gameObject.AddComponent<Image>();
-            ring.sprite = circle;
-            ring.color = new Color(1f, 0.25f, 0.15f, 0.35f);
-            ring.raycastTarget = false;
-            var dot = MakeRect("Dot", targetMarker, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(18f, 18f));
-            var dimg = dot.gameObject.AddComponent<Image>();
-            dimg.sprite = circle;
-            dimg.color = new Color(1f, 0.3f, 0.2f, 0.9f);
-            dimg.raycastTarget = false;
-
-            // Controls hint for desktop
             if (!ShowTouch)
             {
-                var hint = Label(fightPanel.transform, "CLICK to aim with the mouse    W A S D  move    LEFT CLICK / SPACE  fire    RIGHT CLICK / E  special    SHIFT  boost    ESC  free cursor", 26, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
-                Place(hint.rectTransform, new Vector2(0.5f, 0.04f), new Vector2(1800f, 40f));
+                var hint = UiKit.Rect("Hint", fightPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 40f), new Vector2(1800f, 40f));
+                UiKit.Label(hint, "CLICK to aim with mouse   WASD move   LEFT CLICK fire   RIGHT CLICK special   SHIFT boost   ESC pause", 26, UiKit.TextDim);
             }
 
             BuildTouchControls();
@@ -202,43 +282,51 @@ namespace RobotArena
 
         void BuildTouchControls()
         {
-            touchControls = MakeRect("TouchControls", fightPanel.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
+            touchControls = UiKit.Fill("TouchControls", fightPanel.transform).gameObject;
 
-            // Drag anywhere that isn't a button to look around. Added first so buttons sit on top.
-            var pad = MakeRect("LookPad", touchControls.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            var padImg = pad.gameObject.AddComponent<Image>();
-            padImg.color = new Color(0f, 0f, 0f, 0f);
+            var pad = UiKit.Fill("LookPad", touchControls.transform);
+            UiKit.Image(pad, null, new Color(0f, 0f, 0f, 0f), true);
             lookPad = pad.gameObject.AddComponent<LookPad>();
-            var lookHint = Label(pad, "DRAG TO LOOK", 24, new Color(1f, 1f, 1f, 0.35f), TextAnchor.MiddleCenter);
-            Place(lookHint.rectTransform, new Vector2(0.62f, 0.12f), new Vector2(400f, 40f));
 
-            var stickBg = Circle("Joystick", touchControls.transform, new Vector2(0f, 0f), new Vector2(270f, 270f), 330f, new Color(1f, 1f, 1f, 0.16f));
-            var handle = Circle("Handle", stickBg, new Vector2(0.5f, 0.5f), Vector2.zero, 150f, new Color(1f, 1f, 1f, 0.5f));
-            handle.GetComponent<Image>().raycastTarget = false;
+            // Joystick: dark base with a glowing ring and a chunky knob.
+            var stickBg = UiKit.Rect("Joystick", touchControls.transform, Vector2.zero, new Vector2(260f, 250f), new Vector2(320f, 320f));
+            var area = UiKit.Rect("StickArea", stickBg, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 560f));
+            UiKit.Image(area, null, new Color(0f, 0f, 0f, 0f), true);
+            UiKit.Image(stickBg, UiKit.Circle, new Color(0.04f, 0.08f, 0.16f, 0.5f), true);
+            UiKit.Child(stickBg, "Ring", UiKit.Ring, new Color(0.3f, 0.85f, 1f, 0.7f));
+            var handle = UiKit.Rect("Knob", stickBg, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(140f, 140f));
+            UiKit.Image(handle, UiKit.Circle, new Color(0.25f, 0.75f, 1f, 0.9f));
+            UiKit.Child(handle, "Shine", UiKit.Circle, new Color(1f, 1f, 1f, 0.25f), 30f);
+            UiKit.Child(handle, "Ring", UiKit.Ring, Color.white);
             joystick = stickBg.gameObject.AddComponent<VirtualJoystick>();
             joystick.background = stickBg;
             joystick.handle = handle;
-            joystick.radius = 130f;
-            // Easier to hit: a bigger invisible touch area around the stick.
-            var stickArea = MakeRect("StickArea", stickBg, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 520f));
-            var areaImg = stickArea.gameObject.AddComponent<Image>();
-            areaImg.color = new Color(0f, 0f, 0f, 0f);
-            stickArea.SetAsFirstSibling();
+            joystick.radius = 120f;
 
-            fireButton = TouchBtn("FIRE", new Vector2(-230f, 230f), 260f, new Color(1f, 0.3f, 0.15f, 0.5f));
-            specialButton = TouchBtn("SPECIAL", new Vector2(-470f, 170f), 170f, new Color(1f, 0.6f, 0.1f, 0.45f));
-            boostButton = TouchBtn("BOOST", new Vector2(-200f, 470f), 170f, new Color(0.3f, 0.75f, 1f, 0.45f));
+            fireButton = ActionButton("FIRE", new Vector2(-220f, 230f), 250f, UiKit.Red, out _);
+            specialButton = ActionButton("SPECIAL", new Vector2(-460f, 150f), 170f, UiKit.Orange, out specialCharge);
+            boostButton = ActionButton("BOOST", new Vector2(-190f, 470f), 170f, UiKit.Cyan, out boostCharge);
+
+            var hint = UiKit.Rect("LookHint", touchControls.transform, new Vector2(0.55f, 0f), new Vector2(0f, 60f), new Vector2(400f, 40f));
+            UiKit.Label(hint, "DRAG TO LOOK", 24, new Color(1f, 1f, 1f, 0.35f), TextAnchor.MiddleCenter, true);
 
             touchControls.SetActive(ShowTouch);
         }
 
-        TouchButton TouchBtn(string label, Vector2 pos, float size, Color color)
+        TouchButton ActionButton(string label, Vector2 pos, float size, Color color, out Image charge)
         {
-            var rt = Circle(label, touchControls.transform, new Vector2(1f, 0f), pos, size, color);
-            var t = Label(rt, label, Mathf.RoundToInt(size * 0.17f), Color.white, TextAnchor.MiddleCenter);
-            t.fontStyle = FontStyle.Bold;
-            t.raycastTarget = false;
-            Stretch(t.rectTransform);
+            var rt = UiKit.Rect(label, touchControls.transform, new Vector2(1f, 0f), pos, new Vector2(size, size));
+            UiKit.Image(rt, UiKit.Circle, new Color(0.04f, 0.07f, 0.14f, 0.6f), true);
+            // Charge ring fills up as the weapon reloads.
+            var chargeImg = UiKit.Child(rt, "Charge", UiKit.Ring, color);
+            chargeImg.type = Image.Type.Filled;
+            chargeImg.fillMethod = Image.FillMethod.Radial360;
+            chargeImg.fillOrigin = (int)Image.Origin360.Top;
+            charge = chargeImg;
+            UiKit.Child(rt, "Inner", UiKit.Circle, new Color(color.r, color.g, color.b, 0.28f), size * 0.12f);
+            UiKit.Child(rt, "Shine", UiKit.Sheen, new Color(1f, 1f, 1f, 0.6f), size * 0.12f);
+            UiKit.Label(rt, label, Mathf.RoundToInt(size * 0.16f), Color.white, TextAnchor.MiddleCenter, true);
+            rt.gameObject.AddComponent<PressBounce>();
             return rt.gameObject.AddComponent<TouchButton>();
         }
 
@@ -253,67 +341,84 @@ namespace RobotArena
 
         public void ShowFight()
         {
-            selectPanel.SetActive(false);
-            deployPanel.SetActive(false);
-            endPanel.SetActive(false);
+            HideAll();
             fightPanel.SetActive(true);
             special = null;
             playerLoco = null;
             lastSpecialText = null;
-            if (match.Player != null)
+            lastHealth = -1f;
+            var p = match.Player;
+            if (p != null)
             {
-                playerLoco = match.Player.GetComponent<Locomotion>();
-                foreach (var w in match.Player.GetComponents<Weapon>()) if (w.slot == Weapon.Slot.Special) special = w;
+                playerLoco = p.GetComponent<Locomotion>();
+                foreach (var w in p.GetComponents<Weapon>()) if (w.slot == Weapon.Slot.Special) special = w;
+                playerName.text = p.displayName;
             }
 
-            foreach (var e in enemyBars) if (e.fill != null) Destroy(e.fill.parent.parent.gameObject);
+            foreach (Transform c in enemyBarRoot) Destroy(c.gameObject);
             enemyBars.Clear();
             for (int i = 0; i < match.Enemies.Count; i++)
             {
                 var d = match.Enemies[i];
-                var holder = MakeRect("Enemy", fightPanel.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                    new Vector2((i - (match.Enemies.Count - 1) * 0.5f) * 440f, -60f), new Vector2(400f, 70f));
-                var img = holder.gameObject.AddComponent<Image>();
-                img.color = Panel;
-                img.raycastTarget = false;
-                var label = Label(holder, d.displayName, 26, new Color(1f, 0.5f, 0.4f), TextAnchor.UpperLeft);
-                Place(label.rectTransform, new Vector2(0.5f, 0.7f), new Vector2(370f, 34f));
-                var fill = Bar(holder, new Vector2(0.5f, 0.3f), new Vector2(370f, 16f), new Color(1f, 0.25f, 0.2f), "");
+                var holder = UiKit.Rect("Enemy", enemyBarRoot, new Vector2(0.5f, 0.5f),
+                    new Vector2((i - (match.Enemies.Count - 1) * 0.5f) * 420f, 0f), new Vector2(390f, 80f));
+                var label = UiKit.Label(Place(holder, 0.5f, 0.75f, 380f, 36f), d.displayName, 28, new Color(1f, 0.6f, 0.5f), TextAnchor.MiddleCenter, true);
+                var fill = UiKit.Bar(holder, new Vector2(0.5f, 0.25f), Vector2.zero, new Vector2(380f, 22f), UiKit.Red, out _);
                 enemyBars.Add((d, fill, label));
             }
-
-            if (match.Player != null) playerName.text = match.Player.displayName;
         }
 
         void Update()
         {
-            if (fightPanel == null || !fightPanel.activeSelf) return;
+            // Landscape only: ask the player to turn the phone if it's upright.
+            bool portrait = UnityEngine.Screen.height > UnityEngine.Screen.width;
+            if (rotatePanel.activeSelf != portrait) rotatePanel.SetActive(portrait);
+
+            var fc = damageFlash.color;
+            if (fc.a > 0f)
+            {
+                fc.a = Mathf.MoveTowards(fc.a, 0f, Time.unscaledDeltaTime * 0.8f);
+                damageFlash.color = fc;
+            }
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (fightPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape)) Pause(true);
+            else if (pausePanel.activeSelf && Input.GetKeyDown(KeyCode.Escape)) Pause(false);
+#endif
+
+            if (!fightPanel.activeSelf) return;
             var p = match.Player;
             if (p != null)
             {
-                SetFill(healthFill, p.HealthFraction);
-                if (playerLoco != null) SetFill(fuelFill, playerLoco.Fuel01);
+                float hp = p.HealthFraction;
+                SetFill(healthFill, hp);
+                healthImg.color = Color.Lerp(UiKit.Red, UiKit.Green, Mathf.InverseLerp(0.2f, 0.7f, hp));
+                string hpText = Mathf.CeilToInt(hp * 100f) + "%";
+                if (healthText.text != hpText) healthText.text = hpText;
+                if (playerLoco != null)
+                {
+                    SetFill(fuelFill, playerLoco.Fuel01);
+                    if (boostCharge != null) boostCharge.fillAmount = playerLoco.Fuel01;
+                }
 
                 if (special != null)
                 {
                     SetFill(specialFill, special.Ready01);
+                    if (specialCharge != null) specialCharge.fillAmount = special.Ready01;
                     var rail = special as PlasmaRailgun;
-                    string state = rail != null && rail.IsCharging ? "CHARGING..." : (special.IsReady ? "READY" : "RELOADING");
-                    // Only touch the text when it changes: rebuilding text every frame is slow on phones.
+                    string state = rail != null && rail.IsCharging ? "CHARGE" : (special.IsReady ? "READY" : "RELOAD");
                     if (!ReferenceEquals(state, lastSpecialText))
                     {
                         lastSpecialText = state;
-                        specialLabel.text = "  " + special.displayName.ToUpper() + "  -  " + state;
+                        specialLabel.text = state;
+                        specialLabel.color = special.IsReady ? UiKit.Orange : UiKit.TextDim;
                     }
                 }
 
-                if (lastHealth >= 0f && p.HealthFraction < lastHealth)
-                    damageFlash.color = new Color(1f, 0.1f, 0f, Mathf.Min(0.35f, damageFlash.color.a + (lastHealth - p.HealthFraction) * 4f));
-                lastHealth = p.HealthFraction;
+                if (lastHealth >= 0f && hp < lastHealth)
+                    damageFlash.color = new Color(1f, 0.1f, 0f, Mathf.Min(0.35f, damageFlash.color.a + (lastHealth - hp) * 4f));
+                lastHealth = hp;
             }
-            var fc = damageFlash.color;
-            fc.a = Mathf.MoveTowards(fc.a, 0f, Time.unscaledDeltaTime * 0.8f);
-            damageFlash.color = fc;
 
             foreach (var e in enemyBars)
             {
@@ -321,12 +426,30 @@ namespace RobotArena
                 SetFill(e.fill, e.d.HealthFraction);
                 if (e.d.IsDead && e.label.color.a > 0.99f)
                 {
-                    e.label.text = e.d.displayName + "  -  DESTROYED";
-                    e.label.color = new Color(e.label.color.r, e.label.color.g, e.label.color.b, 0.98f);
+                    e.label.text = e.d.displayName + " - DESTROYED";
+                    e.label.color = new Color(0.6f, 0.6f, 0.6f, 0.98f);
                 }
             }
 
             UpdateTargetMarker(p);
+            UpdateFps();
+        }
+
+        void UpdateFps()
+        {
+            if (!GameSettings.ShowFps)
+            {
+                if (fpsText.text.Length > 0) fpsText.text = "";
+                return;
+            }
+            fpsFrames++;
+            fpsTimer += Time.unscaledDeltaTime;
+            if (fpsTimer >= 0.5f)
+            {
+                fpsText.text = Mathf.RoundToInt(fpsFrames / fpsTimer) + " FPS";
+                fpsFrames = 0;
+                fpsTimer = 0f;
+            }
         }
 
         void UpdateTargetMarker(Damageable p)
@@ -335,7 +458,7 @@ namespace RobotArena
             var cam = Camera.main;
             if (turret == null || turret.Target == null || cam == null)
             {
-                targetMarker.gameObject.SetActive(false);
+                if (targetMarker.gameObject.activeSelf) targetMarker.gameObject.SetActive(false);
                 return;
             }
             Vector3 sp = cam.WorldToScreenPoint(turret.Target.Center);
@@ -351,175 +474,184 @@ namespace RobotArena
             targetMarker.localRotation = Quaternion.Euler(0f, 0f, Time.time * 60f);
         }
 
-        // ---------- End screen ----------
+        static void SetFill(RectTransform fill, float fraction)
+        {
+            if (fill == null) return;
+            float f = Mathf.Round(Mathf.Clamp01(fraction) * 200f) / 200f;
+            if (Mathf.Approximately(fill.anchorMax.x, f)) return;
+            fill.anchorMax = new Vector2(f, 1f);
+        }
+
+        // =====================================================================
+        // Pause
+        // =====================================================================
+
+        void BuildPause()
+        {
+            pausePanel = Screen("Pause", false);
+            UiKit.Image(pausePanel.transform, null, new Color(0.01f, 0.02f, 0.06f, 0.7f), true);
+            var card = UiKit.Panel("Card", pausePanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 760f));
+            UiKit.Title(Place(card, 0.5f, 0.88f, 600f, 110f), "PAUSED", 90, Color.white);
+            UiKit.Button(card, "RESUME", new Vector2(0.5f, 0.68f), Vector2.zero, new Vector2(480f, 110f), UiKit.ButtonStyle.Primary, () => Pause(false), 48);
+            UiKit.Button(card, "SETTINGS", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Secondary, () => OpenSettings(pausePanel), 40);
+            UiKit.Button(card, "RESTART", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Secondary, () => { ShowLoading(); match.Restart(); }, 40);
+            UiKit.Button(card, "QUIT TO MENU", new Vector2(0.5f, 0.15f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Danger, () => { ShowLoading(); match.QuitToMenu(); }, 40);
+        }
+
+        void Pause(bool on)
+        {
+            if (on && match.Current != MatchManager.State.Fighting) return;
+            match.SetPaused(on);
+            pausePanel.SetActive(on);
+            fightPanel.SetActive(!on);
+        }
+
+        // =====================================================================
+        // Settings
+        // =====================================================================
+
+        Button[] qualityButtons;
+        Text shakeText, fpsToggleText;
+
+        void BuildSettings()
+        {
+            settingsPanel = Screen("Settings", false);
+            UiKit.Image(settingsPanel.transform, null, new Color(0.01f, 0.02f, 0.06f, 0.75f), true);
+            var card = UiKit.Panel("Card", settingsPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100f, 900f));
+            UiKit.Title(Place(card, 0.5f, 0.91f, 900f, 110f), "SETTINGS", 84, Color.white);
+
+            SettingLabel(card, "SOUND", 0.76f);
+            UiSlider.Create(card, new Vector2(0.64f, 0.76f), Vector2.zero, 620f, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v);
+
+            SettingLabel(card, "LOOK SPEED", 0.62f);
+            UiSlider.Create(card, new Vector2(0.64f, 0.62f), Vector2.zero, 620f, 0.3f, 2.5f, GameSettings.LookSensitivity, v => GameSettings.LookSensitivity = v);
+
+            SettingLabel(card, "GRAPHICS", 0.48f);
+            qualityButtons = new Button[3];
+            string[] names = { "LOW", "MEDIUM", "HIGH" };
+            for (int i = 0; i < 3; i++)
+            {
+                int q = i;
+                qualityButtons[i] = UiKit.Button(card, names[i], new Vector2(0.64f, 0.48f), new Vector2((i - 1) * 210f, 0f), new Vector2(195f, 90f),
+                    UiKit.ButtonStyle.Secondary, () => { GameSettings.GraphicsQuality = (GameSettings.Quality)q; RefreshSettings(); }, 32);
+            }
+
+            SettingLabel(card, "CAMERA SHAKE", 0.34f);
+            var shakeBtn = UiKit.Button(card, "ON", new Vector2(0.64f, 0.34f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
+                () => { GameSettings.CameraShake = !GameSettings.CameraShake; RefreshSettings(); }, 34);
+            shakeText = shakeBtn.GetComponentInChildren<Text>();
+
+            SettingLabel(card, "SHOW FPS", 0.21f);
+            var fpsBtn = UiKit.Button(card, "OFF", new Vector2(0.64f, 0.21f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
+                () => { GameSettings.ShowFps = !GameSettings.ShowFps; RefreshSettings(); }, 34);
+            fpsToggleText = fpsBtn.GetComponentInChildren<Text>();
+
+            UiKit.Button(card, "DONE", new Vector2(0.5f, 0.07f), Vector2.zero, new Vector2(420f, 100f), UiKit.ButtonStyle.Primary, CloseSettings, 46);
+        }
+
+        static void SettingLabel(Transform card, string text, float y)
+        {
+            UiKit.Label(Place(card, 0.2f, y, 320f, 60f), text, 34, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+        }
+
+        void RefreshSettings()
+        {
+            for (int i = 0; i < qualityButtons.Length; i++)
+            {
+                bool on = (int)GameSettings.GraphicsQuality == i;
+                var img = qualityButtons[i].GetComponent<Image>();
+                img.color = on ? UiKit.Orange : new Color(0.1f, 0.2f, 0.36f, 0.95f);
+                qualityButtons[i].GetComponentInChildren<Text>().color = on ? new Color(0.12f, 0.06f, 0f) : Color.white;
+            }
+            shakeText.text = GameSettings.CameraShake ? "ON" : "OFF";
+            fpsToggleText.text = GameSettings.ShowFps ? "ON" : "OFF";
+        }
+
+        void OpenSettings(GameObject from)
+        {
+            settingsReturn = from;
+            from.SetActive(false);
+            RefreshSettings();
+            settingsPanel.SetActive(true);
+        }
+
+        void CloseSettings()
+        {
+            settingsPanel.SetActive(false);
+            if (settingsReturn != null) settingsReturn.SetActive(true);
+        }
+
+        // =====================================================================
+        // End of match
+        // =====================================================================
 
         void BuildEnd()
         {
-            endPanel = MakeRect("End", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            endPanel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.5f);
-            endTitle = Label(endPanel.transform, "", 150, Orange, TextAnchor.MiddleCenter);
-            endTitle.fontStyle = FontStyle.Bold;
-            Place(endTitle.rectTransform, new Vector2(0.5f, 0.62f), new Vector2(1600f, 220f));
-            endSub = Label(endPanel.transform, "", 40, Color.white, TextAnchor.MiddleCenter);
-            Place(endSub.rectTransform, new Vector2(0.5f, 0.48f), new Vector2(1400f, 80f));
-
-            EndButton("FIGHT AGAIN", new Vector2(0.37f, 0.28f), Orange, Color.black, () => match.Restart());
-            EndButton("CHANGE ROBOT", new Vector2(0.63f, 0.28f), new Color(0.2f, 0.24f, 0.3f, 0.95f), Color.white, () => match.ChangeRobot());
+            endPanel = Screen("End");
+            var dim = UiKit.Fill("Dim", endPanel.transform);
+            UiKit.Stretch(dim, -400f);
+            UiKit.Image(dim, null, new Color(0f, 0f, 0.03f, 0.55f), true);
+            endTitle = UiKit.Title(Place(endPanel.transform, 0.5f, 0.68f, 1600f, 240f), "", 170, UiKit.Orange);
+            endSub = UiKit.Label(Place(endPanel.transform, 0.5f, 0.52f, 1400f, 80f), "", 40, Color.white);
+            UiKit.Button(endPanel.transform, "FIGHT AGAIN", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary,
+                () => { ShowLoading(); match.Restart(); }, 54);
+            UiKit.Button(endPanel.transform, "CHANGE ROBOT", new Vector2(0.5f, 0.34f), new Vector2(-560f, 0f), new Vector2(420f, 110f), UiKit.ButtonStyle.Secondary,
+                () => { ShowLoading(); match.ChangeRobot(); }, 38);
+            UiKit.Button(endPanel.transform, "MENU", new Vector2(0.5f, 0.34f), new Vector2(520f, 0f), new Vector2(320f, 110f), UiKit.ButtonStyle.Secondary,
+                () => { ShowLoading(); match.QuitToMenu(); }, 38);
         }
 
-        void EndButton(string label, Vector2 anchor, Color color, Color textColor, UnityEngine.Events.UnityAction onClick)
+        public void ShowEnd(bool won)
         {
-            var btnRt = MakeRect(label, endPanel.transform, anchor, anchor, Vector2.zero, new Vector2(560f, 130f));
-            var img = btnRt.gameObject.AddComponent<Image>();
-            img.color = color;
-            var btn = btnRt.gameObject.AddComponent<Button>();
-            btn.targetGraphic = img;
-            btn.onClick.AddListener(() =>
-            {
-                // Show the tap straight away; the reload happens on the next frames.
-                ShowLoading();
-                onClick();
-            });
-            var t = Label(btnRt, label, 50, textColor, TextAnchor.MiddleCenter);
-            t.fontStyle = FontStyle.Bold;
-            Stretch(t.rectTransform);
+            HideAll();
+            endPanel.SetActive(true);
+            endTitle.text = won ? "VICTORY!" : "DESTROYED";
+            endTitle.color = won ? UiKit.Yellow : UiKit.Red;
+            endSub.text = won ? "Every enemy machine is scrap metal." : "Your machine has fallen. Rebuild and return.";
         }
 
-        // ---------- Deploying / loading screen ----------
+        // =====================================================================
+        // Loading / deploying, rotate-your-phone
+        // =====================================================================
 
         Text deployText;
 
         void BuildDeploying()
         {
-            deployPanel = MakeRect("Deploying", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            deployPanel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
-            deployText = Label(deployPanel.transform, "DEPLOYING...", 90, Orange, TextAnchor.MiddleCenter);
-            deployText.fontStyle = FontStyle.Bold;
-            Place(deployText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(1600f, 160f));
-            deployPanel.SetActive(false);
+            deployPanel = Screen("Deploying", false);
+            UiKit.Image(deployPanel.transform, null, new Color(0.01f, 0.02f, 0.06f, 0.75f), true);
+            deployText = UiKit.Title(Place(deployPanel.transform, 0.5f, 0.5f, 1600f, 180f), "DEPLOYING...", 100, UiKit.Orange);
         }
 
         public void ShowDeploying()
         {
-            selectPanel.SetActive(false);
-            endPanel.SetActive(false);
-            fightPanel.SetActive(false);
+            HideAll();
             deployText.text = "DEPLOYING...";
             deployPanel.SetActive(true);
         }
 
         void ShowLoading()
         {
-            endPanel.SetActive(false);
+            HideAll();
             deployText.text = "LOADING...";
             deployPanel.SetActive(true);
         }
 
-        public void ShowEnd(bool won)
+        void BuildRotate()
         {
-            fightPanel.SetActive(false);
-            endPanel.SetActive(true);
-            endTitle.text = won ? "VICTORY" : "DESTROYED";
-            endTitle.color = won ? Orange : new Color(1f, 0.25f, 0.2f);
-            endSub.text = won ? "Every enemy machine is scrap metal." : "Your machine has fallen. Rebuild and return.";
+            rotatePanel = Screen("Rotate", false);
+            rotatePanel.transform.SetAsLastSibling();
+            UiKit.Image(rotatePanel.transform, null, new Color(0.02f, 0.03f, 0.07f, 1f), true);
+            UiKit.Title(Place(rotatePanel.transform, 0.5f, 0.55f, 1800f, 200f), "TURN YOUR PHONE", 110, UiKit.Orange);
+            UiKit.Label(Place(rotatePanel.transform, 0.5f, 0.42f, 1800f, 80f), "War of Robots is played sideways", 50, Color.white);
+            rotatePanel.SetActive(false);
         }
+    }
 
-        // ---------- UI helpers ----------
-
-        static Font LoadFont()
-        {
-            Font f = null;
-            try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-            if (f == null) { try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { } }
-            return f;
-        }
-
-        static RectTransform MakeRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pos, Vector2 size)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = size;
-            return rt;
-        }
-
-        static void Place(RectTransform rt, Vector2 anchor, Vector2 size)
-        {
-            rt.anchorMin = rt.anchorMax = anchor;
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = Vector2.zero;
-            rt.sizeDelta = size;
-        }
-
-        static void Stretch(RectTransform rt)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-        }
-
-        Text Label(Transform parent, string text, int size, Color color, TextAnchor anchor)
-        {
-            var go = new GameObject("Text", typeof(RectTransform), typeof(Text));
-            go.transform.SetParent(parent, false);
-            var t = go.GetComponent<Text>();
-            t.font = font;
-            t.text = text;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = anchor;
-            t.raycastTarget = false;
-            t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            t.verticalOverflow = VerticalWrapMode.Overflow;
-            var shadow = go.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.7f);
-            shadow.effectDistance = new Vector2(2f, -2f);
-            return t;
-        }
-
-        RectTransform Bar(Transform parent, Vector2 anchor, Vector2 size, Color color, string label)
-        {
-            var bg = MakeRect("Bar", parent, anchor, anchor, Vector2.zero, size);
-            var bgImg = bg.gameObject.AddComponent<Image>();
-            bgImg.color = new Color(1f, 1f, 1f, 0.12f);
-            bgImg.raycastTarget = false;
-            var fill = MakeRect("Fill", bg, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            fill.offsetMin = Vector2.zero;
-            fill.offsetMax = Vector2.zero;
-            var img = fill.gameObject.AddComponent<Image>();
-            img.color = color;
-            img.raycastTarget = false;
-            if (!string.IsNullOrEmpty(label))
-            {
-                var t = Label(bg, label, Mathf.RoundToInt(size.y * 0.7f), new Color(1f, 1f, 1f, 0.9f), TextAnchor.MiddleLeft);
-                Stretch(t.rectTransform);
-                t.rectTransform.offsetMin = new Vector2(10f, 0f);
-            }
-            return fill;
-        }
-
-        static void SetFill(RectTransform fill, float fraction)
-        {
-            if (fill == null) return;
-            // Skip tiny changes so the UI isn't rebuilt every frame.
-            float f = Mathf.Round(Mathf.Clamp01(fraction) * 200f) / 200f;
-            if (Mathf.Approximately(fill.anchorMax.x, f)) return;
-            fill.anchorMax = new Vector2(f, 1f);
-            fill.offsetMax = Vector2.zero;
-        }
-
-        RectTransform Circle(string name, Transform parent, Vector2 anchor, Vector2 pos, float size, Color color)
-        {
-            var rt = MakeRect(name, parent, anchor, anchor, pos, new Vector2(size, size));
-            var img = rt.gameObject.AddComponent<Image>();
-            img.sprite = circle;
-            img.color = color;
-            return rt;
-        }
+    /// <summary>Reports horizontal drags (used to spin the robot in the hangar).</summary>
+    public class DragSpin : MonoBehaviour, IDragHandler
+    {
+        public System.Action<float> onDrag;
+        public void OnDrag(PointerEventData e) => onDrag?.Invoke(e.delta.x * 1080f / Mathf.Max(1f, UnityEngine.Screen.height));
     }
 }

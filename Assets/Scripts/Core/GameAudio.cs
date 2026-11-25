@@ -71,6 +71,7 @@ namespace RobotArena
             uiSource = gameObject.AddComponent<AudioSource>();
             uiSource.spatialBlend = 0f;
             uiSource.playOnAwake = false;
+            uiSource.ignoreListenerPause = true;
 
             // Sounds are synthesised lazily (or ahead of time by Prewarm) instead of all at once,
             // so tapping a button never waits for the whole sound bank.

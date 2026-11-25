@@ -11,22 +11,26 @@ namespace RobotArena
     /// </summary>
     public class MatchManager : MonoBehaviour
     {
-        public enum State { Select, Deploying, Fighting, Won, Lost }
+        public enum State { Menu, Hangar, Deploying, Fighting, Won, Lost }
+        public enum Screen { Menu, Hangar, Redeploy }
 
         public static MatchManager Instance { get; private set; }
 
         public Transform playerSpawn;
         public Transform[] enemySpawns = new Transform[0];
 
-        public State Current { get; private set; } = State.Select;
+        public State Current { get; private set; } = State.Menu;
+        public bool Paused { get; private set; }
         public Damageable Player { get; private set; }
         public readonly List<Damageable> Enemies = new List<Damageable>();
 
         Hud hud;
         const float BaseFixedDelta = 0.02f;
 
-        // Remembered across "fight again" reloads, so the next match starts straight away.
-        static RobotType? redeploy;
+        // Remembered across scene reloads: where to go next, and the last robot picked.
+        static Screen nextScreen = Screen.Menu;
+        static RobotType lastType = RobotType.Titan;
+        Showroom showroom;
 
         void Awake()
         {
@@ -41,31 +45,62 @@ namespace RobotArena
         {
             hud = gameObject.AddComponent<Hud>();
             hud.Build(this);
+            showroom = Showroom.Create();
             // Fill the effect pools and compile effect shaders out of sight.
             FxPool.Prewarm(new Vector3(0f, -40f, 0f));
 
-            if (redeploy.HasValue)
+            var screen = nextScreen;
+            nextScreen = Screen.Menu;
+            switch (screen)
             {
-                var type = redeploy.Value;
-                redeploy = null;
-                StartMatch(type);
-            }
-            else
-            {
-                hud.ShowSelect();
-                // Make the sounds while the player picks.
-                GameAudio.Prewarm();
+                case Screen.Redeploy:
+                    Current = State.Hangar;
+                    StartMatch(lastType);
+                    break;
+                case Screen.Hangar:
+                    OpenHangar();
+                    GameAudio.Prewarm();
+                    break;
+                default:
+                    hud.ShowMenu();
+                    GameAudio.Prewarm();
+                    break;
             }
         }
 
         public RobotType PlayerType { get; private set; }
 
+        public void OpenHangar()
+        {
+            if (Current != State.Menu && Current != State.Hangar) return;
+            Current = State.Hangar;
+            showroom.Open(RobotCatalog.Get(lastType));
+            hud.ShowHangar(RobotCatalog.Get(lastType));
+        }
+
+        public void BackToMenu()
+        {
+            if (Current != State.Hangar) return;
+            Current = State.Menu;
+            showroom.Close();
+            hud.ShowMenu();
+        }
+
+        public void PreviewRobot(RobotInfo info)
+        {
+            lastType = info.type;
+            showroom.Show(info);
+        }
+
+        public void SpinPreview(float degrees) => showroom.Drag(degrees);
+
         public void StartMatch(RobotType type)
         {
-            if (Current != State.Select) return;
+            if (Current != State.Hangar) return;
             Current = State.Deploying;
             PlayerType = type;
-            GameAudio.Play2D(Sfx.UiClick);
+            lastType = type;
+            showroom.Close();
             hud.ShowDeploying();
             StartCoroutine(Deploy(type));
         }
@@ -79,7 +114,7 @@ namespace RobotArena
 
             Vector3 pPos = playerSpawn != null ? playerSpawn.position : new Vector3(0f, 0f, -60f);
             Quaternion pRot = playerSpawn != null ? playerSpawn.rotation : Quaternion.identity;
-            var playerGo = RobotFactory.Build(type, pPos, pRot, 0, Livery.Player, true, type == RobotType.Titan ? "TITAN" : "RAPTOR");
+            var playerGo = RobotFactory.Build(type, pPos, pRot, 0, Livery.Player, true, RobotCatalog.Get(type).name);
             var input = playerGo.AddComponent<RobotInput>();
             hud.ConnectControls(input);
             var playerTurret = playerGo.GetComponent<Turret>();
@@ -162,8 +197,11 @@ namespace RobotArena
             Time.timeScale = 0.3f;
             Time.fixedDeltaTime = BaseFixedDelta * Time.timeScale;
             yield return new WaitForSecondsRealtime(realSeconds);
-            Time.timeScale = 1f;
-            Time.fixedDeltaTime = BaseFixedDelta;
+            if (!Paused)
+            {
+                Time.timeScale = 1f;
+                Time.fixedDeltaTime = BaseFixedDelta;
+            }
         }
 
         IEnumerator ShowEndAfter(float realSeconds, bool won)
@@ -172,17 +210,37 @@ namespace RobotArena
             hud.ShowEnd(won);
         }
 
+        public void SetPaused(bool pause)
+        {
+            if (Current != State.Fighting && pause) return;
+            Paused = pause;
+            Time.timeScale = pause ? 0f : 1f;
+            Time.fixedDeltaTime = BaseFixedDelta;
+            AudioListener.pause = pause;
+            if (pause)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
+
         /// <summary>Same robot again, straight into the fight.</summary>
         public void Restart()
         {
-            redeploy = PlayerType;
+            nextScreen = Screen.Redeploy;
             Reload();
         }
 
-        /// <summary>Back to the robot select screen.</summary>
+        /// <summary>Back to the hangar to pick a robot.</summary>
         public void ChangeRobot()
         {
-            redeploy = null;
+            nextScreen = Screen.Hangar;
+            Reload();
+        }
+
+        public void QuitToMenu()
+        {
+            nextScreen = Screen.Menu;
             Reload();
         }
 
@@ -192,7 +250,8 @@ namespace RobotArena
         {
             if (reloading) return;
             reloading = true;
-            GameAudio.Play2D(Sfx.UiClick);
+            Paused = false;
+            AudioListener.pause = false;
             Time.timeScale = 1f;
             Time.fixedDeltaTime = BaseFixedDelta;
             StartCoroutine(ReloadNextFrame());

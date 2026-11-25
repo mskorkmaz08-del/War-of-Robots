@@ -120,6 +120,7 @@ namespace RobotArena
             if (boostButton != null) boost |= boostButton.IsHeld;
 
             var cam = FollowCamera.Main;
+            look *= GameSettings.LookSensitivity;
             if (cam != null) cam.AddLook(look.x, look.y);
 
             DriveTowards(Vector2.ClampMagnitude(move, 1f), cam, fire || special);

@@ -33,6 +33,9 @@ namespace RobotArena
         /// <summary>Damage enemies deal to the player is multiplied by this (difficulty).</summary>
         public static float EnemyDamageToPlayer = 0.45f;
 
+        /// <summary>Online, on a joining player's device: health comes only from the host.</summary>
+        public static bool NetClient;
+
         public float Health { get; private set; }
         public bool IsDead { get; private set; }
         public float HealthFraction => Mathf.Clamp01(Health / maxHealth);
@@ -65,9 +68,23 @@ namespace RobotArena
 
         public void TakeDamage(float amount, Vector3 point, Damageable attacker = null)
         {
+            if (NetClient) return;
+            ApplyDamage(amount, point, attacker);
+        }
+
+        /// <summary>Online clients: the host says this is the robot's health now.</summary>
+        public void NetSetHealth(float health)
+        {
+            if (IsDead) return;
+            if (health > Health) { Health = Mathf.Min(maxHealth, health); return; }
+            if (health < Health - 0.01f) ApplyDamage(Health - Mathf.Max(0f, health), Center, null, true);
+        }
+
+        void ApplyDamage(float amount, Vector3 point, Damageable attacker, bool raw = false)
+        {
             if (IsDead || amount <= 0f) return;
             if (attacker != null && attacker.team == team && attacker != this) return;
-            if (team == 0 && attacker != null && attacker.team != 0) amount *= EnemyDamageToPlayer;
+            if (!raw && team == 0 && attacker != null && attacker.team != 0) amount *= EnemyDamageToPlayer;
 
             Health -= amount;
             Damaged?.Invoke(amount, point);

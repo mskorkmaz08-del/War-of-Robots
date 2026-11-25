@@ -80,6 +80,8 @@ namespace RobotArena
             BuildModeSelect();
             BuildMapSelect();
             BuildMissionSelect();
+            BuildOnline();
+            BuildLobby();
             BuildHangar();
             BuildFight();
             BuildPause();
@@ -99,7 +101,7 @@ namespace RobotArena
 
         void HideAll()
         {
-            foreach (var p in new[] { menuPanel, modePanel, mapPanel, missionPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel })
+            foreach (var p in new[] { menuPanel, modePanel, mapPanel, missionPanel, onlinePanel, lobbyPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel })
                 p.SetActive(false);
         }
 
@@ -127,8 +129,9 @@ namespace RobotArena
             var lineMid = UiKit.Rect("LineMid", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(160f, 6f));
             UiKit.Image(lineMid, null, UiKit.Orange);
 
-            UiKit.Button(menuPanel.transform, "PLAY", new Vector2(0.5f, 0.43f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary, () => ShowModeSelect(), 64);
-            UiKit.Button(menuPanel.transform, "SETTINGS", new Vector2(0.5f, 0.27f), Vector2.zero, new Vector2(560f, 100f), UiKit.ButtonStyle.Secondary, () => OpenSettings(menuPanel), 42);
+            UiKit.Button(menuPanel.transform, "PLAY", new Vector2(0.5f, 0.45f), Vector2.zero, new Vector2(560f, 124f), UiKit.ButtonStyle.Primary, () => ShowModeSelect(), 64);
+            UiKit.Button(menuPanel.transform, "PLAY ONLINE", new Vector2(0.5f, 0.31f), Vector2.zero, new Vector2(560f, 100f), UiKit.ButtonStyle.Secondary, () => ShowOnline(), 42);
+            UiKit.Button(menuPanel.transform, "SETTINGS", new Vector2(0.5f, 0.19f), Vector2.zero, new Vector2(560f, 90f), UiKit.ButtonStyle.Secondary, () => OpenSettings(menuPanel), 38);
 
             var foot = UiKit.Rect("Footer", menuPanel.transform, new Vector2(0.5f, 0.06f), Vector2.zero, new Vector2(1600f, 50f));
             UiKit.Label(foot, "Team battles, capture points, survival waves and a mission campaign.", 30, UiKit.TextDim);
@@ -521,7 +524,7 @@ namespace RobotArena
             UiKit.Title(Place(card, 0.5f, 0.88f, 600f, 110f), "PAUSED", 80, UiKit.TextBright);
             UiKit.Button(card, "RESUME", new Vector2(0.5f, 0.68f), Vector2.zero, new Vector2(480f, 110f), UiKit.ButtonStyle.Primary, () => Pause(false), 48);
             UiKit.Button(card, "SETTINGS", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Secondary, () => OpenSettings(pausePanel), 40);
-            UiKit.Button(card, "RESTART", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Secondary, () => { ShowLoading(); match.Restart(); }, 40);
+            pauseRestart = UiKit.Button(card, "RESTART", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Secondary, () => { ShowLoading(); match.Restart(); }, 40).gameObject;
             UiKit.Button(card, "QUIT TO MENU", new Vector2(0.5f, 0.15f), Vector2.zero, new Vector2(480f, 100f), UiKit.ButtonStyle.Danger, () => { ShowLoading(); match.QuitToMenu(); }, 40);
         }
 
@@ -529,6 +532,7 @@ namespace RobotArena
         {
             if (on && match.Current != MatchManager.State.Fighting) return;
             match.SetPaused(on);
+            pauseRestart.SetActive(!NetSession.Online);
             pausePanel.SetActive(on);
             fightPanel.SetActive(!on);
         }
@@ -537,6 +541,7 @@ namespace RobotArena
         // Settings
         // =====================================================================
 
+        GameObject pauseRestart;
         Button[] qualityButtons;
         Text shakeText, fpsToggleText;
 
@@ -624,15 +629,24 @@ namespace RobotArena
             endTitle = UiKit.Title(Place(endPanel.transform, 0.5f, 0.68f, 1600f, 240f), "", 170, UiKit.Orange);
             endSub = UiKit.Label(Place(endPanel.transform, 0.5f, 0.52f, 1400f, 80f), "", 40, Color.white);
             var again = UiKit.Button(endPanel.transform, "FIGHT AGAIN", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary,
-                () => { ShowLoading(); if (endNext) match.NextMission(); else match.Restart(); }, 54);
+                () =>
+                {
+                    ShowLoading();
+                    if (NetSession.Online) match.ReturnToLobby();
+                    else if (endNext) match.NextMission();
+                    else match.Restart();
+                }, 54);
+            endAgain = again.gameObject;
             endAgainText = again.GetComponentInChildren<Text>();
-            UiKit.Button(endPanel.transform, "CHANGE ROBOT", new Vector2(0.5f, 0.34f), new Vector2(-560f, 0f), new Vector2(420f, 110f), UiKit.ButtonStyle.Secondary,
-                () => { ShowLoading(); match.ChangeRobot(); }, 38);
-            UiKit.Button(endPanel.transform, "MENU", new Vector2(0.5f, 0.34f), new Vector2(520f, 0f), new Vector2(320f, 110f), UiKit.ButtonStyle.Secondary,
+            endChange = UiKit.Button(endPanel.transform, "CHANGE ROBOT", new Vector2(0.5f, 0.34f), new Vector2(-560f, 0f), new Vector2(420f, 110f), UiKit.ButtonStyle.Secondary,
+                () => { ShowLoading(); match.ChangeRobot(); }, 38).gameObject;
+            var menu = UiKit.Button(endPanel.transform, "MENU", new Vector2(0.5f, 0.34f), new Vector2(520f, 0f), new Vector2(320f, 110f), UiKit.ButtonStyle.Secondary,
                 () => { ShowLoading(); match.QuitToMenu(); }, 38);
+            endMenuText = menu.GetComponentInChildren<Text>();
         }
 
-        Text endAgainText;
+        Text endAgainText, endMenuText;
+        GameObject endAgain, endChange;
         bool endNext;
 
         public void ShowEnd(bool won, string title, string sub, bool nextMission)
@@ -647,6 +661,12 @@ namespace RobotArena
             endSub.text = sub;
             endNext = nextMission;
             endAgainText.text = nextMission ? "NEXT MISSION" : won ? "PLAY AGAIN" : "TRY AGAIN";
+            bool online = NetSession.Online;
+            endChange.SetActive(!online);
+            endAgain.SetActive(!online || NetSession.IsHost);
+            if (online) endAgainText.text = "BACK TO ROOM";
+            endMenuText.text = online ? "LEAVE" : "MENU";
+            if (online && !NetSession.IsHost) endSub.text = sub + "\nWaiting for the host.";
         }
 
         // =====================================================================

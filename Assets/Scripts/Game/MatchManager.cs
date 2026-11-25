@@ -12,7 +12,7 @@ namespace RobotArena
     public class MatchManager : MonoBehaviour
     {
         public enum State { Menu, Hangar, Deploying, Fighting, Won, Lost }
-        public enum Screen { Menu, Hangar, Redeploy }
+        public enum Screen { Menu, Hangar, Redeploy, Lobby }
 
         public static MatchManager Instance { get; private set; }
 
@@ -26,7 +26,10 @@ namespace RobotArena
         public readonly List<Damageable> Enemies = new List<Damageable>();
 
         Hud hud;
+        NetMatch net;
         const float BaseFixedDelta = 0.02f;
+        /// <summary>Robots of other human players (online), with their player id.</summary>
+        readonly Dictionary<Damageable, ulong> remoteHumans = new Dictionary<Damageable, ulong>();
 
         // Remembered across scene reloads: where to go next, and the last robot picked.
         static Screen nextScreen = Screen.Menu;
@@ -36,6 +39,8 @@ namespace RobotArena
         void Awake()
         {
             Instance = this;
+            net = gameObject.AddComponent<NetMatch>();
+            Damageable.NetClient = false;
             Time.timeScale = 1f;
             Time.fixedDeltaTime = BaseFixedDelta;
             Performance.Apply();
@@ -55,8 +60,22 @@ namespace RobotArena
 
             var screen = nextScreen;
             nextScreen = Screen.Menu;
+            if (NetSession.I != null)
+            {
+                NetSession.I.StartRequested -= OnOnlineStart;
+                NetSession.I.StartRequested += OnOnlineStart;
+                NetSession.I.BackToLobby -= OnBackToLobby;
+                NetSession.I.BackToLobby += OnBackToLobby;
+                NetSession.I.Disconnected -= OnDisconnected;
+                NetSession.I.Disconnected += OnDisconnected;
+            }
+            if (screen == Screen.Lobby && !NetSession.Online) screen = Screen.Menu;
             switch (screen)
             {
+                case Screen.Lobby:
+                    hud.ShowLobby();
+                    GameAudio.Prewarm();
+                    break;
                 case Screen.Redeploy:
                     Current = State.Hangar;
                     StartMatch(lastType);
@@ -98,6 +117,117 @@ namespace RobotArena
         }
 
         public void SpinPreview(float degrees) => showroom.Drag(degrees);
+
+        // ---- Online ----
+
+        /// <summary>Hooks up the online session (created on first use) to this scene.</summary>
+        public NetSession Online()
+        {
+            var s = NetSession.Ensure();
+            s.StartRequested -= OnOnlineStart;
+            s.StartRequested += OnOnlineStart;
+            s.BackToLobby -= OnBackToLobby;
+            s.BackToLobby += OnBackToLobby;
+            s.Disconnected -= OnDisconnected;
+            s.Disconnected += OnDisconnected;
+            return s;
+        }
+
+        void OnOnlineStart()
+        {
+            if (Current == State.Deploying || Current == State.Fighting) return;
+            var s = NetSession.I;
+            MatchSetup.Mode = s.Mode;
+            MatchSetup.Map = s.Map;
+            Current = State.Deploying;
+            PlayerType = s.LocalType;
+            lastType = s.LocalType;
+            showroom.Close();
+            hud.ShowDeploying();
+            StartCoroutine(Deploy(s.LocalType));
+        }
+
+        void OnDestroy()
+        {
+            var s = NetSession.I;
+            if (s == null) return;
+            s.StartRequested -= OnOnlineStart;
+            s.BackToLobby -= OnBackToLobby;
+            s.Disconnected -= OnDisconnected;
+        }
+
+        void OnBackToLobby()
+        {
+            NetMatch.ClearPending();
+            nextScreen = Screen.Lobby;
+            Reload();
+        }
+
+        void OnDisconnected(string reason)
+        {
+            nextScreen = Screen.Menu;
+            Reload();
+        }
+
+        /// <summary>Host, after a match: everyone back to the room.</summary>
+        public void ReturnToLobby()
+        {
+            if (NetSession.IsHost) NetSession.I.ReturnToLobby();
+        }
+
+        public void LeaveOnline()
+        {
+            if (NetSession.I != null) NetSession.I.Leave();
+            QuitToMenu();
+        }
+
+        public bool IsHuman(Damageable d) => d != null && (d == Player || remoteHumans.ContainsKey(d));
+
+        public bool IsRemoteHuman(Damageable d, out ulong owner) => remoteHumans.TryGetValue(d, out owner);
+
+        public bool AllHumansDown()
+        {
+            if (Player != null && !Player.IsDead) return false;
+            foreach (var kv in remoteHumans) if (kv.Key != null && !kv.Key.IsDead) return false;
+            return true;
+        }
+
+        /// <summary>Host: builds a friend's robot, driven by what their device sends.</summary>
+        public Damageable SpawnRemotePlayer(ulong owner, RobotType type, Vector3 pos, string name)
+        {
+            var go = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, name);
+            go.AddComponent<NetProxy>();
+            var d = go.GetComponent<Damageable>();
+            d.Died += OnRobotDied;
+            types[d] = type;
+            remoteHumans[d] = owner;
+            Allies.Add(d);
+            net.Register(d, owner, type, 0);
+            return d;
+        }
+
+        static Livery LiveryFor(int index) => index == 0 ? Livery.Player : index == 1 ? Livery.Ally : index == 3 ? Livery.Enemy2 : Livery.Enemy;
+
+        /// <summary>Joining player: builds a robot the host announced (our own, or someone else's).</summary>
+        public Damageable SpawnFromNet(NetMatch.SpawnInfo info, bool mine)
+        {
+            var type = (RobotType)Mathf.Clamp(info.type, 0, RobotCatalog.All.Count - 1);
+            if (mine)
+            {
+                PlayerType = type;
+                var p = SpawnPlayer(info.pos);
+                p.displayName = info.name;
+                return p;
+            }
+            var go = RobotFactory.Build(type, info.pos, Quaternion.Euler(0f, info.yaw, 0f), info.team, LiveryFor(info.livery), info.livery == 0, info.name);
+            go.AddComponent<NetProxy>();
+            var d = go.GetComponent<Damageable>();
+            d.Died += OnRobotDied;
+            types[d] = type;
+            if (info.owner != NetMatch.AiOwner) remoteHumans[d] = info.owner;
+            (info.team == 0 ? Allies : Enemies).Add(d);
+            return d;
+        }
 
         public void StartMatch(RobotType type)
         {
@@ -145,6 +275,33 @@ namespace RobotArena
             Layout = MapBuilder.Layout(map);
             yield return null;
 
+            if (NetSession.IsClient)
+            {
+                // The host runs the rules; we build what it tells us to.
+                Damageable.NetClient = true;
+                Rules = new NetClientMode();
+                Rules.Init(this, Layout);
+                yield return Rules.Setup();
+                net.FlushPending();
+                float wait = 20f;
+                while (Player == null && wait > 0f && NetSession.Online)
+                {
+                    wait -= Time.unscaledDeltaTime;
+                    yield return null;
+                }
+                if (Player == null)
+                {
+                    LeaveOnline();
+                    yield break;
+                }
+                Current = State.Fighting;
+                hud.ShowFight();
+                hud.Announce(Rules.ModeName, UiKit.Orange);
+                GameAudio.Prewarm();
+                yield break;
+            }
+            Damageable.NetClient = false;
+
             Rules = CreateRules();
             Rules.Init(this, Layout);
             yield return Rules.Setup();
@@ -174,6 +331,7 @@ namespace RobotArena
             Player = playerGo.GetComponent<Damageable>();
             Player.Died += OnRobotDied;
             types[Player] = type;
+            net.Register(Player, NetSession.LocalId, type, 0);
 
             var cam = FollowCamera.Main;
             if (cam != null)
@@ -207,6 +365,7 @@ namespace RobotArena
             d.Died += OnRobotDied;
             types[d] = type;
             (team == 0 ? Allies : Enemies).Add(d);
+            net.Register(d, NetMatch.AiOwner, type, team == 0 ? 1 : livery.Equals(Livery.Enemy2) ? 3 : 2);
             return d;
         }
 
@@ -216,21 +375,36 @@ namespace RobotArena
         public void RemoveWreck(Damageable d)
         {
             if (d == null) return;
+            net.Unregister(d);
             Allies.Remove(d);
             Enemies.Remove(d);
             types.Remove(d);
+            remoteHumans.Remove(d);
+            if (d == Player) Player = null;
             Destroy(d.gameObject);
         }
 
         /// <summary>Rebuilds fallen teammates at the base (between survival waves).</summary>
         public void ReviveAllies()
         {
+            // Fallen human players come back too.
+            if (Player != null && Player.IsDead)
+            {
+                RemoveWreck(Player);
+                SpawnPlayer(Layout.allySpawns[0]);
+            }
             for (int i = Allies.Count - 1; i >= 0; i--)
             {
                 var a = Allies[i];
                 if (a == null || !a.IsDead) continue;
                 var type = TypeOf(a);
                 string name = a.displayName;
+                if (remoteHumans.TryGetValue(a, out ulong owner))
+                {
+                    RemoveWreck(a);
+                    SpawnRemotePlayer(owner, type, Layout.allySpawns[(i + 1) % Layout.allySpawns.Length], name);
+                    continue;
+                }
                 RemoveWreck(a);
                 var n = SpawnRobot(type, 0, Layout.allySpawns[(i + 1) % Layout.allySpawns.Length], name);
                 if (Player != null) n.GetComponent<AIBrain>().follow = Player.transform;
@@ -238,7 +412,15 @@ namespace RobotArena
             }
         }
 
+        /// <summary>Big message for everyone (sent to friends when hosting).</summary>
         public void Announce(string text, Color color)
+        {
+            ShowAnnouncement(text, color);
+            net.Announce(text, color);
+        }
+
+        /// <summary>Big message on this device only.</summary>
+        public void ShowAnnouncement(string text, Color color)
         {
             if (hud != null) hud.Announce(text, color);
         }
@@ -251,13 +433,14 @@ namespace RobotArena
         void OnRobotDied(Damageable d)
         {
             if (Current != State.Fighting) return;
-            if (d.team == 1 && Player != null && !Player.IsDead && Time.unscaledTime - lastKillSlowMo > 4f
+            if (NetSession.IsClient) return;
+            if (!NetSession.Online && d.team == 1 && Player != null && !Player.IsDead && Time.unscaledTime - lastKillSlowMo > 4f
                 && Vector3.Distance(d.transform.position, Player.transform.position) < 130f)
             {
                 lastKillSlowMo = Time.unscaledTime;
                 StartCoroutine(SlowMotion(0.5f));
             }
-            if (d.team == 0 && d != Player) Announce(d.displayName + " DOWN", UiKit.Red);
+            if (d.team == 0) Announce(d.displayName + " DOWN", UiKit.Red);
             Rules?.RobotDied(d);
             // Old enemy wrecks are cleared away so long fights don't fill up with scrap.
             if (d.team == 1) StartCoroutine(ClearWreck(d, 25f));
@@ -274,7 +457,8 @@ namespace RobotArena
         {
             if (Current != State.Fighting) return;
             Current = won ? State.Won : State.Lost;
-            StartCoroutine(SlowMotion(won ? 1.6f : 1.4f));
+            net.End(won, title, sub);
+            if (!NetSession.Online) StartCoroutine(SlowMotion(won ? 1.6f : 1.4f));
             StartCoroutine(ShowEndAfter(won ? 2.2f : 2.5f, won, title, sub));
         }
 
@@ -308,6 +492,8 @@ namespace RobotArena
         {
             if (Current != State.Fighting && pause) return;
             Paused = pause;
+            // Online the fight goes on while the menu is open.
+            if (NetSession.Online) return;
             Time.timeScale = pause ? 0f : 1f;
             Time.fixedDeltaTime = BaseFixedDelta;
             AudioListener.pause = pause;
@@ -334,6 +520,7 @@ namespace RobotArena
 
         public void QuitToMenu()
         {
+            if (NetSession.Online) NetSession.I.Leave();
             nextScreen = Screen.Menu;
             Reload();
         }

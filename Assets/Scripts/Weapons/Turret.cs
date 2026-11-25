@@ -28,6 +28,10 @@ namespace RobotArena
         public FollowCamera aimCamera;
         public float crosshairLockAngle = 9f;
 
+        /// <summary>Online: aim comes from the network instead of targeting here.</summary>
+        public bool netControlled;
+        public Vector3 netAim;
+
         public Damageable Target { get; private set; }
         public Vector3 AimPoint { get; private set; }
 
@@ -44,14 +48,20 @@ namespace RobotArena
         void Update()
         {
             retargetTimer -= Time.deltaTime;
-            if (retargetTimer <= 0f || Target == null || Target.IsDead)
+            if (netControlled)
+            {
+                Target = null;
+                retargetTimer = 1f;
+            }
+            else if (retargetTimer <= 0f || Target == null || Target.IsDead)
             {
                 retargetTimer = aimCamera != null ? 0.1f : 0.3f;
                 Target = aimCamera != null ? FindTargetNearCrosshair() : FindTarget();
             }
 
             Vector3 origin = pitchPivot != null ? pitchPivot.position : transform.position;
-            if (Target != null)
+            if (netControlled) AimPoint = netAim;
+            else if (Target != null)
             {
                 Vector3 aim = Target.Center;
                 if (projectileSpeed > 0f)

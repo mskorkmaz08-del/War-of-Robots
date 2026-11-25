@@ -16,6 +16,8 @@ namespace RobotArena.EditorTools
         public const string ProductName = "War of Robots";
         public const string CompanyName = "Mustafa";
         public const string BundleId = "com.mustafa.warofrobots";
+        /// <summary>Unity Gaming Services project used for online play (Relay rooms). Not a secret.</summary>
+        public const string CloudProjectId = "";
 
         public static void Build()
         {
@@ -57,11 +59,12 @@ namespace RobotArena.EditorTools
             {
                 var so = new SerializedObject(all[0]);
                 var handler = so.FindProperty("activeInputHandler");
-                if (handler != null)
-                {
-                    handler.intValue = 2;
-                    so.ApplyModifiedPropertiesWithoutUndo();
-                }
+                if (handler != null) handler.intValue = 2;
+                // Link the build to the online services project so rooms can be created.
+                var cloudId = so.FindProperty("cloudProjectId");
+                if (cloudId != null && !string.IsNullOrEmpty(CloudProjectId)) cloudId.stringValue = CloudProjectId;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                Debug.Log("[CIBuild] Cloud project id: " + (string.IsNullOrEmpty(CloudProjectId) ? "(none)" : CloudProjectId));
             }
 
             PlayerSettings.productName = ProductName;

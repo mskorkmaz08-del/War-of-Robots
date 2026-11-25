@@ -40,6 +40,16 @@ namespace RobotArena
 
         public event System.Action<CaptureZone, int> Captured;
 
+        /// <summary>Online clients: ownership comes from the host.</summary>
+        public bool netDriven;
+
+        public void NetSet(int owner, float progress)
+        {
+            Owner = owner;
+            Progress = progress;
+            Refresh();
+        }
+
         MeshRenderer ring;
         MeshRenderer beacon;
         Material neutralMat, allyMat, enemyMat;
@@ -124,6 +134,7 @@ namespace RobotArena
 
         void Update()
         {
+            if (netDriven) return;
             int c0 = 0, c1 = 0;
             Vector3 p = transform.position;
             foreach (var d in Damageable.All)

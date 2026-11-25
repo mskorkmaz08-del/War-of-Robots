@@ -35,6 +35,8 @@ namespace RobotArena
         public abstract IEnumerator Setup();
         public virtual void Tick(float dt) { }
         public virtual void RobotDied(Damageable d) { }
+        /// <summary>Seconds until this robot's owner is back (respawn modes), or below zero.</summary>
+        public virtual float RespawnTimeFor(Damageable d) => -1f;
 
         protected void Win(string title, string sub)
         {
@@ -89,11 +91,21 @@ namespace RobotArena
         {
             var player = M.SpawnPlayer(playerPos ?? L.allySpawns[0]);
             yield return null;
+            int slot = 1;
+            if (NetSession.IsHost)
+            {
+                foreach (var p in NetSession.I.RemotePlayers())
+                {
+                    M.SpawnRemotePlayer(p.id, p.type, L.allySpawns[slot++ % L.allySpawns.Length], p.name);
+                    yield return null;
+                }
+                allies = Mathf.Max(0, allies - (slot - 1));
+            }
             var types = RandomTeam(allies + 1);
             for (int i = 0; i < allies; i++)
             {
                 var type = types[i] == M.PlayerType ? types[allies] : types[i];
-                var a = M.SpawnRobot(type, 0, L.allySpawns[(i + 1) % L.allySpawns.Length], AllyNames[allyNameIndex++ % AllyNames.Length]);
+                var a = M.SpawnRobot(type, 0, L.allySpawns[(i + slot) % L.allySpawns.Length], AllyNames[allyNameIndex++ % AllyNames.Length]);
                 if (follow) Brain(a).follow = player.transform;
                 yield return null;
             }
@@ -127,6 +139,14 @@ namespace RobotArena
         {
             int s = Mathf.Max(0, Mathf.CeilToInt(seconds));
             return (s / 60) + ":" + (s % 60).ToString("00");
+        }
+
+        /// <summary>A human player's robot died: the match is lost once every human is down.</summary>
+        protected bool HumanDown(Damageable d)
+        {
+            if (!M.IsHuman(d)) return false;
+            if (M.AllHumansDown()) PlayerLost();
+            return true;
         }
 
         protected void PlayerLost()
@@ -171,7 +191,12 @@ namespace RobotArena
             this.missionIndex = missionIndex;
         }
 
-        public static ObjectiveMode TeamBattle() => new ObjectiveMode(MissionGoal.EliminateAll, 2, RandomTeam(3), 0f, -1);
+        public static ObjectiveMode TeamBattle()
+        {
+            // Four humans online: one more enemy to keep it a fight.
+            int humans = NetSession.IsHost ? NetSession.I.Players.Count : 1;
+            return new ObjectiveMode(MissionGoal.EliminateAll, 2, RandomTeam(3 + Mathf.Max(0, humans - 3)), 0f, -1);
+        }
 
         public override IEnumerator Setup()
         {
@@ -340,11 +365,7 @@ namespace RobotArena
         public override void RobotDied(Damageable d)
         {
             if (Over) return;
-            if (d == M.Player)
-            {
-                PlayerLost();
-                return;
-            }
+            if (HumanDown(d)) return;
             if (d.team == 1 && (goal == MissionGoal.DefendReactor || goal == MissionGoal.HoldUplink))
                 reinforceQueue.Add(goal == MissionGoal.DefendReactor ? 7f : 9f);
 
@@ -472,7 +493,7 @@ namespace RobotArena
 
         public override void RobotDied(Damageable d)
         {
-            if (d == M.Player) PlayerLost();
+            HumanDown(d);
         }
 
         protected override void OnWin()
@@ -611,6 +632,12 @@ namespace RobotArena
             if (d == M.Player) RespawnIn = RespawnDelay;
         }
 
+        public override float RespawnTimeFor(Damageable d)
+        {
+            foreach (var r in respawns) if (r.d == d) return r.t;
+            return -1f;
+        }
+
         void Respawn(Damageable old)
         {
             if (old == null) return;
@@ -622,7 +649,15 @@ namespace RobotArena
             {
                 M.RemoveWreck(old);
                 M.SpawnPlayer(pos);
-                M.Announce("BACK IN THE FIGHT", UiKit.Cyan);
+                M.ShowAnnouncement("BACK IN THE FIGHT", UiKit.Cyan);
+                return;
+            }
+            if (M.IsRemoteHuman(old, out ulong owner))
+            {
+                var rtype = M.TypeOf(old);
+                string rname = old.displayName;
+                M.RemoveWreck(old);
+                M.SpawnRemotePlayer(owner, rtype, pos, rname);
                 return;
             }
             var type = M.TypeOf(old);

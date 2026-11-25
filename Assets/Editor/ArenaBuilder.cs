@@ -69,6 +69,12 @@ namespace RobotArena.EditorTools
                 Pbr("ContainerGreen", "robot", new Color(0.22f, 0.33f, 0.2f), 2.5f, 0.3f, 1f, 1f),
                 Pbr("ContainerGrey", "robot", new Color(0.5f, 0.5f, 0.5f), 2.5f, 0.3f, 1f, 1f)
             };
+            ga.floorMat = floor;
+            ga.wallMat = concrete;
+            ga.buildingMat = building;
+            ga.hazardMat = hazard;
+            ga.glowMat = glowStrip;
+            ga.containerMats = containerMats;
 
             // ---- Arena ----
             var arena = new GameObject("Arena").transform;

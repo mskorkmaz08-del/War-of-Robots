@@ -9,7 +9,7 @@ namespace RobotArena
     /// Every screen, built in code: main menu, hangar (robot preview), settings,
     /// in-fight HUD with radar and touch controls, pause menu and the end screen.
     /// </summary>
-    public class Hud : MonoBehaviour
+    public partial class Hud : MonoBehaviour
     {
         MatchManager match;
         Canvas canvas;
@@ -19,7 +19,7 @@ namespace RobotArena
 
         // Hangar
         int hangarIndex;
-        Text hName, hRole, hDesc, hPrimary, hSpecial, hMobility, hCount;
+        Text hName, hRole, hDesc, hPrimary, hSpecial, hMobility, hCount, hMode;
         Image[] sArmour, sSpeed, sFire, sRange;
 
         // Fight
@@ -34,8 +34,6 @@ namespace RobotArena
         Text fpsText;
         float fpsTimer;
         int fpsFrames;
-        readonly List<(Damageable d, RectTransform fill, Text label)> enemyBars = new List<(Damageable, RectTransform, Text)>();
-        RectTransform enemyBarRoot;
         float lastHealth = -1f;
         float lastHitSound, lastAlarm;
         Damageable lastTarget;
@@ -79,6 +77,9 @@ namespace RobotArena
             damageFlash = UiKit.Image(flash, null, new Color(1f, 0.1f, 0f, 0f));
 
             BuildMenu();
+            BuildModeSelect();
+            BuildMapSelect();
+            BuildMissionSelect();
             BuildHangar();
             BuildFight();
             BuildPause();
@@ -98,7 +99,7 @@ namespace RobotArena
 
         void HideAll()
         {
-            foreach (var p in new[] { menuPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel })
+            foreach (var p in new[] { menuPanel, modePanel, mapPanel, missionPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel })
                 p.SetActive(false);
         }
 
@@ -126,11 +127,11 @@ namespace RobotArena
             var lineMid = UiKit.Rect("LineMid", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(160f, 6f));
             UiKit.Image(lineMid, null, UiKit.Orange);
 
-            UiKit.Button(menuPanel.transform, "PLAY", new Vector2(0.5f, 0.43f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary, () => match.OpenHangar(), 64);
+            UiKit.Button(menuPanel.transform, "PLAY", new Vector2(0.5f, 0.43f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary, () => ShowModeSelect(), 64);
             UiKit.Button(menuPanel.transform, "SETTINGS", new Vector2(0.5f, 0.27f), Vector2.zero, new Vector2(560f, 100f), UiKit.ButtonStyle.Secondary, () => OpenSettings(menuPanel), 42);
 
             var foot = UiKit.Rect("Footer", menuPanel.transform, new Vector2(0.5f, 0.06f), Vector2.zero, new Vector2(1600f, 50f));
-            UiKit.Label(foot, "Pick a machine. Enter the arena. Destroy every enemy robot.", 30, UiKit.TextDim);
+            UiKit.Label(foot, "Team battles, capture points, survival waves and a mission campaign.", 30, UiKit.TextDim);
         }
 
         public void ShowMenu()
@@ -157,6 +158,8 @@ namespace RobotArena
             UiKit.Button(hangarPanel.transform, "BACK", new Vector2(0f, 1f), new Vector2(150f, -70f), new Vector2(240f, 84f), UiKit.ButtonStyle.Secondary, () => match.BackToMenu(), 36);
             var head = UiKit.Rect("Head", hangarPanel.transform, new Vector2(0.3f, 1f), new Vector2(0f, -70f), new Vector2(800f, 80f));
             UiKit.Title(head, "CHOOSE YOUR MACHINE", 50, UiKit.TextBright);
+            var modeRt = UiKit.Rect("Mode", hangarPanel.transform, new Vector2(0.3f, 1f), new Vector2(0f, -128f), new Vector2(900f, 50f));
+            hMode = UiKit.Label(modeRt, "", 28, UiKit.Orange, TextAnchor.MiddleCenter, true);
 
             // Switch robots
             UiKit.IconButton(hangarPanel.transform, null, "<", new Vector2(0.06f, 0.5f), Vector2.zero, 130f, () => StepRobot(-1));
@@ -234,6 +237,7 @@ namespace RobotArena
         {
             HideAll();
             FillHangar(info);
+            hMode.text = UiKit.Spaced(SetupCaption());
             hangarPanel.SetActive(true);
             GameAudio.PlayMusic(0.9f);
             GameAudio.PlayAmbience(false);
@@ -259,8 +263,8 @@ namespace RobotArena
             specialLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
             specialFill = UiKit.Bar(status, new Vector2(0.6f, 0.12f), Vector2.zero, new Vector2(370f, 22f), UiKit.Orange, out _);
 
-            // Enemy bars, top centre
-            enemyBarRoot = UiKit.Rect("Enemies", fightPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(900f, 80f));
+            // Teams, score and objective
+            BuildTeamHud(status);
 
             // Radar and pause, top right
             Minimap.Create(fightPanel.transform, new Vector2(1f, 1f), new Vector2(-175f, -175f), 300f);
@@ -365,6 +369,14 @@ namespace RobotArena
             fightPanel.SetActive(true);
             GameAudio.StopMusic();
             GameAudio.PlayAmbience(true);
+            BindPlayer();
+
+            ResetTeamHud();
+        }
+
+        /// <summary>Points the status card at the player's robot (again after a respawn).</summary>
+        public void BindPlayer()
+        {
             special = null;
             playerLoco = null;
             lastSpecialText = null;
@@ -375,18 +387,6 @@ namespace RobotArena
                 playerLoco = p.GetComponent<Locomotion>();
                 foreach (var w in p.GetComponents<Weapon>()) if (w.slot == Weapon.Slot.Special) special = w;
                 playerName.text = p.displayName;
-            }
-
-            foreach (Transform c in enemyBarRoot) Destroy(c.gameObject);
-            enemyBars.Clear();
-            for (int i = 0; i < match.Enemies.Count; i++)
-            {
-                var d = match.Enemies[i];
-                var holder = UiKit.Rect("Enemy", enemyBarRoot, new Vector2(0.5f, 0.5f),
-                    new Vector2((i - (match.Enemies.Count - 1) * 0.5f) * 420f, 0f), new Vector2(390f, 80f));
-                var label = UiKit.Label(Place(holder, 0.5f, 0.75f, 380f, 36f), d.displayName, 28, new Color(1f, 0.72f, 0.65f), TextAnchor.MiddleCenter, true);
-                var fill = UiKit.Bar(holder, new Vector2(0.5f, 0.25f), Vector2.zero, new Vector2(380f, 14f), UiKit.Red, out _);
-                enemyBars.Add((d, fill, label));
             }
         }
 
@@ -451,16 +451,7 @@ namespace RobotArena
                 lastHealth = hp;
             }
 
-            foreach (var e in enemyBars)
-            {
-                if (e.d == null) continue;
-                SetFill(e.fill, e.d.HealthFraction);
-                if (e.d.IsDead && e.label.color.a > 0.99f)
-                {
-                    e.label.text = e.d.displayName + " - DESTROYED";
-                    e.label.color = new Color(0.6f, 0.6f, 0.6f, 0.98f);
-                }
-            }
+            UpdateTeamHud();
 
             UpdateTargetMarker(p);
             UpdateFps();
@@ -632,23 +623,30 @@ namespace RobotArena
             UiKit.Image(dim, null, new Color(0.01f, 0.012f, 0.018f, 0.6f), true);
             endTitle = UiKit.Title(Place(endPanel.transform, 0.5f, 0.68f, 1600f, 240f), "", 170, UiKit.Orange);
             endSub = UiKit.Label(Place(endPanel.transform, 0.5f, 0.52f, 1400f, 80f), "", 40, Color.white);
-            UiKit.Button(endPanel.transform, "FIGHT AGAIN", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary,
-                () => { ShowLoading(); match.Restart(); }, 54);
+            var again = UiKit.Button(endPanel.transform, "FIGHT AGAIN", new Vector2(0.5f, 0.34f), Vector2.zero, new Vector2(560f, 130f), UiKit.ButtonStyle.Primary,
+                () => { ShowLoading(); if (endNext) match.NextMission(); else match.Restart(); }, 54);
+            endAgainText = again.GetComponentInChildren<Text>();
             UiKit.Button(endPanel.transform, "CHANGE ROBOT", new Vector2(0.5f, 0.34f), new Vector2(-560f, 0f), new Vector2(420f, 110f), UiKit.ButtonStyle.Secondary,
                 () => { ShowLoading(); match.ChangeRobot(); }, 38);
             UiKit.Button(endPanel.transform, "MENU", new Vector2(0.5f, 0.34f), new Vector2(520f, 0f), new Vector2(320f, 110f), UiKit.ButtonStyle.Secondary,
                 () => { ShowLoading(); match.QuitToMenu(); }, 38);
         }
 
-        public void ShowEnd(bool won)
+        Text endAgainText;
+        bool endNext;
+
+        public void ShowEnd(bool won, string title, string sub, bool nextMission)
         {
             HideAll();
             endPanel.SetActive(true);
-            endTitle.text = won ? "VICTORY" : "DESTROYED";
+            endTitle.text = title;
             endTitle.color = won ? UiKit.Orange : UiKit.Red;
+            endTitle.fontSize = Mathf.RoundToInt((title.Length > 10 ? 120 : 170) * 0.74f);
             GameAudio.Play2D(won ? Sfx.Victory : Sfx.Defeat, 1f);
             GameAudio.StopMusic();
-            endSub.text = won ? "Every enemy machine is scrap metal." : "Your machine has fallen. Rebuild and return.";
+            endSub.text = sub;
+            endNext = nextMission;
+            endAgainText.text = nextMission ? "NEXT MISSION" : won ? "PLAY AGAIN" : "TRY AGAIN";
         }
 
         // =====================================================================

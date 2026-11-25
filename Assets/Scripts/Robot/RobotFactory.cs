@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace RobotArena
 {
-    public enum RobotType { Titan, Raptor, Arachne, Hornet, Juggernaut }
+    public enum RobotType { Titan, Raptor, Arachne, Hornet, Juggernaut, Lancer, Bastion }
 
     /// <summary>Paint scheme for a robot.</summary>
     public struct Livery
@@ -27,6 +27,14 @@ namespace RobotArena
             secondary = new Color(0.2f, 0.2f, 0.22f),
             accent = new Color(0.95f, 0.8f, 0.1f),
             glow = new Color(1f, 0.15f, 0.1f)
+        };
+
+        public static Livery Ally => new Livery
+        {
+            primary = new Color(0.2f, 0.42f, 0.5f),
+            secondary = new Color(0.58f, 0.6f, 0.62f),
+            accent = new Color(0.95f, 0.75f, 0.2f),
+            glow = new Color(0.3f, 1f, 0.85f)
         };
 
         public static Livery Enemy2 => new Livery
@@ -74,6 +82,8 @@ namespace RobotArena
                 case RobotType.Arachne: go = BuildArachne(groundPos, rotation, team, player, name); break;
                 case RobotType.Hornet: go = BuildHornet(groundPos, rotation, team, player, name); break;
                 case RobotType.Juggernaut: go = BuildJuggernaut(groundPos, rotation, team, player, name); break;
+                case RobotType.Lancer: go = BuildLancer(groundPos, rotation, team, player, name); break;
+                case RobotType.Bastion: go = BuildBastion(groundPos, rotation, team, player, name); break;
                 default: go = BuildTitan(groundPos, rotation, team, player, name); break;
             }
             if (!player) MakeEnemyFair(go);

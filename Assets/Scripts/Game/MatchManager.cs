@@ -6,8 +6,8 @@ using UnityEngine.SceneManagement;
 namespace RobotArena
 {
     /// <summary>
-    /// Runs a match: robot selection, spawning the player and AI enemies,
-    /// detecting victory or defeat, slow-motion finishing blows and restarting.
+    /// Runs a match: robot selection, building the map, handing the rules to the
+    /// chosen game mode, ending the match, slow-motion finishing blows and restarting.
     /// </summary>
     public class MatchManager : MonoBehaviour
     {
@@ -16,6 +16,7 @@ namespace RobotArena
 
         public static MatchManager Instance { get; private set; }
 
+        // Kept for the scene built by ArenaBuilder; spawn points now come from MapBuilder.Layout.
         public Transform playerSpawn;
         public Transform[] enemySpawns = new Transform[0];
 
@@ -79,12 +80,13 @@ namespace RobotArena
             hud.ShowHangar(RobotCatalog.Get(lastType));
         }
 
+        /// <summary>Hangar back button: return to the mode / map / mission choice.</summary>
         public void BackToMenu()
         {
             if (Current != State.Hangar) return;
             Current = State.Menu;
             showroom.Close();
-            hud.ShowMenu();
+            hud.ShowModeSelect();
         }
 
         public void PreviewRobot(RobotInfo info)
@@ -106,22 +108,70 @@ namespace RobotArena
             StartCoroutine(Deploy(type));
         }
 
-        /// <summary>Builds one robot per frame so the screen never freezes on a tap.</summary>
+        public MapLayout Layout { get; private set; }
+        public ModeController Rules { get; private set; }
+        public readonly List<Damageable> Allies = new List<Damageable>();
+        readonly Dictionary<Damageable, RobotType> types = new Dictionary<Damageable, RobotType>();
+        float lastKillSlowMo = -10f;
+
+        static ModeController CreateRules()
+        {
+            switch (MatchSetup.Mode)
+            {
+                case GameMode.Domination: return new DominationMode();
+                case GameMode.Survival: return new SurvivalMode(5, 2);
+                case GameMode.Mission:
+                    var m = MatchSetup.Mission;
+                    int idx = Mathf.Clamp(MatchSetup.MissionIndex, 0, MatchSetup.Missions.Count - 1);
+                    if (m.goal == MissionGoal.SurviveWaves) return new SurvivalMode(Mathf.RoundToInt(m.amount), m.allies, idx);
+                    return new ObjectiveMode(m.goal, m.allies, m.enemies, m.amount, idx);
+                default: return ObjectiveMode.TeamBattle();
+            }
+        }
+
+        public static MapId CurrentMap => MatchSetup.Mode == GameMode.Mission ? MatchSetup.Mission.map : MatchSetup.Map;
+
+        /// <summary>Builds the map, then one robot per frame so the screen never freezes on a tap.</summary>
         IEnumerator Deploy(RobotType type)
         {
             // Let the "deploying" screen draw before the heavy work starts.
             yield return null;
             yield return null;
 
-            Vector3 pPos = playerSpawn != null ? playerSpawn.position : new Vector3(0f, 0f, -60f);
-            Quaternion pRot = playerSpawn != null ? playerSpawn.rotation : Quaternion.identity;
-            var playerGo = RobotFactory.Build(type, pPos, pRot, 0, Livery.Player, true, RobotCatalog.Get(type).name);
+            var map = CurrentMap;
+            MapBuilder.Build(map);
+            Layout = MapBuilder.Layout(map);
+            yield return null;
+
+            Rules = CreateRules();
+            Rules.Init(this, Layout);
+            yield return Rules.Setup();
+
+            Current = State.Fighting;
+            hud.ShowFight();
+            hud.Announce(Rules.ModeName, UiKit.Orange);
+            GameAudio.Prewarm();
+        }
+
+        static Quaternion FacingCentre(Vector3 pos, int team)
+        {
+            Vector3 to = new Vector3(-pos.x * 0.3f, 0f, -pos.z);
+            if (to.sqrMagnitude < 1f) to = team == 0 ? Vector3.forward : Vector3.back;
+            return Quaternion.LookRotation(to.normalized, Vector3.up);
+        }
+
+        /// <summary>Builds the player's robot (also used to respawn it).</summary>
+        public Damageable SpawnPlayer(Vector3 pos)
+        {
+            var type = PlayerType;
+            var playerGo = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, RobotCatalog.Get(type).name);
             var input = playerGo.AddComponent<RobotInput>();
             hud.ConnectControls(input);
             var playerTurret = playerGo.GetComponent<Turret>();
             if (playerTurret != null) playerTurret.aimCamera = FollowCamera.Main;
             Player = playerGo.GetComponent<Damageable>();
-            Player.Died += OnPlayerDied;
+            Player.Died += OnRobotDied;
+            types[Player] = type;
 
             var cam = FollowCamera.Main;
             if (cam != null)
@@ -129,62 +179,101 @@ namespace RobotArena
                 var pi = RobotCatalog.Get(type);
                 cam.SetTarget(playerGo.transform, pi.camDistance, pi.camHeight, pi.camPivot);
             }
-            yield return null;
-
-            // Enemies: two different robots picked at random from the catalog.
-            var pool = new List<RobotInfo>(RobotCatalog.All);
-            var liveries = new[] { Livery.Enemy, Livery.Enemy2, Livery.Enemy };
-            var namePool = new List<string> { "GOLIATH", "VIPER", "HAVOC", "MAULER", "WRAITH", "KRAKEN", "BRUTUS", "STINGER", "OGRE", "VENOM" };
-            int count = Mathf.Min(2, enemySpawns.Length > 0 ? enemySpawns.Length : 2);
-            for (int i = 0; i < count; i++)
+            // Teammates that follow the old wreck follow the new robot.
+            foreach (var a in Allies)
             {
-                var info = pool[Random.Range(0, pool.Count)];
-                pool.Remove(info);
-                string enemyName = namePool[Random.Range(0, namePool.Count)];
-                namePool.Remove(enemyName);
-                Vector3 ePos = enemySpawns.Length > i ? enemySpawns[i].position : new Vector3((i - 0.5f) * 60f, 0f, 60f);
-                Quaternion eRot = enemySpawns.Length > i ? enemySpawns[i].rotation : Quaternion.Euler(0f, 180f, 0f);
-                var e = RobotFactory.Build(info.type, ePos, eRot, 1, liveries[i], false, enemyName);
-                var brain = e.AddComponent<AIBrain>();
-                brain.preferredRange = info.aiPreferredRange;
-                brain.fireRange = info.aiFireRange;
-                brain.specialRange = info.aiSpecialRange;
-                brain.aggression = info.aiAggression;
-                brain.usesBoostToCharge = info.aiBoostCharge;
-                var d = e.GetComponent<Damageable>();
-                d.Died += OnEnemyDied;
-                Enemies.Add(d);
-                yield return null;
+                var b = a != null ? a.GetComponent<AIBrain>() : null;
+                if (b != null && b.follow != null && b.follow.GetComponent<RobotInput>() != null) b.follow = playerGo.transform;
             }
-
-            Current = State.Fighting;
-            hud.ShowFight();
-            GameAudio.Prewarm();
+            if (Current == State.Fighting) hud.BindPlayer();
+            return Player;
         }
 
-        void OnEnemyDied(Damageable d)
+        /// <summary>Builds an AI robot for either team.</summary>
+        public Damageable SpawnRobot(RobotType type, int team, Vector3 pos, string name, bool altLivery = false)
         {
-            if (Current != State.Fighting) return;
-            bool allDead = true;
-            foreach (var e in Enemies) if (e != null && !e.IsDead) allDead = false;
-            if (allDead)
+            var info = RobotCatalog.Get(type);
+            Livery livery = team == 0 ? Livery.Ally : (altLivery || Enemies.Count % 2 == 1 ? Livery.Enemy2 : Livery.Enemy);
+            var go = RobotFactory.Build(type, pos, FacingCentre(pos, team), team, livery, false, name);
+            var brain = go.AddComponent<AIBrain>();
+            brain.preferredRange = info.aiPreferredRange;
+            brain.fireRange = info.aiFireRange;
+            brain.specialRange = info.aiSpecialRange;
+            brain.aggression = info.aiAggression;
+            brain.usesBoostToCharge = info.aiBoostCharge;
+            var d = go.GetComponent<Damageable>();
+            d.Died += OnRobotDied;
+            types[d] = type;
+            (team == 0 ? Allies : Enemies).Add(d);
+            return d;
+        }
+
+        public RobotType TypeOf(Damageable d) => d != null && types.TryGetValue(d, out var t) ? t : RobotType.Titan;
+
+        /// <summary>Clears a wreck off the field (respawns).</summary>
+        public void RemoveWreck(Damageable d)
+        {
+            if (d == null) return;
+            Allies.Remove(d);
+            Enemies.Remove(d);
+            types.Remove(d);
+            Destroy(d.gameObject);
+        }
+
+        /// <summary>Rebuilds fallen teammates at the base (between survival waves).</summary>
+        public void ReviveAllies()
+        {
+            for (int i = Allies.Count - 1; i >= 0; i--)
             {
-                Current = State.Won;
-                StartCoroutine(SlowMotion(1.6f));
-                StartCoroutine(ShowEndAfter(2.2f, true));
-            }
-            else
-            {
-                StartCoroutine(SlowMotion(0.6f));
+                var a = Allies[i];
+                if (a == null || !a.IsDead) continue;
+                var type = TypeOf(a);
+                string name = a.displayName;
+                RemoveWreck(a);
+                var n = SpawnRobot(type, 0, Layout.allySpawns[(i + 1) % Layout.allySpawns.Length], name);
+                if (Player != null) n.GetComponent<AIBrain>().follow = Player.transform;
+                n.GetComponent<AIBrain>().startDelay = 0.5f;
             }
         }
 
-        void OnPlayerDied(Damageable d)
+        public void Announce(string text, Color color)
+        {
+            if (hud != null) hud.Announce(text, color);
+        }
+
+        void Update()
+        {
+            if (Current == State.Fighting && Rules != null) Rules.Tick(Time.deltaTime);
+        }
+
+        void OnRobotDied(Damageable d)
         {
             if (Current != State.Fighting) return;
-            Current = State.Lost;
-            StartCoroutine(SlowMotion(1.4f));
-            StartCoroutine(ShowEndAfter(2.5f, false));
+            if (d.team == 1 && Player != null && !Player.IsDead && Time.unscaledTime - lastKillSlowMo > 4f
+                && Vector3.Distance(d.transform.position, Player.transform.position) < 130f)
+            {
+                lastKillSlowMo = Time.unscaledTime;
+                StartCoroutine(SlowMotion(0.5f));
+            }
+            if (d.team == 0 && d != Player) Announce(d.displayName + " DOWN", UiKit.Red);
+            Rules?.RobotDied(d);
+            // Old enemy wrecks are cleared away so long fights don't fill up with scrap.
+            if (d.team == 1) StartCoroutine(ClearWreck(d, 25f));
+        }
+
+        IEnumerator ClearWreck(Damageable d, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (d != null && d.IsDead && d != Player) RemoveWreck(d);
+        }
+
+        /// <summary>Called by the rules when the match is decided.</summary>
+        public void EndMatch(bool won, string title, string sub)
+        {
+            if (Current != State.Fighting) return;
+            Current = won ? State.Won : State.Lost;
+            StartCoroutine(SlowMotion(won ? 1.6f : 1.4f));
+            StartCoroutine(ShowEndAfter(won ? 2.2f : 2.5f, won, title, sub));
         }
 
         IEnumerator SlowMotion(float realSeconds)
@@ -199,10 +288,18 @@ namespace RobotArena
             }
         }
 
-        IEnumerator ShowEndAfter(float realSeconds, bool won)
+        IEnumerator ShowEndAfter(float realSeconds, bool won, string title, string sub)
         {
             yield return new WaitForSecondsRealtime(realSeconds);
-            hud.ShowEnd(won);
+            bool next = won && Rules != null && Rules.IsMission && MatchSetup.MissionIndex + 1 < MatchSetup.Missions.Count;
+            hud.ShowEnd(won, title, sub, next);
+        }
+
+        /// <summary>Straight into the next mission with the same robot.</summary>
+        public void NextMission()
+        {
+            MatchSetup.MissionIndex++;
+            Restart();
         }
 
         public void SetPaused(bool pause)

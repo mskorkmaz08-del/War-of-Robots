@@ -6,7 +6,7 @@ namespace RobotArena
 {
     /// <summary>
     /// Round radar in the corner. It turns with the camera, so "up" on the map is
-    /// the way you're looking. Enemies are red dots; ones out of range sit on the rim.
+    /// the way you're looking. Enemies are red dots, teammates blue, capture points rings; things out of range sit on the rim.
     /// </summary>
     public class Minimap : MonoBehaviour
     {
@@ -19,6 +19,7 @@ namespace RobotArena
         float mapRadius;
         readonly Dictionary<Damageable, RectTransform> dots = new Dictionary<Damageable, RectTransform>();
         readonly List<Damageable> stale = new List<Damageable>();
+        readonly Dictionary<CaptureZone, (RectTransform rt, Image img, Text label)> zones = new Dictionary<CaptureZone, (RectTransform, Image, Text)>();
 
         public static Minimap Create(Transform parent, Vector2 anchor, Vector2 pos, float size)
         {
@@ -89,14 +90,37 @@ namespace RobotArena
             float playerYaw = match.Player.transform.eulerAngles.y;
             playerArrow.localRotation = Quaternion.Euler(0f, 0f, camYaw - playerYaw);
 
+            // Capture points: coloured rings with their letter.
+            foreach (var z in CaptureZone.All)
+            {
+                if (z == null) continue;
+                if (!zones.TryGetValue(z, out var zr))
+                {
+                    var ring = UiKit.Rect("Zone", rotor, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * z.radius * 2f * scale);
+                    ring.SetAsFirstSibling();
+                    UiKit.Image(ring, UiKit.Ring, Color.white);
+                    var t = UiKit.Label(ring, z.label.Length > 1 ? z.label.Substring(0, 1) : z.label, 22, Color.white, TextAnchor.MiddleCenter, true);
+                    zr = (ring, ring.GetComponent<Image>(), t);
+                    zones[z] = zr;
+                }
+                Vector3 zo = z.transform.position - center;
+                zr.rt.anchoredPosition = new Vector2(zo.x, zo.z) * scale;
+                Color zc = CaptureZone.TeamColor(z.Owner);
+                zr.img.color = zc;
+                zr.label.color = zc;
+                zr.label.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -camYaw);
+            }
+
             foreach (var d in Damageable.All)
             {
-                if (d == null || d == match.Player || d.team == match.Player.team) continue;
+                if (d == null || d == match.Player) continue;
+                bool ally = d.team == match.Player.team;
+                bool building = d.GetComponent<Locomotion>() == null;
                 if (!dots.TryGetValue(d, out var dot))
                 {
-                    dot = UiKit.Rect("Enemy", rotor, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(26f, 26f));
-                    UiKit.Image(dot, UiKit.Circle, UiKit.Red);
-                    UiKit.Child(dot, "Ring", UiKit.Ring, new Color(1f, 0.8f, 0.7f, 0.9f));
+                    dot = UiKit.Rect(ally ? "Ally" : "Enemy", rotor, new Vector2(0.5f, 0.5f), Vector2.zero, building ? new Vector2(30f, 30f) : new Vector2(ally ? 20f : 26f, ally ? 20f : 26f));
+                    UiKit.Image(dot, building ? UiKit.Chamfer : UiKit.Circle, ally ? UiKit.Cyan : UiKit.Red);
+                    if (!ally && !building) UiKit.Child(dot, "Ring", UiKit.Ring, new Color(1f, 0.8f, 0.7f, 0.9f));
                     dots[d] = dot;
                 }
                 Vector3 off = d.transform.position - center;
@@ -104,9 +128,9 @@ namespace RobotArena
                 bool outside = p.magnitude > mapRadius - 12f;
                 if (outside) p = p.normalized * (mapRadius - 12f);
                 dot.anchoredPosition = p;
-                float pulse = 1f + Mathf.Sin(Time.unscaledTime * 6f) * 0.12f;
+                float pulse = ally || building ? 1f : 1f + Mathf.Sin(Time.unscaledTime * 6f) * 0.12f;
                 dot.localScale = Vector3.one * (outside ? 0.7f : pulse) * (d.IsDead ? 0.6f : 1f);
-                dot.GetComponent<Image>().color = d.IsDead ? new Color(0.4f, 0.4f, 0.4f, 0.8f) : UiKit.Red;
+                dot.GetComponent<Image>().color = d.IsDead ? new Color(0.4f, 0.4f, 0.4f, 0.8f) : ally ? UiKit.Cyan : UiKit.Red;
             }
 
             // Remove dots for robots that no longer exist.

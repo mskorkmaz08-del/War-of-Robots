@@ -104,6 +104,34 @@ namespace RobotArena
                 camDistance = 30f, camHeight = -1f, camPivot = 3f,
                 aiPreferredRange = 22f, aiFireRange = 45f, aiSpecialRange = 170f, aiAggression = 0.9f, aiBoostCharge = true
             },
+            new RobotInfo
+            {
+                type = RobotType.Lancer,
+                name = "LANCER",
+                role = "SNIPER WALKER",
+                description = "A tall, quick walker on bird-like legs. Hits hard from very far away.",
+                primary = "Charged rail rifle",
+                special = "8-missile box",
+                mobility = "Jump jets",
+                armour = 0.55f, speed = 0.7f, firepower = 0.75f, range = 1f,
+                previewDistance = 34f, previewHeight = 7f,
+                camDistance = 27f, camHeight = -1f, camPivot = 3f,
+                aiPreferredRange = 110f, aiFireRange = 260f, aiSpecialRange = 160f, aiAggression = 0.45f
+            },
+            new RobotInfo
+            {
+                type = RobotType.Bastion,
+                name = "BASTION",
+                role = "ARTILLERY TANK",
+                description = "A six-wheeled gun platform. Long cannon up front, mortars on the back.",
+                primary = "Long-barrel cannon",
+                special = "6-shell mortar barrage",
+                mobility = "Engine boost",
+                armour = 0.85f, speed = 0.5f, firepower = 0.9f, range = 0.9f,
+                previewDistance = 34f, previewHeight = 4f,
+                camDistance = 28f, camHeight = -1f, camPivot = 3f,
+                aiPreferredRange = 90f, aiFireRange = 220f, aiSpecialRange = 170f, aiAggression = 0.5f
+            },
         };
 
         public static RobotInfo Get(RobotType type)

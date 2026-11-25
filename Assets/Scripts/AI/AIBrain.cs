@@ -16,6 +16,18 @@ namespace RobotArena
         [Range(0f, 1f)] public float aggression = 0.6f;
         public bool usesBoostToCharge;
 
+        [Header("Team play")]
+        /// <summary>Stay near this robot (allies follow the player) when nothing is in reach.</summary>
+        public Transform follow;
+        /// <summary>Where to go when nothing is in reach (capture point, depot, reactor).</summary>
+        public Vector3? goal;
+        public float goalRadius = 14f;
+        /// <summary>Only enemies this close are engaged when a goal or leader is set.</summary>
+        public float engageRange = 160f;
+        /// <summary>Preferred target (the reactor, the commander) when it is within reach.</summary>
+        public Damageable priorityTarget;
+        public float startDelay = 4f;
+
         RobotCommands commands;
         Turret turret;
         Damageable self;
@@ -29,7 +41,7 @@ namespace RobotArena
         float thinkTimer;
         float burstTimer;
         bool burstOn;
-        float startDelay = 4f;
+        Vector3 followOffset;
 
         void Awake()
         {
@@ -39,6 +51,7 @@ namespace RobotArena
             weapons = GetComponents<Weapon>();
             locomotion = GetComponent<Locomotion>();
             strafeSign = Random.value < 0.5f ? -1f : 1f;
+            followOffset = new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, -0.3f)).normalized * Random.Range(22f, 34f);
         }
 
         void Update()
@@ -56,7 +69,11 @@ namespace RobotArena
                 thinkTimer = 0.5f;
                 target = PickTarget();
             }
-            if (target == null) return;
+            if (target == null)
+            {
+                MoveToGoal();
+                return;
+            }
 
             Vector3 pos = transform.position;
             Vector3 to = target.Center - pos;
@@ -78,34 +95,7 @@ namespace RobotArena
             Vector3 desired = Vector3.Slerp(dirToTarget, tangent, closeness * 0.85f);
             if (dist < preferredRange * 0.5f) desired = (tangent - dirToTarget * 0.6f).normalized;
 
-            // Avoid obstacles ahead.
-            Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
-            if (Physics.SphereCast(pos + Vector3.up * 3f, 3f, fwd, out RaycastHit hit, 26f, ~0, QueryTriggerInteraction.Ignore)
-                && hit.rigidbody == null)
-            {
-                Vector3 away = Vector3.ProjectOnPlane(hit.normal, Vector3.up).normalized;
-                desired = (desired + away * 1.5f).normalized;
-            }
-
-            float angle = Vector3.SignedAngle(fwd, desired, Vector3.up);
-            commands.steer = Mathf.Clamp(angle / 35f, -1f, 1f);
-            commands.throttle = Mathf.Clamp01(1f - Mathf.Abs(angle) / 120f) * (0.6f + aggression * 0.4f);
-
-            // Unstick: if pushing but not moving, back up and turn.
-            float speed = GetComponent<Rigidbody>() != null ? Compat.GetVelocity(GetComponent<Rigidbody>()).magnitude : 0f;
-            if (commands.throttle > 0.4f && speed < 1f) stuckTimer += Time.deltaTime;
-            else stuckTimer = Mathf.Max(0f, stuckTimer - Time.deltaTime);
-            if (stuckTimer > 2f)
-            {
-                stuckTimer = 0f;
-                reverseTimer = 1.5f;
-            }
-            if (reverseTimer > 0f)
-            {
-                reverseTimer -= Time.deltaTime;
-                commands.throttle = -0.8f;
-                commands.steer = strafeSign;
-            }
+            float angle = Drive(desired, 0.6f + aggression * 0.4f);
 
             // Weapons: fire in bursts with pauses, so the player gets breathing room.
             burstTimer -= Time.deltaTime;
@@ -132,14 +122,89 @@ namespace RobotArena
             }
         }
 
+        /// <summary>Steers towards a flat direction, avoiding walls and backing out when stuck. Returns the heading error.</summary>
+        float Drive(Vector3 desired, float throttle)
+        {
+            Vector3 pos = transform.position;
+            Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            if (Physics.SphereCast(pos + Vector3.up * 3f, 3f, fwd, out RaycastHit hit, 26f, ~0, QueryTriggerInteraction.Ignore)
+                && (hit.rigidbody == null || hit.rigidbody.isKinematic))
+            {
+                Vector3 away = Vector3.ProjectOnPlane(hit.normal, Vector3.up).normalized;
+                desired = (desired + away * 1.5f).normalized;
+            }
+
+            float angle = Vector3.SignedAngle(fwd, desired, Vector3.up);
+            commands.steer = Mathf.Clamp(angle / 35f, -1f, 1f);
+            commands.throttle = Mathf.Clamp01(1f - Mathf.Abs(angle) / 120f) * throttle;
+
+            // Unstick: if pushing but not moving, back up and turn.
+            var rb = self != null ? self.Body : null;
+            float speed = rb != null ? Compat.GetVelocity(rb).magnitude : 0f;
+            if (commands.throttle > 0.4f && speed < 1f) stuckTimer += Time.deltaTime;
+            else stuckTimer = Mathf.Max(0f, stuckTimer - Time.deltaTime);
+            if (stuckTimer > 2f)
+            {
+                stuckTimer = 0f;
+                reverseTimer = 1.5f;
+            }
+            if (reverseTimer > 0f)
+            {
+                reverseTimer -= Time.deltaTime;
+                commands.throttle = -0.8f;
+                commands.steer = strafeSign;
+            }
+            return angle;
+        }
+
+        /// <summary>No enemy in reach: head for the goal or stay with the leader.</summary>
+        void MoveToGoal()
+        {
+            Vector3 dest;
+            float radius = goalRadius;
+            if (follow != null && follow.gameObject.activeInHierarchy)
+            {
+                dest = follow.position + follow.rotation * followOffset;
+                radius = 12f;
+            }
+            else if (goal.HasValue) dest = goal.Value;
+            else return;
+
+            Vector3 flat = Vector3.ProjectOnPlane(dest - transform.position, Vector3.up);
+            float dist = flat.magnitude;
+            if (dist < radius)
+            {
+                // Arrived: drift slowly in a circle so the robot doesn't look frozen.
+                if (goal.HasValue && follow == null)
+                {
+                    Vector3 tangent = Vector3.Cross(Vector3.up, flat.normalized) * strafeSign;
+                    Drive((tangent + flat.normalized * 0.3f).normalized, 0.25f);
+                }
+                return;
+            }
+            float angle = Drive(flat / dist, dist > radius * 3f ? 0.9f : 0.5f);
+            if (locomotion != null && usesBoostToCharge && dist > 90f && Mathf.Abs(angle) < 10f && locomotion.Fuel01 > 0.7f) commands.boost = true;
+        }
+
+        bool HasErrand => (follow != null && follow.gameObject.activeInHierarchy) || goal.HasValue;
+
         Damageable PickTarget()
         {
+            Vector3 pos = transform.position;
+            float reach = HasErrand ? engageRange : float.MaxValue;
+            if (priorityTarget != null && !priorityTarget.IsDead && Vector3.Distance(priorityTarget.Center, pos) < Mathf.Max(reach, 200f))
+                return priorityTarget;
+
+            // When following the leader, also defend it: anything near the leader counts as near.
+            Vector3 leader = follow != null ? follow.position : pos;
             Damageable best = null;
             float bestDist = float.MaxValue;
             foreach (var d in Damageable.All)
             {
                 if (d == null || d == self || d.IsDead || (self != null && d.team == self.team)) continue;
-                float dist = Vector3.Distance(d.Center, transform.position);
+                float dist = Vector3.Distance(d.Center, pos);
+                float distLeader = follow != null ? Vector3.Distance(d.Center, leader) : dist;
+                if (Mathf.Min(dist, distLeader) > reach) continue;
                 if (dist < bestDist)
                 {
                     bestDist = dist;

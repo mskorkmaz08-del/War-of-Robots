@@ -18,6 +18,25 @@ namespace RobotArena
         public Material particleAdditive;
         public Material particleAlpha;
 
+        [Header("Arena materials (used to build the other maps at runtime)")]
+        public Material floorMat;
+        public Material wallMat;
+        public Material buildingMat;
+        public Material hazardMat;
+        public Material glowMat;
+        public Material[] containerMats = new Material[0];
+
+        /// <summary>A tinted copy of an arena material (e.g. sand-coloured concrete for the canyon).</summary>
+        public Material Tinted(Material source, Color color)
+        {
+            if (source == null) return Paint(color, 0f, 0.3f, false);
+            string key = $"tint_{source.name}_{ColorUtility.ToHtmlStringRGBA(color)}";
+            if (cache.TryGetValue(key, out var m)) return m;
+            m = new Material(source) { name = key, color = color };
+            cache[key] = m;
+            return m;
+        }
+
         readonly Dictionary<string, Material> cache = new Dictionary<string, Material>();
         Texture2D softDot;
         Texture2D panelTexture;

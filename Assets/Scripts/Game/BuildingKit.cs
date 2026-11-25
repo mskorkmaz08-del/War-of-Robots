@@ -173,7 +173,7 @@ namespace RobotArena
                 float u = cols / 4f, v = rows / rowsPerTile;
                 uvs.Add(new Vector2(0f, 0f)); uvs.Add(new Vector2(u, 0f)); uvs.Add(new Vector2(u, v)); uvs.Add(new Vector2(0f, v));
                 for (int k = 0; k < 4; k++) normals.Add(n);
-                tris.AddRange(new[] { i0, i0 + 2, i0 + 1, i0, i0 + 3, i0 + 2 });
+                tris.AddRange(new[] { i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3 });
             }
             var mesh = new Mesh { name = "Facade" };
             mesh.SetVertices(verts);

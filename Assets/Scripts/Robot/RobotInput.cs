@@ -156,7 +156,7 @@ namespace RobotArena
                 // Pulling straight back: reverse instead of turning all the way round.
                 float backAngle = Vector3.SignedAngle(-fwd, wanted, Vector3.up);
                 commands.throttle = -mag;
-                commands.steer = Mathf.Clamp(-backAngle / 35f, -1f, 1f);
+                commands.steer = Mathf.Clamp(backAngle / 35f, -1f, 1f);
                 return;
             }
 

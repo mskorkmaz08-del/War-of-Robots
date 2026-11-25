@@ -28,7 +28,7 @@ namespace RobotArena
         public float suspensionTravel = 1.1f;
         [Tooltip("Spring strength as acceleration per metre of compression.")]
         public float springStiffness = 26f;
-        public float springDamping = 6.5f;
+        public float springDamping = 9f;
 
         [Header("Driving")]
         public float driveAccel = 9f;
@@ -139,7 +139,7 @@ namespace RobotArena
                 // Tank steering: spin the hull toward the requested turn rate.
                 float yawRate = Vector3.Dot(rb.angularVelocity, up);
                 float speedFactor = Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(Mathf.Abs(forwardSpeed) / boostMaxSpeed));
-                float target = steer * turnRate * speedFactor * (forwardSpeed < -1f ? -1f : 1f);
+                float target = steer * turnRate * speedFactor;
                 rb.AddTorque(up * (target - yawRate) * turnResponse, ForceMode.Acceleration);
             }
             else
@@ -156,6 +156,7 @@ namespace RobotArena
                 if (groundedCount > 0) rb.AddForce(-up * 6f, ForceMode.Acceleration); // keep it planted
             }
 
+            ApplyExtraGravity(groundedCount > 0);
             UpdateAutoRight(velocity);
         }
 

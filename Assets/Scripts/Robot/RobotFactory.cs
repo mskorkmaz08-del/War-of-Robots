@@ -516,6 +516,9 @@ namespace RobotArena
 
             var drive = root.AddComponent<WheeledLocomotion>();
             drive.wheels = wheels.ToArray();
+            // Low centre of mass: hard to flip, even when ramming at full thrust.
+            rb.centerOfMass = new Vector3(0f, 0.3f, 0.2f);
+            drive.extraAirGravity = 0.6f;
             drive.thrusterNozzles = nozzles.ToArray();
             drive.wheelRadius = 1.4f;
             drive.suspensionTravel = 1.1f;

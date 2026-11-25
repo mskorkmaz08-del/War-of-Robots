@@ -33,7 +33,7 @@ namespace RobotArena
         [Header("Body")]
         public float standHeight = 7f;
         public float heightStiffness = 9f;
-        public float heightDamping = 4.5f;
+        public float heightDamping = 6f;
         public float uprightStiffness = 14f;
         public float uprightDamping = 6f;
 
@@ -48,7 +48,7 @@ namespace RobotArena
         public float shinLength = 4.4f;
 
         [Header("Jump jets")]
-        public float jetAccel = 15.5f;
+        public float jetAccel = 22f;
         public float landingShockSpeed = 7f;
 
         ParticleSystem[] jets = new ParticleSystem[0];
@@ -62,6 +62,7 @@ namespace RobotArena
         int nextLeg;
         float idleTimer;
         float bodyDip;
+        float gaitBob;
 
         public override bool IsGrounded => grounded;
 
@@ -118,7 +119,7 @@ namespace RobotArena
             if (grounded)
             {
                 // Springy stance: holds the hull at stand height with a heavy, slightly bouncy feel.
-                float targetHeight = standHeight - bodyDip;
+                float targetHeight = standHeight - bodyDip + gaitBob;
                 float error = targetHeight - height;
                 float accel = heightStiffness * error - heightDamping * velocity.y + Physics.gravity.magnitude;
                 rb.AddForce(Vector3.up * Mathf.Max(0f, accel), ForceMode.Acceleration);
@@ -154,6 +155,8 @@ namespace RobotArena
                 float lift = grounded ? jetAccel * 1.6f : jetAccel;
                 rb.AddForce(Vector3.up * lift + flatForward * 6f * Mathf.Max(0.3f, commands.throttle), ForceMode.Acceleration);
             }
+
+            ApplyExtraGravity(grounded);
 
             // Recover the dip after each stomp.
             bodyDip = Mathf.MoveTowards(bodyDip, 0f, dt * 1.8f);
@@ -198,6 +201,7 @@ namespace RobotArena
             if (grounded) UpdateSteps(flatVel, dt);
             else
             {
+                gaitBob = 0f;
                 // Legs tuck under the hull while airborne.
                 foreach (var leg in legs)
                 {
@@ -219,11 +223,11 @@ namespace RobotArena
         {
             float speed = flatVel.magnitude;
             bool anyStepping = false;
+            float bob = 0f;
             foreach (var leg in legs)
             {
                 if (leg.stepT < 1f)
                 {
-                    anyStepping = true;
                     float duration = Mathf.Lerp(stepDuration, stepDuration * 0.7f, speed / walkSpeed);
                     leg.stepT = Mathf.Min(1f, leg.stepT + dt / duration);
                     float t = leg.stepT;
@@ -231,14 +235,21 @@ namespace RobotArena
                     Vector3 p = Vector3.Lerp(leg.stepFrom, leg.stepTo, eased);
                     p.y += Mathf.Sin(t * Mathf.PI) * stepHeight;
                     leg.footPos = p;
+                    // The hull rises as a leg swings through and drops onto the next footfall.
+                    bob = Mathf.Max(bob, Mathf.Sin(t * Mathf.PI) * 0.45f * Mathf.Clamp01(speed / 2f));
                     if (leg.stepT >= 1f) Footfall(leg);
+                    // At speed, let the next leg lift off before this one lands so the feet keep up.
+                    else if (leg.stepT < Mathf.Lerp(1f, 0.7f, Mathf.Clamp01(speed / walkSpeed))) anyStepping = true;
+                    continue;
                 }
             }
+            gaitBob = bob;
 
             if (anyStepping) return;
 
             // Pick the next leg to move if its foot has fallen too far behind.
             Leg candidate = legs[nextLeg % legs.Length];
+            if (candidate.stepT < 1f) return; // still finishing its step
             Vector3 lead = flatVel * 0.45f;
             Vector3 home = FootHome(candidate, lead);
             float dist = Vector3.Distance(Flat(candidate.footPos), Flat(home));

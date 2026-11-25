@@ -6,6 +6,10 @@ namespace RobotArena
     [RequireComponent(typeof(Rigidbody), typeof(RobotCommands))]
     public abstract class Locomotion : MonoBehaviour, IDisableOnDeath
     {
+        [Header("Weight")]
+        [Tooltip("Extra gravity while airborne, as a fraction of normal gravity. Giant machines should fall hard, not float.")]
+        public float extraAirGravity = 0.8f;
+
         [Header("Boost")]
         public float maxFuel = 100f;
         public float fuelDrain = 30f;
@@ -52,6 +56,13 @@ namespace RobotArena
             }
             IsBoosting = active;
             return active;
+        }
+
+        /// <summary>Makes jumps and ramp launches feel heavy. Call from FixedUpdate.</summary>
+        protected void ApplyExtraGravity(bool grounded)
+        {
+            if (!grounded && extraAirGravity > 0f)
+                rb.AddForce(Physics.gravity * extraAirGravity, ForceMode.Acceleration);
         }
 
         protected virtual void OnDisable()

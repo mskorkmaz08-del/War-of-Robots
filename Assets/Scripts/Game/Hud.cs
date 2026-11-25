@@ -37,6 +37,8 @@ namespace RobotArena
         readonly List<(Damageable d, RectTransform fill, Text label)> enemyBars = new List<(Damageable, RectTransform, Text)>();
         RectTransform enemyBarRoot;
         float lastHealth = -1f;
+        float lastHitSound, lastAlarm;
+        Damageable lastTarget;
 
         // Touch controls
         GameObject touchControls;
@@ -129,6 +131,8 @@ namespace RobotArena
         {
             HideAll();
             menuPanel.SetActive(true);
+            GameAudio.PlayMusic(0.9f);
+            GameAudio.PlayAmbience(false);
         }
 
         // =====================================================================
@@ -201,6 +205,7 @@ namespace RobotArena
             var info = RobotCatalog.All[hangarIndex];
             FillHangar(info);
             match.PreviewRobot(info);
+            GameAudio.Play2D(Sfx.Whoosh, 0.7f);
         }
 
         void FillHangar(RobotInfo info)
@@ -224,6 +229,9 @@ namespace RobotArena
             HideAll();
             FillHangar(info);
             hangarPanel.SetActive(true);
+            GameAudio.PlayMusic(0.9f);
+            GameAudio.PlayAmbience(false);
+            GameAudio.Play2D(Sfx.Whoosh, 0.8f);
         }
 
         // =====================================================================
@@ -343,6 +351,8 @@ namespace RobotArena
         {
             HideAll();
             fightPanel.SetActive(true);
+            GameAudio.PlayMusic(0.6f);
+            GameAudio.PlayAmbience(true);
             special = null;
             playerLoco = null;
             lastSpecialText = null;
@@ -415,6 +425,16 @@ namespace RobotArena
                     }
                 }
 
+                if (lastHealth >= 0f && hp < lastHealth && Time.unscaledTime - lastHitSound > 0.18f)
+                {
+                    lastHitSound = Time.unscaledTime;
+                    GameAudio.Play2D(Sfx.HitTaken, Mathf.Clamp01(0.35f + (lastHealth - hp) * 8f));
+                }
+                if (hp > 0f && hp < 0.25f && Time.unscaledTime - lastAlarm > 1.6f)
+                {
+                    lastAlarm = Time.unscaledTime;
+                    GameAudio.Play2D(Sfx.Alarm, 0.4f);
+                }
                 if (lastHealth >= 0f && hp < lastHealth)
                     damageFlash.color = new Color(1f, 0.1f, 0f, Mathf.Min(0.35f, damageFlash.color.a + (lastHealth - hp) * 4f));
                 lastHealth = hp;
@@ -468,6 +488,11 @@ namespace RobotArena
                 return;
             }
             targetMarker.gameObject.SetActive(true);
+            if (turret.Target != lastTarget)
+            {
+                lastTarget = turret.Target;
+                GameAudio.Play2D(Sfx.LockOn, 0.5f);
+            }
             var parentRt = (RectTransform)targetMarker.parent;
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRt, sp, null, out Vector2 local))
                 targetMarker.anchoredPosition = local;
@@ -520,29 +545,32 @@ namespace RobotArena
             var card = UiKit.Panel("Card", settingsPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100f, 900f));
             UiKit.Title(Place(card, 0.5f, 0.91f, 900f, 110f), "SETTINGS", 84, Color.white);
 
-            SettingLabel(card, "SOUND", 0.76f);
-            UiSlider.Create(card, new Vector2(0.64f, 0.76f), Vector2.zero, 620f, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v);
+            SettingLabel(card, "SOUND", 0.79f);
+            UiSlider.Create(card, new Vector2(0.64f, 0.79f), Vector2.zero, 620f, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v);
 
-            SettingLabel(card, "LOOK SPEED", 0.62f);
-            UiSlider.Create(card, new Vector2(0.64f, 0.62f), Vector2.zero, 620f, 0.3f, 2.5f, GameSettings.LookSensitivity, v => GameSettings.LookSensitivity = v);
+            SettingLabel(card, "MUSIC", 0.68f);
+            UiSlider.Create(card, new Vector2(0.64f, 0.68f), Vector2.zero, 620f, 0f, 1f, GameSettings.MusicVolume, v => GameSettings.MusicVolume = v);
 
-            SettingLabel(card, "GRAPHICS", 0.48f);
+            SettingLabel(card, "LOOK SPEED", 0.57f);
+            UiSlider.Create(card, new Vector2(0.64f, 0.57f), Vector2.zero, 620f, 0.3f, 2.5f, GameSettings.LookSensitivity, v => GameSettings.LookSensitivity = v);
+
+            SettingLabel(card, "GRAPHICS", 0.46f);
             qualityButtons = new Button[3];
             string[] names = { "LOW", "MEDIUM", "HIGH" };
             for (int i = 0; i < 3; i++)
             {
                 int q = i;
-                qualityButtons[i] = UiKit.Button(card, names[i], new Vector2(0.64f, 0.48f), new Vector2((i - 1) * 210f, 0f), new Vector2(195f, 90f),
+                qualityButtons[i] = UiKit.Button(card, names[i], new Vector2(0.64f, 0.46f), new Vector2((i - 1) * 210f, 0f), new Vector2(195f, 90f),
                     UiKit.ButtonStyle.Secondary, () => { GameSettings.GraphicsQuality = (GameSettings.Quality)q; RefreshSettings(); }, 32);
             }
 
-            SettingLabel(card, "CAMERA SHAKE", 0.34f);
-            var shakeBtn = UiKit.Button(card, "ON", new Vector2(0.64f, 0.34f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
+            SettingLabel(card, "CAMERA SHAKE", 0.35f);
+            var shakeBtn = UiKit.Button(card, "ON", new Vector2(0.64f, 0.35f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
                 () => { GameSettings.CameraShake = !GameSettings.CameraShake; RefreshSettings(); }, 34);
             shakeText = shakeBtn.GetComponentInChildren<Text>();
 
-            SettingLabel(card, "SHOW FPS", 0.21f);
-            var fpsBtn = UiKit.Button(card, "OFF", new Vector2(0.64f, 0.21f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
+            SettingLabel(card, "SHOW FPS", 0.24f);
+            var fpsBtn = UiKit.Button(card, "OFF", new Vector2(0.64f, 0.24f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
                 () => { GameSettings.ShowFps = !GameSettings.ShowFps; RefreshSettings(); }, 34);
             fpsToggleText = fpsBtn.GetComponentInChildren<Text>();
 
@@ -607,6 +635,8 @@ namespace RobotArena
             endPanel.SetActive(true);
             endTitle.text = won ? "VICTORY!" : "DESTROYED";
             endTitle.color = won ? UiKit.Yellow : UiKit.Red;
+            GameAudio.Play2D(won ? Sfx.Victory : Sfx.Defeat, 1f);
+            GameAudio.PlayMusic(0.35f);
             endSub.text = won ? "Every enemy machine is scrap metal." : "Your machine has fallen. Rebuild and return.";
         }
 
@@ -628,6 +658,8 @@ namespace RobotArena
             HideAll();
             deployText.text = "DEPLOYING...";
             deployPanel.SetActive(true);
+            GameAudio.Play2D(Sfx.Confirm, 0.9f);
+            GameAudio.Play2D(Sfx.Whoosh, 0.9f);
         }
 
         void ShowLoading()

@@ -162,9 +162,31 @@ namespace RobotArena.EditorTools
                 sun.shadows = LightShadows.Soft;
                 sun.shadowStrength = 0.85f;
             }
+            // Sky: Unity's procedural sky, late-afternoon tint.
+            var skyShader = Shader.Find("Skybox/Procedural");
+            if (skyShader != null)
+            {
+                string skyPath = MaterialDir + "/Sky.mat";
+                var sky = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
+                if (sky == null)
+                {
+                    sky = new Material(skyShader);
+                    AssetDatabase.CreateAsset(sky, skyPath);
+                }
+                sky.shader = skyShader;
+                if (sky.HasProperty("_SunSize")) sky.SetFloat("_SunSize", 0.05f);
+                if (sky.HasProperty("_AtmosphereThickness")) sky.SetFloat("_AtmosphereThickness", 1.25f);
+                if (sky.HasProperty("_SkyTint")) sky.SetColor("_SkyTint", new Color(0.55f, 0.6f, 0.75f));
+                if (sky.HasProperty("_GroundColor")) sky.SetColor("_GroundColor", new Color(0.32f, 0.3f, 0.29f));
+                if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1.25f);
+                EditorUtility.SetDirty(sky);
+                RenderSettings.skybox = sky;
+            }
+            if (sun != null) RenderSettings.sun = sun;
+
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = new Color(0.58f, 0.6f, 0.64f);
+            RenderSettings.fogColor = new Color(0.66f, 0.68f, 0.72f);
             RenderSettings.fogStartDistance = 90f;
             RenderSettings.fogEndDistance = 650f;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
@@ -183,6 +205,27 @@ namespace RobotArena.EditorTools
                 cam.fieldOfView = 60f;
                 cam.gameObject.AddComponent<FollowCamera>();
                 cam.gameObject.AddComponent<MenuCameraOrbit>();
+                cam.clearFlags = CameraClearFlags.Skybox;
+
+                // Screen effects (bloom, grading). The material asset keeps the shader in the build.
+                var postShader = Shader.Find("Hidden/RobotArena/Post");
+                if (postShader != null)
+                {
+                    string postPath = MaterialDir + "/Post.mat";
+                    var postMat = AssetDatabase.LoadAssetAtPath<Material>(postPath);
+                    if (postMat == null)
+                    {
+                        postMat = new Material(postShader);
+                        AssetDatabase.CreateAsset(postMat, postPath);
+                    }
+                    postMat.shader = postShader;
+                    EditorUtility.SetDirty(postMat);
+                    cam.gameObject.AddComponent<PostFx>().material = postMat;
+                }
+                else
+                {
+                    Debug.LogWarning("[ArenaBuilder] Post shader not found; screen effects disabled.");
+                }
             }
 
             // ---- Match ----

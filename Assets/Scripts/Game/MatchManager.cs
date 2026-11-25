@@ -39,6 +39,7 @@ namespace RobotArena
             Time.fixedDeltaTime = BaseFixedDelta;
             Performance.Apply();
             Performance.TuneCamera(Camera.main);
+            Performance.AddReflections(transform, new Vector3(0f, 20f, 0f), new Vector3(600f, 200f, 600f));
         }
 
         void Start()

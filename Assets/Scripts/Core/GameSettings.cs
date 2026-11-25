@@ -9,6 +9,7 @@ namespace RobotArena
 
         static bool loaded;
         static float volume = 0.9f;
+        static float musicVolume = 0.6f;
         static float lookSensitivity = 1f;
         static bool cameraShake = true;
         static Quality quality = Quality.Medium;
@@ -17,6 +18,7 @@ namespace RobotArena
         public static event System.Action Changed;
 
         public static float Volume { get { Load(); return volume; } set { volume = Mathf.Clamp01(value); Save(); } }
+        public static float MusicVolume { get { Load(); return musicVolume; } set { musicVolume = Mathf.Clamp01(value); Save(); } }
         public static float LookSensitivity { get { Load(); return lookSensitivity; } set { lookSensitivity = Mathf.Clamp(value, 0.2f, 3f); Save(); } }
         public static bool CameraShake { get { Load(); return cameraShake; } set { cameraShake = value; Save(); } }
         public static Quality GraphicsQuality { get { Load(); return quality; } set { quality = value; Save(); } }
@@ -30,6 +32,7 @@ namespace RobotArena
             {
                 volume = PlayerPrefs.GetFloat("volume", 0.9f);
                 lookSensitivity = PlayerPrefs.GetFloat("look", 1f);
+                musicVolume = PlayerPrefs.GetFloat("music", 0.6f);
                 cameraShake = PlayerPrefs.GetInt("shake", 1) == 1;
                 showFps = PlayerPrefs.GetInt("fps", 0) == 1;
                 int q = PlayerPrefs.GetInt("quality", -1);
@@ -44,6 +47,7 @@ namespace RobotArena
             {
                 PlayerPrefs.SetFloat("volume", volume);
                 PlayerPrefs.SetFloat("look", lookSensitivity);
+                PlayerPrefs.SetFloat("music", musicVolume);
                 PlayerPrefs.SetInt("shake", cameraShake ? 1 : 0);
                 PlayerPrefs.SetInt("fps", showFps ? 1 : 0);
                 PlayerPrefs.SetInt("quality", (int)quality);

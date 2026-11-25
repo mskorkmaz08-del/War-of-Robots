@@ -55,6 +55,8 @@ namespace RobotArena
             }
             MeshMerge.Merge(transform);
 
+            Performance.AddReflections(transform, Spot + Vector3.up * 15f, new Vector3(200f, 80f, 200f));
+
             var lightGo = new GameObject("Key light");
             lightGo.transform.SetParent(transform, false);
             lightGo.transform.localPosition = new Vector3(-25f, 30f, -25f);

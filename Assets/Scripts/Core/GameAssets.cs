@@ -103,6 +103,57 @@ namespace RobotArena
             return alphaSoft;
         }
 
+        Material ringAdditive;
+        Material scorchMat;
+
+        /// <summary>Additive material with a soft ring: explosion shockwaves.</summary>
+        public Material RingAdditive()
+        {
+            if (ringAdditive != null) return ringAdditive;
+            const int size = 128;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Ring" };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f, dy = (y + 0.5f) / size * 2f - 1f;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = Mathf.Clamp01(1f - Mathf.Abs(d - 0.82f) / 0.16f);
+                a = a * a * (3f - 2f * a);
+                px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+            }
+            tex.SetPixels32(px);
+            tex.Apply();
+            ringAdditive = new Material(particleAdditive) { name = "RingAdditive", mainTexture = tex };
+            if (ringAdditive.HasProperty("_TintColor")) ringAdditive.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+            return ringAdditive;
+        }
+
+        /// <summary>Dark blotchy burn mark left on the ground by explosions.</summary>
+        public Material Scorch()
+        {
+            if (scorchMat != null) return scorchMat;
+            const int size = 128;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, name = "Scorch" };
+            var px = new Color32[size * size];
+            var rng = new System.Random(11);
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f, dy = (y + 0.5f) / size * 2f - 1f;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float ang = Mathf.Atan2(dy, dx);
+                float edge = 0.75f + 0.12f * Mathf.Sin(ang * 7f) + 0.06f * Mathf.Sin(ang * 13f + 1f);
+                float a = Mathf.Clamp01((edge - d) / 0.35f) * (0.75f + (float)rng.NextDouble() * 0.25f);
+                px[y * size + x] = new Color32(12, 10, 9, (byte)(a * 235));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true);
+            scorchMat = new Material(particleAlpha) { name = "Scorch", mainTexture = tex };
+            if (scorchMat.HasProperty("_TintColor")) scorchMat.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+            return scorchMat;
+        }
+
         // ---------- Generated textures ----------
 
         public Texture2D SoftDot()

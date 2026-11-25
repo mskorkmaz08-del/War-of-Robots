@@ -63,6 +63,28 @@ namespace RobotArena
             }
         }
 
+        /// <summary>
+        /// A reflection probe rendered once when it appears, so metal armour reflects
+        /// the sky and the arena instead of looking flat and dark.
+        /// </summary>
+        public static ReflectionProbe AddReflections(Transform parent, Vector3 center, Vector3 size)
+        {
+            var go = new GameObject("Reflections");
+            go.transform.SetParent(parent, false);
+            go.transform.position = center;
+            var probe = go.AddComponent<ReflectionProbe>();
+            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+            probe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.OnAwake;
+            probe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.NoTimeSlicing;
+            probe.resolution = 128;
+            probe.size = size;
+            probe.hdr = false;
+            probe.shadowDistance = 0f;
+            probe.clearFlags = UnityEngine.Rendering.ReflectionProbeClearFlags.Skybox;
+            probe.importance = 1;
+            return probe;
+        }
+
         /// <summary>Camera settings: the fog hides everything past ~650 m anyway.</summary>
         public static void TuneCamera(Camera cam)
         {

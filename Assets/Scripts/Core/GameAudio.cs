@@ -16,7 +16,16 @@ namespace RobotArena
         RailFire,
         MetalHit,
         Landing,
-        UiClick
+        UiClick,
+        Debris,
+        Whoosh,
+        Alarm,
+        LockOn,
+        Victory,
+        Defeat,
+        HitTaken,
+        Sizzle,
+        Confirm
     }
 
     /// <summary>
@@ -35,6 +44,11 @@ namespace RobotArena
         readonly List<AudioSource> pool = new List<AudioSource>();
         bool prewarming;
         AudioSource uiSource;
+        AudioSource musicSource;
+        AudioSource ambienceSource;
+        static AudioClip musicClip;
+        static AudioClip ambienceClip;
+        float musicTarget;
         int next;
 
         static AudioClip engineLoop;
@@ -87,7 +101,26 @@ namespace RobotArena
             recipes[Sfx.MetalHit] = () => Make("MetalHit", 0.8f, MetalHit);
             recipes[Sfx.Landing] = () => Make("Landing", 2f, Landing);
             recipes[Sfx.UiClick] = () => Make("UiClick", 0.08f, t => Mathf.Sin(t * 2f * Mathf.PI * 1200f) * (1f - t / 0.08f) * 0.4f);
+            recipes[Sfx.Debris] = () => Make("Debris", 2.2f, Debris);
+            recipes[Sfx.Whoosh] = () => Make("Whoosh", 0.7f, Whoosh);
+            recipes[Sfx.Alarm] = () => Make("Alarm", 0.5f, Alarm);
+            recipes[Sfx.LockOn] = () => Make("LockOn", 0.22f, LockOn);
+            recipes[Sfx.Victory] = () => Make("Victory", 2.6f, Victory);
+            recipes[Sfx.Defeat] = () => Make("Defeat", 2.8f, Defeat);
+            recipes[Sfx.HitTaken] = () => Make("HitTaken", 0.7f, HitTaken);
+            recipes[Sfx.Sizzle] = () => Make("Sizzle", 0.35f, Sizzle);
+            recipes[Sfx.Confirm] = () => Make("Confirm", 0.35f, Confirm);
             clips[Sfx.UiClick] = recipes[Sfx.UiClick]();
+
+            musicSource = gameObject.AddComponent<AudioSource>();
+            musicSource.spatialBlend = 0f;
+            musicSource.loop = true;
+            musicSource.playOnAwake = false;
+            musicSource.ignoreListenerPause = true;
+            ambienceSource = gameObject.AddComponent<AudioSource>();
+            ambienceSource.spatialBlend = 0f;
+            ambienceSource.loop = true;
+            ambienceSource.playOnAwake = false;
         }
 
         AudioClip Clip(Sfx sfx)
@@ -120,6 +153,41 @@ namespace RobotArena
             EngineLoop();
             yield return null;
             ThrustLoop();
+            yield return null;
+            if (musicClip == null) musicClip = Make("Music", MusicLength, Music, false);
+            yield return null;
+            if (ambienceClip == null) ambienceClip = Make("Ambience", 6f, Ambience, true);
+        }
+
+        /// <summary>Starts (or keeps) the background music. Volume follows the settings.</summary>
+        public static void PlayMusic(float level = 1f)
+        {
+            var a = Instance;
+            if (musicClip == null) musicClip = Make("Music", MusicLength, Music, false);
+            a.musicTarget = level;
+            if (a.musicSource.clip != musicClip) a.musicSource.clip = musicClip;
+            if (!a.musicSource.isPlaying) a.musicSource.Play();
+        }
+
+        /// <summary>Wind and distant machinery in the arena.</summary>
+        public static void PlayAmbience(bool on)
+        {
+            var a = Instance;
+            if (on)
+            {
+                if (ambienceClip == null) ambienceClip = Make("Ambience", 6f, Ambience, true);
+                a.ambienceSource.clip = ambienceClip;
+                a.ambienceSource.volume = 0.35f;
+                if (!a.ambienceSource.isPlaying) a.ambienceSource.Play();
+            }
+            else a.ambienceSource.Stop();
+        }
+
+        void Update()
+        {
+            if (musicSource == null) return;
+            float target = musicTarget * GameSettings.MusicVolume * 0.5f;
+            musicSource.volume = Mathf.MoveTowards(musicSource.volume, target, Time.unscaledDeltaTime * 0.5f);
         }
 
         public static void Configure3D(AudioSource src, float minDistance, float maxDistance)
@@ -323,6 +391,126 @@ namespace RobotArena
         static float Landing(float t)
         {
             return Footstep(t) * 1.3f + Explosion(t, 2f, 0.7f) * 0.5f;
+        }
+
+        static float Debris(float t)
+        {
+            // Metal bits clattering down after a blast.
+            float hits = 0f;
+            for (int k = 0; k < 7; k++)
+            {
+                float start = 0.15f + k * 0.21f + Mathf.Sin(k * 12.9898f) * 0.08f;
+                float lt = t - start;
+                if (lt < 0f) continue;
+                float f = 700f + 900f * Mathf.Abs(Mathf.Sin(k * 78.233f));
+                hits += (Sine(lt, f) + 0.6f * Sine(lt, f * 2.4f)) * Env(lt, 0.001f, 0.05f) * Mathf.Exp(-k * 0.25f);
+            }
+            float rumble = LowPass(ref lp1, Noise(), 250f) * Env(t, 0.01f, 0.6f) * 1.5f;
+            return hits * 0.35f + rumble;
+        }
+
+        static float Whoosh(float t)
+        {
+            float k = t / 0.7f;
+            float cutoff = Mathf.Lerp(300f, 3500f, Mathf.Sin(k * Mathf.PI));
+            return LowPass(ref lp1, Noise(), cutoff) * Mathf.Sin(k * Mathf.PI) * 2.2f;
+        }
+
+        static float Alarm(float t)
+        {
+            float on = t < 0.18f || (t > 0.25f && t < 0.43f) ? 1f : 0f;
+            return (Mathf.Sign(Sine(t, 880f)) * 0.25f + Sine(t, 880f) * 0.4f) * on;
+        }
+
+        static float LockOn(float t)
+        {
+            float f = t < 0.1f ? 1400f : 2100f;
+            return Sine(t, f) * 0.5f * (t < 0.08f || t > 0.11f ? 1f : 0f) * Env(t, 0.002f, 0.12f);
+        }
+
+        static float Note(float t, float start, float len, float f)
+        {
+            float lt = t - start;
+            if (lt < 0f || lt > len + 0.6f) return 0f;
+            float env = Mathf.Min(1f, lt / 0.01f) * (lt < len ? 1f : Mathf.Exp(-(lt - len) / 0.15f));
+            float saw = ((lt * f) % 1f) * 2f - 1f;
+            return (Sine(lt, f) * 0.6f + saw * 0.25f + Sine(lt, f * 2f) * 0.15f) * env;
+        }
+
+        static float Victory(float t)
+        {
+            // Rising brass-like fanfare: C E G C'.
+            float v = Note(t, 0f, 0.18f, 261.6f) + Note(t, 0.2f, 0.18f, 329.6f) + Note(t, 0.4f, 0.18f, 392f) + Note(t, 0.6f, 1.2f, 523.3f);
+            v += Note(t, 0.6f, 1.2f, 392f) * 0.6f + Note(t, 0.6f, 1.2f, 329.6f) * 0.5f;
+            float boom = Sine(t, 55f) * Env(t, 0.005f, 0.4f) * 0.8f;
+            return v * 0.5f + boom;
+        }
+
+        static float Defeat(float t)
+        {
+            // Falling minor phrase with a low rumble.
+            float v = Note(t, 0f, 0.35f, 392f) + Note(t, 0.4f, 0.35f, 349.2f) + Note(t, 0.8f, 0.35f, 311.1f) + Note(t, 1.2f, 1.2f, 261.6f);
+            v += Note(t, 1.2f, 1.2f, 155.6f) * 0.7f;
+            float rumble = LowPass(ref lp1, Noise(), 120f) * Env(t, 0.05f, 1.5f) * 2f;
+            return v * 0.45f + rumble;
+        }
+
+        static float HitTaken(float t)
+        {
+            float thud = Sine(t, Mathf.Lerp(110f, 45f, Mathf.Clamp01(t / 0.3f))) * Env(t, 0.002f, 0.18f) * 1.4f;
+            float clang = (Sine(t, 410f) + 0.6f * Sine(t, 977f)) * Env(t, 0.001f, 0.12f) * 0.35f;
+            float crunch = LowPass(ref lp1, Noise(), 1200f) * Env(t, 0.001f, 0.06f);
+            return thud + clang + crunch;
+        }
+
+        static float Sizzle(float t)
+        {
+            float hiss = (LowPass(ref lp1, Noise(), 6000f) - LowPass(ref lp2, Noise(), 1500f)) * 2f;
+            return hiss * Env(t, 0.002f, 0.1f) + Sine(t, 2400f) * Env(t, 0.001f, 0.03f) * 0.2f;
+        }
+
+        static float Confirm(float t)
+        {
+            return (Note(t, 0f, 0.06f, 660f) + Note(t, 0.08f, 0.12f, 990f)) * 0.5f;
+        }
+
+        // ---------- Music: a driving 8-bar battle loop ----------
+
+        const float Bpm = 112f;
+        static float Beat => 60f / Bpm;
+        static float MusicLength => Beat * 32f;
+        static readonly float[] BassLine = { 55f, 55f, 65.4f, 49f, 55f, 55f, 73.4f, 65.4f };
+
+        static float Music(float t)
+        {
+            float beat = Beat;
+            float bt = t % beat;                    // time within the beat
+            int beatIndex = Mathf.FloorToInt(t / beat);
+            int bar = beatIndex / 4;
+
+            // Kick on every beat, snare on 2 and 4, hats on the off-beats.
+            float kick = Sine(bt, Mathf.Lerp(120f, 45f, Mathf.Clamp01(bt / 0.12f))) * Env(bt, 0.002f, 0.13f) * 1.3f;
+            float snare = (beatIndex % 2 == 1) ? (Noise() * 0.7f + Sine(bt, 190f) * 0.4f) * Env(bt, 0.001f, 0.09f) : 0f;
+            float ht = (t + beat * 0.5f) % beat;
+            float hat = (Noise() - LowPass(ref lp3, Noise(), 5000f)) * Env(ht, 0.001f, 0.025f) * 0.35f;
+
+            // Pulsing eighth-note bass.
+            float root = BassLine[bar % BassLine.Length];
+            float et = t % (beat * 0.5f);
+            float saw = ((t * root) % 1f) * 2f - 1f;
+            float bass = LowPass(ref lp1, saw, 400f + 600f * Env(et, 0.002f, 0.08f)) * Mathf.Min(1f, et / 0.005f) * Env(et, 0.003f, 0.2f) * 1.6f;
+
+            // Dark pad: minor chord over the bass.
+            float pad = (Sine(t, root * 2f) + Sine(t, root * 2.378f) + Sine(t, root * 3f)) * 0.08f * (0.7f + 0.3f * Sine(t, 0.25f));
+
+            return kick + snare * 0.6f + hat + bass * 0.7f + pad;
+        }
+
+        static float Ambience(float t)
+        {
+            float wind = LowPass(ref lp1, Noise(), 350f + 150f * Sine(t, 0.17f)) * (0.8f + 0.2f * Sine(t, 0.31f));
+            float drone = (Sine(t, 48f) + 0.5f * Sine(t, 72.3f)) * 0.08f;
+            return wind * 1.5f + drone;
         }
 
         static float EngineHum(float t)

@@ -101,6 +101,7 @@ namespace RobotArena
                     hit.rigidbody.AddForceAtPosition(dir * Mathf.Min(2f, 400f / hit.rigidbody.mass), hit.point, ForceMode.VelocityChange);
                 Fx.Sparks(hit.point, hit.normal, 10, 18f, 70f);
                 Fx.EnergyBurst(hit.point, color, 0.5f);
+                if (Random.value < 0.5f) GameAudio.Play(Sfx.Sizzle, hit.point, 0.5f, Random.Range(0.9f, 1.2f));
             }
 
             Beam.Spawn(from, to, 0.5f, color, 0.08f);

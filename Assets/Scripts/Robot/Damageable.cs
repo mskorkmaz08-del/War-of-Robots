@@ -139,6 +139,7 @@ namespace RobotArena
             Fx.Explosion(c, 3.5f * size);
             Fx.Explosion(c + Random.insideUnitSphere * 3f * size, 2f * size);
             GameAudio.Play(Sfx.BigExplosion, c, 1f, 0.8f);
+            GameAudio.Play(Sfx.Debris, c, 1f, 0.8f);
             FollowCamera.Shake(0.9f, c, 200f);
             Explosions.ApplyForce(c, 25f * size, 8f, this);
 
@@ -240,6 +241,7 @@ namespace RobotArena
         {
             Fx.Explosion(pos, fxSize);
             GameAudio.Play(fxSize > 1.5f ? Sfx.BigExplosion : Sfx.Explosion, pos, 1f, Random.Range(0.85f, 1.1f));
+            if (fxSize >= 1f) GameAudio.Play(Sfx.Debris, pos, 0.7f, Random.Range(0.9f, 1.1f));
             FollowCamera.Shake(0.35f * fxSize, pos, 120f);
 
             var hitRobots = HitRobots;

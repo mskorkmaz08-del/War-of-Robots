@@ -229,10 +229,11 @@ namespace RobotArena
         void OnCollisionEnter(Collision collision)
         {
             if (IsDead || Time.time - lastImpactTime < 0.25f) return;
-            float speed = collision.relativeVelocity.magnitude;
-            if (speed < impactThreshold * 0.6f) return;
-
             var contact = collision.GetContact(0);
+            // Only the head-on part of the impact counts: scraping or skimming along the
+            // ground at boost speed is not a crash.
+            float speed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+            if (speed < impactThreshold * 0.6f) return;
             lastImpactTime = Time.time;
 
             // Heavy things grinding together: sparks and a clang.
@@ -241,13 +242,18 @@ namespace RobotArena
             FollowCamera.Shake(Mathf.Clamp01(speed / 40f) * 0.5f, contact.point, 80f);
 
             if (speed < impactThreshold) return;
+            // Landing on or bumping over the ground never hurts.
+            if (collision.rigidbody == null && contact.normal.y > 0.6f) return;
             // Shells, missiles and debris do their damage through explosions instead.
             if (collision.rigidbody != null && collision.rigidbody.mass < 500f) return;
 
             // The faster and heavier the other object, the more it hurts.
-            float otherMass = collision.rigidbody != null ? collision.rigidbody.mass : Body.mass * 2f;
+            bool world = collision.rigidbody == null;
+            float otherMass = world ? Body.mass * 0.6f : collision.rigidbody.mass;
             float massFactor = Mathf.Clamp(otherMass / Body.mass, 0.05f, 2.5f);
             float damage = (speed - impactThreshold) * impactDamagePerMs * massFactor;
+            // Hitting a building or rock is a hard knock, never a kill: at most 8% of health.
+            if (world) damage = Mathf.Min(damage, maxHealth * 0.08f);
             Vector3 toContact = (contact.point - Center).normalized;
             if (Vector3.Dot(toContact, transform.forward) > 0.5f) damage *= frontArmor;
 

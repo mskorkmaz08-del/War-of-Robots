@@ -209,6 +209,16 @@ namespace RobotArena
                 return;
             }
 
+            // Wheeled robots drive like tanks: stick up/down is forward/reverse, stick
+            // left/right always turns the hull that way (also while reversing). This
+            // never depends on the camera, so turning can't flip left and right.
+            {
+                float x = move.x, y = move.y;
+                commands.steer = Mathf.Clamp(x * (0.55f + 0.45f * Mathf.Abs(x)) * 1.15f, -1f, 1f);
+                commands.throttle = Mathf.Abs(y) < 0.15f ? 0f : Mathf.Clamp(y * 1.1f, -1f, 1f);
+                return;
+            }
+#pragma warning disable CS0162
             float angle = Vector3.SignedAngle(fwd, wanted, Vector3.up);
             // Reverse when the wanted direction is behind; keep reversing until it's well in front.
             if (reversing) { if (Mathf.Abs(angle) < 70f) reversing = false; }

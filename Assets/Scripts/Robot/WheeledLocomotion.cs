@@ -77,11 +77,15 @@ namespace RobotArena
             thrustAudio.Play();
         }
 
+        float smoothSteer;
+
         void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
             float throttle = commands.throttle;
-            float steer = commands.steer;
+            // Ease the steering in so a flick of the stick doesn't snap the hull around.
+            smoothSteer = Mathf.MoveTowards(smoothSteer, commands.steer, dt * 3.5f);
+            float steer = smoothSteer;
             bool boosting = UpdateBoost(commands.boost);
 
             Vector3 up = transform.up;
@@ -138,9 +142,14 @@ namespace RobotArena
             {
                 // Tank steering: spin the hull toward the requested turn rate.
                 float yawRate = Vector3.Dot(rb.angularVelocity, up);
-                float speedFactor = Mathf.Lerp(1f, 0.6f, Mathf.Clamp01(Mathf.Abs(forwardSpeed) / boostMaxSpeed));
+                float speedFactor = Mathf.Lerp(1f, 0.4f, Mathf.Clamp01(Mathf.Abs(forwardSpeed) / boostMaxSpeed));
                 float target = steer * turnRate * speedFactor;
                 rb.AddTorque(up * (target - yawRate) * turnResponse, ForceMode.Acceleration);
+                // Stabiliser: damp rocking and keep the hull level on bumps and at speed.
+                Vector3 av = rb.angularVelocity;
+                Vector3 rock = av - up * Vector3.Dot(av, up);
+                Vector3 level = Vector3.Cross(up, Vector3.up);
+                rb.AddTorque(level * 1.5f - rock * 2.2f, ForceMode.Acceleration);
             }
             else
             {

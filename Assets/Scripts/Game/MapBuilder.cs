@@ -19,7 +19,7 @@ namespace RobotArena
     /// into the scene; the Dockyard and Canyon Outpost are built here at deploy time from
     /// the same textured materials, then static-batched.
     /// </summary>
-    public static class MapBuilder
+    public static partial class MapBuilder
     {
         public const float ArenaSize = 280f;
         static GameAssets A => GameAssets.Get();
@@ -75,8 +75,15 @@ namespace RobotArena
                 if (old != null) Object.Destroy(old);
             }
             var root = new GameObject("Arena").transform;
-            if (map == MapId.Dockyard) BuildDockyard(root);
-            else BuildCanyon(root);
+            var layout = Layout(map);
+            switch (map)
+            {
+                case MapId.Dockyard: BuildDockyard(root); break;
+                case MapId.Canyon: BuildCanyon(root); break;
+                case MapId.FrozenPass: BuildFrozenPass(root, layout); break;
+                case MapId.RuinedCity: BuildRuinedCity(root, layout); break;
+                default: BuildRefinery(root, layout); break;
+            }
             StaticBatchingUtility.Combine(root.gameObject);
             Frontier.Build(map, Layout(map));
         }

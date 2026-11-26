@@ -454,7 +454,7 @@ namespace RobotArena
                 && Vector3.Distance(d.transform.position, Player.transform.position) < 130f)
             {
                 lastKillSlowMo = Time.unscaledTime;
-                StartCoroutine(SlowMotion(0.5f));
+                // No slow motion on kills: the fight keeps its pace.
             }
             if (d.team == 0) Announce(d.displayName + " DOWN", UiKit.Red);
             Rules?.RobotDied(d);
@@ -474,7 +474,6 @@ namespace RobotArena
             if (Current != State.Fighting) return;
             Current = won ? State.Won : State.Lost;
             net.End(won, title, sub);
-            if (!NetSession.Online) StartCoroutine(SlowMotion(won ? 1.6f : 1.4f));
             StartCoroutine(ShowEndAfter(won ? 2.2f : 2.5f, won, title, sub));
         }
 

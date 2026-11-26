@@ -111,6 +111,7 @@ namespace RobotArena
         static readonly Color[] MapTints =
         {
             new Color(0.35f, 0.42f, 0.5f), new Color(0.2f, 0.45f, 0.5f), new Color(0.72f, 0.5f, 0.28f),
+            new Color(0.6f, 0.72f, 0.85f), new Color(0.5f, 0.46f, 0.42f), new Color(0.78f, 0.45f, 0.25f),
         };
 
         Text mapModeCaption;
@@ -125,16 +126,16 @@ namespace RobotArena
             {
                 var info = maps[i];
                 var tint = MapTints[i % MapTints.Length];
-                var card = Card(mapPanel.transform, new Vector2((i - 1f) * 590f, -60f), new Vector2(560f, 600f), () => PickMap(info.map));
-                var view = UiKit.Rect("View", card, new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(500f, 250f));
+                // Two rows of three cards.
+                var card = Card(mapPanel.transform, new Vector2((i % 3 - 1f) * 590f, i < 3 ? 120f : -250f), new Vector2(560f, 345f), () => PickMap(info.map));
+                var view = UiKit.Rect("View", card, new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(500f, 130f));
                 UiKit.Image(view, UiKit.Chamfer, new Color(tint.r * 0.5f, tint.g * 0.5f, tint.b * 0.5f, 1f));
                 var grad = UiKit.Child(view, "Grad", UiKit.VGrad, new Color(0f, 0f, 0f, 0.55f), 2f);
                 grad.rectTransform.anchorMax = new Vector2(1f, 0.7f);
                 UiKit.Child(view, "Edge", UiKit.ChamferOutline, new Color(tint.r, tint.g, tint.b, 0.8f));
                 DrawMapSketch(view, info.map, tint);
-                UiKit.Title(Place(card, 0.5f, 0.42f, 520f, 70f), info.name, 44, UiKit.TextBright);
-                UiKit.Label(Place(card, 0.5f, 0.27f, 480f, 110f), info.description, 28, UiKit.TextDim);
-                UiKit.Label(Place(card, 0.5f, 0.08f, 360f, 50f), "SELECT  >", 30, UiKit.Orange, TextAnchor.MiddleCenter, true);
+                UiKit.Title(Place(card, 0.5f, 0.38f, 520f, 56f), info.name, 38, UiKit.TextBright);
+                UiKit.Label(Place(card, 0.5f, 0.16f, 500f, 80f), info.description, 24, UiKit.TextDim);
             }
         }
 
@@ -150,17 +151,28 @@ namespace RobotArena
             switch (map)
             {
                 case MapId.Foundry:
-                    Block(0f, 0f, 56f, 56f);
-                    for (int i = 0; i < 4; i++) Block((i % 2 == 0 ? -1 : 1) * 130f, (i < 2 ? -1 : 1) * 60f, 22f, 22f);
-                    Block(-200f, 0f, 8f, 180f); Block(200f, 0f, 8f, 180f);
+                    Block(0f, 0f, 40f, 40f);
+                    for (int i = 0; i < 4; i++) Block((i % 2 == 0 ? -1 : 1) * 130f, (i < 2 ? -1 : 1) * 38f, 20f, 20f);
+                    Block(-210f, 0f, 8f, 110f); Block(210f, 0f, 8f, 110f);
                     break;
                 case MapId.Dockyard:
                     for (int i = -3; i <= 3; i++) { Block(i * 56f, 34f, 44f, 18f); Block(i * 56f, -34f, 44f, 18f); }
-                    Block(-205f, 0f, 14f, 190f); Block(205f, 0f, 14f, 190f);
+                    Block(-210f, 0f, 12f, 110f); Block(210f, 0f, 12f, 110f);
+                    break;
+                case MapId.FrozenPass:
+                    Block(-60f, -25f, 70f, 10f); Block(60f, 25f, 70f, 10f); Block(-150f, 15f, 50f, 10f); Block(150f, -15f, 50f, 10f);
+                    Block(-35f, 10f, 22f, 22f); Block(38f, -10f, 22f, 22f);
+                    break;
+                case MapId.RuinedCity:
+                    for (int bx = -3; bx <= 3; bx++) for (int by = -1; by <= 1; by++) if ((bx + by) % 3 != 0) Block(bx * 60f, by * 38f, 34f, 22f);
+                    break;
+                case MapId.Refinery:
+                    for (int k = 0; k < 6; k++) Block((k % 3 - 1) * 140f + (k < 3 ? -20f : 20f), k < 3 ? -30f : 30f, 26f, 26f);
+                    Block(0f, 0f, 400f, 4f); Block(0f, 0f, 4f, 110f);
                     break;
                 default:
-                    Block(-120f, 40f, 90f, 60f); Block(110f, -30f, 110f, 70f); Block(0f, 0f, 12f, 12f);
-                    Block(-40f, -70f, 50f, 30f); Block(60f, 75f, 60f, 26f);
+                    Block(-120f, 22f, 90f, 34f); Block(110f, -18f, 110f, 40f); Block(0f, 0f, 12f, 12f);
+                    Block(-40f, -44f, 50f, 18f); Block(60f, 46f, 60f, 16f);
                     break;
             }
         }

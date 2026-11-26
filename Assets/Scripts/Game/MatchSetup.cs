@@ -4,7 +4,7 @@ using UnityEngine;
 namespace RobotArena
 {
     public enum GameMode { TeamBattle, Domination, Survival, Mission }
-    public enum MapId { Foundry, Dockyard, Canyon }
+    public enum MapId { Foundry, Dockyard, Canyon, FrozenPass, RuinedCity, Refinery }
 
     public class ModeInfo
     {
@@ -62,9 +62,12 @@ namespace RobotArena
 
         public static readonly List<MapInfo> Maps = new List<MapInfo>
         {
-            new MapInfo { map = MapId.Foundry, name = "FOUNDRY", description = "Walled steel arena with a central tower, ramps and pillars." },
+            new MapInfo { map = MapId.Foundry, name = "FOUNDRY", description = "Steelworks in a ruined city: a central tower, ramps and pillars." },
             new MapInfo { map = MapId.Dockyard, name = "DOCKYARD", description = "Container stacks, cranes and warehouses. Tight lanes, lots of cover." },
             new MapInfo { map = MapId.Canyon, name = "CANYON OUTPOST", description = "Desert outpost between rock mesas. Open ground and long sightlines." },
+            new MapInfo { map = MapId.FrozenPass, name = "FROZEN PASS", description = "Snowbound research base between ice ridges and radar domes." },
+            new MapInfo { map = MapId.RuinedCity, name = "RUINED CITY", description = "Bombed-out downtown. Street fights between broken towers." },
+            new MapInfo { map = MapId.Refinery, name = "REFINERY", description = "Fuel tanks, pipe racks and flare stacks at dusk." },
         };
 
         public static readonly List<MissionInfo> Missions = new List<MissionInfo>

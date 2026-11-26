@@ -25,15 +25,20 @@ namespace RobotArena
             RemoveOldEdge();
 
             var root = new GameObject("Frontier").transform;
-            var rnd = new System.Random(map == MapId.Foundry ? 11 : map == MapId.Dockyard ? 23 : 37);
+            var rnd = new System.Random(11 + (int)map * 13);
 
-            Material ground = map == MapId.Canyon ? a.Tinted(a.floorMat, new Color(0.86f, 0.7f, 0.52f)) : a.floorMat;
+            Material ground = GroundMat(map);
             Prim(PrimitiveType.Cube, root, new Vector3(0f, -0.5f, 0f), 0f, new Vector3(2000f, 1f, 2000f), ground);
 
             if (map == MapId.Canyon)
             {
                 // Canyon walls rise straight from the edge of the battlefield.
                 Mountains(root, RockMat(new Color(0.6f, 0.43f, 0.32f)), Half - 4f, 70f, 120f, 150f, 0.75f, 5);
+            }
+            else if (map == MapId.FrozenPass)
+            {
+                // Snow-covered ridges close in on the pass.
+                Mountains(root, RockMat(new Color(0.86f, 0.9f, 0.95f)), Half - 4f, 90f, 140f, 230f, 0.7f, 3);
             }
             else
             {
@@ -63,6 +68,19 @@ namespace RobotArena
                 if (t.name == "Wall" || t.name == "WallTrim" || t.name == "WallLamp" || t.name == "Buttress" || t.name == "Floor")
                     doomed.Add(t.gameObject);
             foreach (var g in doomed) Object.Destroy(g);
+        }
+
+        public static Material GroundMat(MapId map)
+        {
+            var a = A;
+            switch (map)
+            {
+                case MapId.Canyon: return a.Tinted(a.floorMat, new Color(0.86f, 0.7f, 0.52f));
+                case MapId.FrozenPass: return a.Tinted(a.floorMat, new Color(0.9f, 0.93f, 0.97f));
+                case MapId.RuinedCity: return a.Tinted(a.floorMat, new Color(0.6f, 0.59f, 0.57f));
+                case MapId.Refinery: return a.Tinted(a.floorMat, new Color(0.62f, 0.58f, 0.52f));
+                default: return a.floorMat;
+            }
         }
 
         static GameObject Prim(PrimitiveType type, Transform parent, Vector3 pos, float yaw, Vector3 scale, Material mat, float pitch = 0f, float roll = 0f)
@@ -177,9 +195,10 @@ namespace RobotArena
                     float gap = 3f + R() * 5f;
                     Vector3 c = r * new Vector3(u + w * 0.5f, 0f, Half + 8f + depth * 0.5f + R() * 10f);
                     float roll = R();
-                    if (map == MapId.Foundry && roll < 0.18f)
+                    bool industrial = map == MapId.Foundry || map == MapId.Refinery;
+                    if (industrial && roll < (map == MapId.Refinery ? 0.3f : 0.18f))
                         CoolingTower(root, c, concrete, R());
-                    else if (map == MapId.Foundry && roll < 0.3f)
+                    else if (industrial && roll < (map == MapId.Refinery ? 0.5f : 0.3f))
                         Smokestacks(root, c, concrete, rnd);
                     else
                     {
@@ -260,12 +279,15 @@ namespace RobotArena
                 switch (map)
                 {
                     case MapId.Canyon:
+                    case MapId.FrozenPass:
+                        var r1 = map == MapId.FrozenPass ? a.Tinted(a.wallMat, new Color(0.82f, 0.88f, 0.95f)) : rock;
+                        var r2 = map == MapId.FrozenPass ? a.Tinted(a.wallMat, new Color(0.62f, 0.7f, 0.8f)) : rockDark;
                         for (int k = 0; k < 4; k++)
                         {
                             Vector3 off = new Vector3(R() * 2f - 1f, 0f, R() * 2f - 1f) * 7f;
                             float h = 10f + R() * 16f;
                             Prim(PrimitiveType.Cube, root, p + off + Vector3.up * h * 0.45f, R() * 360f,
-                                new Vector3(9f + R() * 7f, h, 8f + R() * 6f), k % 2 == 0 ? rock : rockDark, R() * 12f - 6f, R() * 12f - 6f);
+                                new Vector3(9f + R() * 7f, h, 8f + R() * 6f), k % 2 == 0 ? r1 : r2, R() * 12f - 6f, R() * 12f - 6f);
                         }
                         break;
                     case MapId.Dockyard:
@@ -280,7 +302,7 @@ namespace RobotArena
             }
         }
 
-        static bool Clear(Vector3 p, MapLayout l, float radius)
+        public static bool Clear(Vector3 p, MapLayout l, float radius)
         {
             if (l == null) return true;
             foreach (var arr in new[] { l.allySpawns, l.enemySpawns, l.zones, l.depots })

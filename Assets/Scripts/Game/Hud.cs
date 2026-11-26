@@ -19,7 +19,8 @@ namespace RobotArena
 
         // Hangar
         int hangarIndex;
-        Text hName, hRole, hDesc, hPrimary, hSpecial, hMobility, hCount, hMode;
+        Text hName, hRole, hDesc, hPrimary, hSpecial, hMobility, hCount, hMode, hWeaponInfo;
+        Loadout hLoadout;
         Image[] sArmour, sSpeed, sFire, sRange;
 
         // Fight
@@ -185,9 +186,10 @@ namespace RobotArena
             sFire = StatRow(card, "FIREPOWER", y - 0.11f, UiKit.Orange);
             sRange = StatRow(card, "RANGE", y - 0.165f, UiKit.Yellow);
 
-            hPrimary = WeaponRow(card, "MAIN", 0.34f);
-            hSpecial = WeaponRow(card, "SPECIAL", 0.28f);
-            hMobility = WeaponRow(card, "MOVE", 0.22f);
+            hPrimary = WeaponPicker(card, "MAIN", 0.35f, false);
+            hSpecial = WeaponPicker(card, "SPECIAL", 0.285f, true);
+            hMobility = WeaponRow(card, "MOVE", 0.225f);
+            hWeaponInfo = UiKit.Label(Place(card, 0.5f, 0.172f, 620f, 44f), "", 24, UiKit.TextDim, TextAnchor.MiddleCenter);
 
             UiKit.Button(card, "DEPLOY", new Vector2(0.5f, 0.09f), Vector2.zero, new Vector2(560f, 120f), UiKit.ButtonStyle.Primary,
                 () => match.StartMatch(RobotCatalog.All[hangarIndex].type), 60);
@@ -210,6 +212,39 @@ namespace RobotArena
             return UiKit.Label(Place(card, 0.62f, y, 460f, 40f), "", 28, Color.white, TextAnchor.MiddleLeft);
         }
 
+        /// <summary>A weapon slot with arrows to swap the weapon for this robot.</summary>
+        Text WeaponPicker(Transform card, string label, float y, bool special)
+        {
+            UiKit.Label(Place(card, 0.15f, y, 160f, 40f), label, 26, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+            var slot = Place(card, 0.615f, y, 470f, 52f);
+            UiKit.Image(slot, UiKit.Chamfer, new Color(1f, 1f, 1f, 0.06f));
+            var text = UiKit.Label(slot, "", 28, Color.white, TextAnchor.MiddleCenter, true);
+            UiKit.Button(card, "<", new Vector2(0.38f, y), Vector2.zero, new Vector2(70f, 52f), UiKit.ButtonStyle.Secondary, () => StepWeapon(special, -1), 30);
+            UiKit.Button(card, ">", new Vector2(0.85f, y), Vector2.zero, new Vector2(70f, 52f), UiKit.ButtonStyle.Secondary, () => StepWeapon(special, 1), 30);
+            return text;
+        }
+
+        void StepWeapon(bool special, int dir)
+        {
+            var type = RobotCatalog.All[hangarIndex].type;
+            var list = Loadout.Choices(special);
+            var current = special ? hLoadout.special : hLoadout.primary;
+            int i = Mathf.Max(0, list.IndexOf(current));
+            i = ((i + dir) % list.Count + list.Count) % list.Count;
+            if (special) hLoadout.special = list[i]; else hLoadout.primary = list[i];
+            Loadout.SavePlayer(type, hLoadout);
+            ShowLoadout(special ? hLoadout.special : hLoadout.primary);
+            match.PreviewRobot(RobotCatalog.All[hangarIndex]);
+            GameAudio.Play2D(Sfx.Servo, 0.6f);
+        }
+
+        void ShowLoadout(WeaponId focus)
+        {
+            hPrimary.text = Loadout.Info(hLoadout.primary).name;
+            hSpecial.text = Loadout.Info(hLoadout.special).name;
+            hWeaponInfo.text = Loadout.Info(focus).blurb;
+        }
+
         void StepRobot(int dir)
         {
             int n = RobotCatalog.All.Count;
@@ -226,8 +261,8 @@ namespace RobotArena
             hName.text = info.name;
             hRole.text = UiKit.Spaced(info.role);
             hDesc.text = info.description;
-            hPrimary.text = info.primary;
-            hSpecial.text = info.special;
+            hLoadout = Loadout.ForPlayer(info.type);
+            ShowLoadout(hLoadout.primary);
             hMobility.text = info.mobility;
             hCount.text = (hangarIndex + 1) + " / " + RobotCatalog.All.Count;
             UiKit.SetSegments(sArmour, info.armour, UiKit.Green);

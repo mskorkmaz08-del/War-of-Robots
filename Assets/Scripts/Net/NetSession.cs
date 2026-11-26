@@ -16,6 +16,8 @@ namespace RobotArena
         public ulong id;
         public string name;
         public RobotType type;
+        // The player's chosen weapons (Loadout.Pack), -1 for the robot's default.
+        public int loadout = -1;
     }
 
     /// <summary>
@@ -288,13 +290,15 @@ namespace RobotArena
         {
             if (!Online) return;
             int t = (int)LocalType;
-            Send(MsgPick, (ref FastBufferWriter w) => w.WriteValueSafe(t));
+            int l = Loadout.ForPlayer(LocalType).Pack();
+            Send(MsgPick, (ref FastBufferWriter w) => { w.WriteValueSafe(t); w.WriteValueSafe(l); });
         }
 
         void OnPick(ulong sender, FastBufferReader r)
         {
             if (!IsHost) return;
             r.ReadValueSafe(out int t);
+            r.ReadValueSafe(out int l);
             var p = Players.Find(x => x.id == sender);
             if (p == null)
             {
@@ -302,6 +306,7 @@ namespace RobotArena
                 Players.Add(p);
             }
             p.type = (RobotType)Mathf.Clamp(t, 0, RobotCatalog.All.Count - 1);
+            p.loadout = l;
             BroadcastLobby();
             Changed?.Invoke();
         }

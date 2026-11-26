@@ -176,6 +176,104 @@ namespace RobotArena
             t.Add(i); t.Add(i + 1); t.Add(i + 2);
         }
 
+        static readonly Dictionary<Vector3Int, Mesh> BevelCache = new Dictionary<Vector3Int, Mesh>();
+
+        /// <summary>
+        /// A box of the given size (metres) with chamfered edges and corners. The
+        /// chamfer is a fixed width in metres, so it looks the same on every part:
+        /// edges catch the light and parts read as machined armour, not flat blocks.
+        /// </summary>
+        public static Mesh BevelBox(Vector3 size)
+        {
+            var key = new Vector3Int(Mathf.RoundToInt(size.x * 20f), Mathf.RoundToInt(size.y * 20f), Mathf.RoundToInt(size.z * 20f));
+            if (BevelCache.TryGetValue(key, out var cached) && cached != null) return cached;
+            Vector3 h = new Vector3(key.x, key.y, key.z) / 40f; // half size
+            float b = Mathf.Min(Mathf.Min(h.x, Mathf.Min(h.y, h.z)) * 0.45f, 0.22f);
+
+            var v = new List<Vector3>();
+            var n = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var t = new List<int>();
+            // Corner points: for each corner, one point on each of its three faces.
+            Vector3 C(int sx, int sy, int sz, int axis)
+            {
+                Vector3 q = new Vector3(sx * (h.x - b), sy * (h.y - b), sz * (h.z - b));
+                if (axis == 0) q.x = sx * h.x; else if (axis == 1) q.y = sy * h.y; else q.z = sz * h.z;
+                return q;
+            }
+            // Main faces
+            for (int axis = 0; axis < 3; axis++)
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    var pts = new List<Vector3>();
+                    for (int a = -1; a <= 1; a += 2)
+                        for (int c = -1; c <= 1; c += 2)
+                        {
+                            int sx = axis == 0 ? s : a, sy = axis == 1 ? s : (axis == 0 ? a : c), sz = axis == 2 ? s : c;
+                            pts.Add(C(sx, sy, sz, axis));
+                        }
+                    Poly(v, n, uv, t, new[] { pts[0], pts[1], pts[3], pts[2] });
+                }
+            // Edge chamfers: along each axis, at each of the 4 edges.
+            for (int axis = 0; axis < 3; axis++)
+            {
+                int a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
+                for (int s1 = -1; s1 <= 1; s1 += 2)
+                    for (int s2 = -1; s2 <= 1; s2 += 2)
+                    {
+                        var quad = new Vector3[4];
+                        int k = 0;
+                        foreach (int e in new[] { -1, 1 })
+                        {
+                            int[] sg = new int[3];
+                            sg[axis] = e; sg[a1] = s1; sg[a2] = s2;
+                            quad[k++] = C(sg[0], sg[1], sg[2], a1);
+                            quad[k++] = C(sg[0], sg[1], sg[2], a2);
+                        }
+                        Poly(v, n, uv, t, new[] { quad[0], quad[1], quad[3], quad[2] });
+                    }
+            }
+            // Corner triangles
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sy = -1; sy <= 1; sy += 2)
+                    for (int sz = -1; sz <= 1; sz += 2)
+                        Poly(v, n, uv, t, new[] { C(sx, sy, sz, 0), C(sx, sy, sz, 1), C(sx, sy, sz, 2) });
+
+            var m = Build(v, n, uv, t);
+            m.name = "BevelBox";
+            BevelCache[key] = m;
+            return m;
+        }
+
+        /// <summary>Adds a flat convex face, wound so it faces away from the origin.</summary>
+        static void Poly(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t, Vector3[] p)
+        {
+            Vector3 centre = Vector3.zero;
+            foreach (var q in p) centre += q;
+            centre /= p.Length;
+            Vector3 normal = Vector3.Cross(p[1] - p[0], p[2] - p[0]);
+            if (normal.sqrMagnitude < 1e-10f) return;
+            normal.Normalize();
+            bool flip = Vector3.Dot(normal, centre) < 0f;
+            if (flip) normal = -normal;
+            int i = v.Count;
+            Vector3 up = Mathf.Abs(normal.y) > 0.7f ? Vector3.forward : Vector3.up;
+            Vector3 right = Vector3.Cross(up, normal).normalized;
+            up = Vector3.Cross(normal, right);
+            foreach (var q in p)
+            {
+                v.Add(q);
+                n.Add(normal);
+                uv.Add(new Vector2(Vector3.Dot(q, right), Vector3.Dot(q, up)));
+            }
+            for (int k = 1; k < p.Length - 1; k++)
+            {
+                // Same convention as Box(): Cross(b - a, c - a) points out of the front face.
+                if (flip) { t.Add(i); t.Add(i + k + 1); t.Add(i + k); }
+                else { t.Add(i); t.Add(i + k); t.Add(i + k + 1); }
+            }
+        }
+
         static Mesh Build(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t)
         {
             var m = new Mesh();

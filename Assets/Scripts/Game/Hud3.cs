@@ -169,6 +169,7 @@ namespace RobotArena
             int i = RobotCatalog.All.IndexOf(RobotCatalog.Get(s.LocalType));
             i = ((i + d) % n + n) % n;
             s.Pick(RobotCatalog.All[i].type);
+            match.LobbyPreview(RobotCatalog.All[i].type);
             GameAudio.Play2D(Sfx.Servo, 0.5f);
             RefreshLobby();
         }
@@ -196,6 +197,7 @@ namespace RobotArena
         {
             HideAll();
             Subscribe();
+            if (NetSession.I != null) match.LobbyPreview(NetSession.I.LocalType);
             lobbyPanel.SetActive(true);
             RefreshLobby();
             GameAudio.PlayMusic(0.9f);

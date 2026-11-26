@@ -26,6 +26,7 @@ namespace RobotArena
             public ushort id;
             public ulong owner;
             public int type, team, livery;
+            public int loadout;
             public string name;
             public Vector3 pos;
             public float yaw;
@@ -79,7 +80,7 @@ namespace RobotArena
         // Host
         // =====================================================================
 
-        public void Register(Damageable d, ulong owner, RobotType type, int livery)
+        public void Register(Damageable d, ulong owner, RobotType type, int livery, int loadout = -1)
         {
             if (!NetSession.IsHost || d == null) return;
             ushort id = nextId++;
@@ -88,7 +89,7 @@ namespace RobotArena
             ownerOf[d] = owner;
             var info = new SpawnInfo
             {
-                id = id, owner = owner, type = (int)type, team = d.team, livery = livery,
+                id = id, owner = owner, type = (int)type, team = d.team, livery = livery, loadout = loadout,
                 name = d.displayName, pos = d.transform.position, yaw = d.transform.eulerAngles.y,
             };
             NetSession.Send(MsgSpawn, (ref FastBufferWriter w) => WriteSpawn(ref w, info));
@@ -353,6 +354,7 @@ namespace RobotArena
             w.WriteValueSafe(s.type);
             w.WriteValueSafe(s.team);
             w.WriteValueSafe(s.livery);
+            w.WriteValueSafe(s.loadout);
             w.WriteValueSafe(s.name ?? "");
             w.WriteValueSafe(s.pos);
             w.WriteValueSafe(s.yaw);
@@ -366,6 +368,7 @@ namespace RobotArena
             r.ReadValueSafe(out s.type);
             r.ReadValueSafe(out s.team);
             r.ReadValueSafe(out s.livery);
+            r.ReadValueSafe(out s.loadout);
             r.ReadValueSafe(out s.name);
             r.ReadValueSafe(out s.pos);
             r.ReadValueSafe(out s.yaw);

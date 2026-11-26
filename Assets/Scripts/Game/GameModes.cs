@@ -431,8 +431,8 @@ namespace RobotArena
         }
 
         static readonly RobotType[] Light = { RobotType.Hornet, RobotType.Raptor, RobotType.Arachne };
-        static readonly RobotType[] Medium = { RobotType.Titan, RobotType.Lancer, RobotType.Raptor, RobotType.Arachne, RobotType.Hornet };
-        static readonly RobotType[] Heavy = { RobotType.Juggernaut, RobotType.Bastion, RobotType.Titan };
+        static readonly RobotType[] Medium = { RobotType.Titan, RobotType.Lancer, RobotType.Raptor, RobotType.Arachne, RobotType.Hornet, RobotType.Vanguard };
+        static readonly RobotType[] Heavy = { RobotType.Juggernaut, RobotType.Bastion, RobotType.Titan, RobotType.Mammoth };
 
         void StartWave()
         {

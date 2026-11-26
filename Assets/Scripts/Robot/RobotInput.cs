@@ -132,6 +132,15 @@ namespace RobotArena
 
             var cam = FollowCamera.Main;
             look *= GameSettings.LookSensitivity;
+            // Aim friction: the view slows down while the crosshair sits on a locked
+            // enemy, so small thumb movements don't drag the aim off it.
+            if (cam != null && turret != null && turret.Target != null)
+            {
+                Vector3 to = turret.Target.Center - cam.transform.position;
+                float off = Vector3.Angle(cam.transform.forward, to);
+                float near = Mathf.Atan2(turret.Target.size * 3f, to.magnitude) * Mathf.Rad2Deg + 3f;
+                if (off < near) look *= Mathf.Lerp(0.55f, 1f, off / near);
+            }
             if (cam != null) cam.AddLook(look.x, look.y);
 
             bool looking = look.sqrMagnitude > 0.0001f;

@@ -73,6 +73,7 @@ namespace RobotArena
             switch (screen)
             {
                 case Screen.Lobby:
+                    showroom.Open(RobotCatalog.Get(NetSession.I.LocalType), true);
                     hud.ShowLobby();
                     GameAudio.Prewarm();
                     break;
@@ -85,6 +86,7 @@ namespace RobotArena
                     GameAudio.Prewarm();
                     break;
                 default:
+                    showroom.Open(RobotCatalog.Get(lastType), true);
                     hud.ShowMenu();
                     GameAudio.Prewarm();
                     break;
@@ -106,7 +108,7 @@ namespace RobotArena
         {
             if (Current != State.Hangar) return;
             Current = State.Menu;
-            showroom.Close();
+            showroom.Open(RobotCatalog.Get(lastType), true);
             hud.ShowModeSelect();
         }
 
@@ -117,6 +119,13 @@ namespace RobotArena
         }
 
         public void SpinPreview(float degrees) => showroom.Drag(degrees);
+
+        /// <summary>Online lobby: show the picked robot in the hangar behind the room screen.</summary>
+        public void LobbyPreview(RobotType type)
+        {
+            lastType = type;
+            showroom.Open(RobotCatalog.Get(type), true);
+        }
 
         // ---- Online ----
 
@@ -195,16 +204,22 @@ namespace RobotArena
         /// <summary>Host: builds a friend's robot, driven by what their device sends.</summary>
         public Damageable SpawnRemotePlayer(ulong owner, RobotType type, Vector3 pos, string name)
         {
-            var go = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, name);
+            // The friend's chosen weapons, sent with their robot pick in the lobby.
+            int packed = -1;
+            var np = NetSession.I != null ? NetSession.I.Players.Find(p => p.id == owner) : null;
+            if (np != null && np.type == type) packed = np.loadout;
+            var go = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, name, LoadoutFrom(type, packed));
             go.AddComponent<NetProxy>();
             var d = go.GetComponent<Damageable>();
             d.Died += OnRobotDied;
             types[d] = type;
             remoteHumans[d] = owner;
             Allies.Add(d);
-            net.Register(d, owner, type, 0);
+            net.Register(d, owner, type, 0, packed);
             return d;
         }
+
+        static Loadout LoadoutFrom(RobotType type, int packed) => packed < 0 ? Loadout.Default(type) : Loadout.Unpack(packed, Loadout.Default(type));
 
         static Livery LiveryFor(int index) => index == 0 ? Livery.Player : index == 1 ? Livery.Ally : index == 3 ? Livery.Enemy2 : Livery.Enemy;
 
@@ -219,7 +234,7 @@ namespace RobotArena
                 p.displayName = info.name;
                 return p;
             }
-            var go = RobotFactory.Build(type, info.pos, Quaternion.Euler(0f, info.yaw, 0f), info.team, LiveryFor(info.livery), info.livery == 0, info.name);
+            var go = RobotFactory.Build(type, info.pos, Quaternion.Euler(0f, info.yaw, 0f), info.team, LiveryFor(info.livery), info.livery == 0, info.name, LoadoutFrom(type, info.loadout));
             go.AddComponent<NetProxy>();
             var d = go.GetComponent<Damageable>();
             d.Died += OnRobotDied;
@@ -323,7 +338,8 @@ namespace RobotArena
         public Damageable SpawnPlayer(Vector3 pos)
         {
             var type = PlayerType;
-            var playerGo = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, RobotCatalog.Get(type).name);
+            var loadout = Loadout.ForPlayer(type);
+            var playerGo = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, RobotCatalog.Get(type).name, loadout);
             var input = playerGo.AddComponent<RobotInput>();
             hud.ConnectControls(input);
             var playerTurret = playerGo.GetComponent<Turret>();
@@ -331,7 +347,7 @@ namespace RobotArena
             Player = playerGo.GetComponent<Damageable>();
             Player.Died += OnRobotDied;
             types[Player] = type;
-            net.Register(Player, NetSession.LocalId, type, 0);
+            net.Register(Player, NetSession.LocalId, type, 0, loadout.Pack());
 
             var cam = FollowCamera.Main;
             if (cam != null)

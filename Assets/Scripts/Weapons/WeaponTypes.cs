@@ -125,8 +125,11 @@ namespace RobotArena
 
         bool charging;
         float chargeStart;
+        int shot;
 
         public bool IsCharging => charging;
+        // Arm-mounted rifles alternate between the two arms.
+        Transform Current => muzzles.Length > 0 ? muzzles[shot % muzzles.Length] : transform;
 
         protected override void Update()
         {
@@ -134,7 +137,7 @@ namespace RobotArena
             {
                 float k = Mathf.Clamp01((Time.time - chargeStart) / chargeTime);
                 if (chargeGlow != null) chargeGlow.localScale = Vector3.one * Mathf.Lerp(0.2f, 1.8f, k) * (1f + Mathf.Sin(Time.time * 40f) * 0.08f);
-                if (Random.value < 0.25f && muzzles.Length > 0) Fx.EnergyBurst(muzzles[0].position, color, 0.25f + k * 0.5f);
+                if (Random.value < 0.25f) Fx.EnergyBurst(Current.position, color, 0.25f + k * 0.5f);
                 if (k >= 1f) Release();
                 return;
             }
@@ -147,7 +150,7 @@ namespace RobotArena
         {
             charging = true;
             chargeStart = Time.time;
-            var m = muzzles.Length > 0 ? muzzles[0] : transform;
+            var m = Current;
             GameAudio.Play(Sfx.RailCharge, m.position, 0.9f, 1f);
         }
 
@@ -155,7 +158,8 @@ namespace RobotArena
         {
             charging = false;
             lastFire = Time.time;
-            var muzzle = muzzles.Length > 0 ? muzzles[0] : transform;
+            var muzzle = Current;
+            shot++;
             Vector3 dir = AimDirection(muzzle);
             Vector3 from = muzzle.position;
             Vector3 to = from + dir * range;

@@ -61,3 +61,11 @@ All sound effects come from [Freesound](https://freesound.org) and are released 
 ## Fonts
 
 - Rajdhani (Indian Type Foundry) and Orbitron (Matt McInerney), from Google Fonts, SIL Open Font License 1.1.
+
+## Terrain textures
+
+Photo-scanned ground sets from [ambientCG](https://ambientcg.com) (CC0): Ground103 (dirt), Ground108 (rubble), Rock030 (rock), Asphalt031 (asphalt), Gravel043 (gravel), Ground079S (sand), Ground049B (dune), Rock022 (cliff), Snow014 (snow), Snow006 (ice). Packed into Assets/Textures/Pbr/terrain_*.
+
+## Explosion puffs
+
+Assets/Resources/Fx/*Billows.png are baked from noise volumes by Tools/bake_billows.py (original work).

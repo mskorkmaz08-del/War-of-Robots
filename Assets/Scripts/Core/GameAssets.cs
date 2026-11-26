@@ -25,6 +25,8 @@ namespace RobotArena
         public Material hazardMat;
         public Material glowMat;
         public Material[] containerMats = new Material[0];
+        /// <summary>Photo-scanned ground per biome: 0 industrial, 1 dock, 2 desert, 3 snow, 4 city.</summary>
+        public Material[] terrainMats = new Material[0];
 
         /// <summary>A tinted copy of an arena material (e.g. sand-coloured concrete for the canyon).</summary>
         public Material Tinted(Material source, Color color)
@@ -131,6 +133,42 @@ namespace RobotArena
                 if (alphaSoft.HasProperty("_TintColor")) alphaSoft.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
             }
             return alphaSoft;
+        }
+
+        // Volumetric puffs baked offline (Tools/bake_billows.py): 4x4 sheets of lit smoke
+        // and glowing fire, so blasts read as solid 3D clouds instead of flat soft dots.
+        Material smokeBillow, fireBillow, fireGlow;
+
+        static Material BillowMat(Material template, string texture, Color tint, Material fallback)
+        {
+            var tex = Resources.Load<Texture2D>("Fx/" + texture);
+            if (tex == null || template == null) return fallback;
+            var m = new Material(template) { name = texture, mainTexture = tex };
+            if (m.HasProperty("_TintColor")) m.SetColor("_TintColor", tint);
+            return m;
+        }
+
+        /// <summary>True when the baked puff sheets are present (materials below use 4x4 sheets).</summary>
+        public bool HasBillows => Resources.Load<Texture2D>("Fx/SmokeBillows") != null;
+
+        public Material SmokeBillow()
+        {
+            if (smokeBillow == null) smokeBillow = BillowMat(particleAlpha, "SmokeBillows", new Color(0.5f, 0.5f, 0.5f, 0.5f), ParticleAlpha());
+            return smokeBillow;
+        }
+
+        /// <summary>Alpha-blended fire: bright when young, can darken into smoke as it cools.</summary>
+        public Material FireBillow()
+        {
+            if (fireBillow == null) fireBillow = BillowMat(particleAlpha, "FireBillows", new Color(1f, 1f, 1f, 0.5f), ParticleAdditive());
+            return fireBillow;
+        }
+
+        /// <summary>Additive glow with the same puff shapes, for the white-hot core.</summary>
+        public Material FireGlow()
+        {
+            if (fireGlow == null) fireGlow = BillowMat(particleAdditive, "FireBillows", new Color(0.5f, 0.5f, 0.5f, 0.5f), ParticleAdditive());
+            return fireGlow;
         }
 
         Material ringAdditive;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RobotArena
@@ -28,74 +29,54 @@ namespace RobotArena
             if (assets == null) return;
             bool high = GameSettings.GraphicsQuality != GameSettings.Quality.Low;
 
-            // 1. Flash core: a few huge bright puffs that vanish almost at once.
+            // Where the ground is, so the dust skirt and debris sit on it.
+            float groundY = pos.y - 1f;
+            if (Physics.Raycast(pos + Vector3.up * 1f, Vector3.down, out RaycastHit gh, 12f + size * 3f, ~(1 << 2), QueryTriggerInteraction.Ignore) && gh.rigidbody == null)
+                groundY = gh.point.y;
+            bool nearGround = pos.y - groundY < 6f * size;
+
+            // Everything grows from one volume: the fireball turns into the smoke cloud,
+            // which is fed from the same spot, so the blast reads as one solid thing.
+
+            // 1. White-hot core: a few glowing puffs that swell and vanish at once.
             if (FxPool.TryAcquire("Core", out var core, out bool isNew))
             {
                 Place(core, pos, Quaternion.identity);
                 if (isNew)
                 {
-                    Setup(core, assets.ParticleAdditive());
+                    Setup(core, assets.FireGlow());
+                    Billows(core);
                     ColorFade(core, Color.white, Core, Fire2);
-                    SizeCurve(core, 0.6f, 1.5f);
+                    SizeCurve(core, 0.5f, 1.4f);
                 }
                 var cm = core.main;
-                cm.startLifetime = new ParticleSystem.MinMaxCurve(0.12f, 0.22f);
-                cm.startSpeed = 0f;
-                cm.startSize = new ParticleSystem.MinMaxCurve(6f * size, 9f * size);
+                cm.startLifetime = new ParticleSystem.MinMaxCurve(0.18f, 0.32f);
+                cm.startSpeed = new ParticleSystem.MinMaxCurve(0f, 2f * size);
+                cm.startSize = new ParticleSystem.MinMaxCurve(4.5f * size, 7f * size);
                 cm.startColor = Core;
-                SphereShape(core, 0.3f * size);
-                Burst(core, 3);
-                Play(core, 0.3f);
+                cm.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                SphereShape(core, 0.6f * size);
+                Burst(core, 5);
+                Play(core, 0.4f);
             }
 
-            // 2. Fireball: billowing flames that rise and darken.
+            // 2. Fireball: rolling flame puffs that cool from yellow-white through orange
+            //    to soot, and keep rising as the start of the smoke cloud.
             if (!FxPool.TryAcquire("Fireball", out var fire, out isNew)) return;
             Place(fire, pos, Quaternion.identity);
-            if (isNew)
-            {
-                Setup(fire, assets.ParticleAdditive());
-                ColorFade(fire, Core, Fire2, Fire3);
-                SizeCurve(fire, 0.4f, 1.6f);
-                Drag(fire, 3.5f);
-            }
+            if (isNew) FireballSetup(fire, assets);
             var m = fire.main;
-            m.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1.3f);
-            m.startSpeed = new ParticleSystem.MinMaxCurve(3f * size, 11f * size);
-            m.startSize = new ParticleSystem.MinMaxCurve(3f * size, 6.5f * size);
-            m.startColor = new ParticleSystem.MinMaxGradient(Fire1, Fire2);
+            m.startLifetime = new ParticleSystem.MinMaxCurve(1.1f, 1.9f);
+            m.startSpeed = new ParticleSystem.MinMaxCurve(2f * size, 9f * size);
+            m.startSize = new ParticleSystem.MinMaxCurve(2.4f * size, 4.6f * size);
+            m.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.8f), new Color(1f, 0.75f, 0.4f));
             m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            m.gravityModifier = -0.25f;
-            SphereShape(fire, 0.8f * size);
-            Burst(fire, high ? 40 : 24);
-            Play(fire, 1.5f);
+            m.gravityModifier = -0.35f;
+            SphereShape(fire, 0.9f * size);
+            Burst(fire, high ? 34 : 18);
+            Play(fire, 2f);
 
-            // 3. Shockwave ring racing along the ground.
-            if (FxPool.TryAcquire("Shockwave", out var wave, out isNew))
-            {
-                Place(wave, pos + Vector3.up * 0.4f, Quaternion.identity);
-                if (isNew)
-                {
-                    Setup(wave, assets.RingAdditive());
-                    var wr = wave.GetComponent<ParticleSystemRenderer>();
-                    wr.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
-                    SizeCurve(wave, 0.1f, 1f);
-                    var col = wave.colorOverLifetime;
-                    col.enabled = true;
-                    var g = new Gradient();
-                    g.SetKeys(new[] { new GradientColorKey(Core, 0f), new GradientColorKey(Fire2, 1f) },
-                              new[] { new GradientAlphaKey(0.9f, 0f), new GradientAlphaKey(0f, 1f) });
-                    col.color = new ParticleSystem.MinMaxGradient(g);
-                }
-                var wm = wave.main;
-                wm.startLifetime = 0.45f;
-                wm.startSpeed = 0f;
-                wm.startSize = 30f * size;
-                wm.startColor = Color.white;
-                Burst(wave, 1);
-                Play(wave, 0.5f);
-            }
-
-            // 4. Burning debris: heavy glowing chunks that arc out and fall.
+            // 3. Burning debris: glowing streaks that arc out and fall.
             if (FxPool.TryAcquire("Embers", out var embers, out isNew))
             {
                 Place(embers, pos, Quaternion.identity);
@@ -105,82 +86,136 @@ namespace RobotArena
                     ColorFade(embers, Fire1, Fire2, Fire3);
                     var er = embers.GetComponent<ParticleSystemRenderer>();
                     er.renderMode = ParticleSystemRenderMode.Stretch;
-                    er.velocityScale = 0.04f;
-                    er.lengthScale = 1.2f;
+                    er.velocityScale = 0.05f;
+                    er.lengthScale = 1.5f;
                 }
                 var em = embers.main;
-                em.startLifetime = new ParticleSystem.MinMaxCurve(1.2f, 2.6f);
-                em.startSpeed = new ParticleSystem.MinMaxCurve(10f * Mathf.Sqrt(size), 32f * Mathf.Sqrt(size));
-                em.startSize = new ParticleSystem.MinMaxCurve(0.3f, 0.8f);
+                em.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 2f);
+                em.startSpeed = new ParticleSystem.MinMaxCurve(10f * Mathf.Sqrt(size), 30f * Mathf.Sqrt(size));
+                em.startSize = new ParticleSystem.MinMaxCurve(0.2f, 0.5f);
                 em.startColor = new ParticleSystem.MinMaxGradient(Fire1, Fire2);
                 em.gravityModifier = 1.6f;
                 var es = embers.shape;
                 es.enabled = true;
                 es.shapeType = ParticleSystemShapeType.Hemisphere;
-                es.radius = 0.5f * size;
+                es.radius = 0.8f * size;
                 es.rotation = new Vector3(-90f, 0f, 0f);
-                Burst(embers, high ? 30 : 14);
-                Play(embers, 2.8f);
+                Burst(embers, high ? 26 : 12);
+                Play(embers, 2.2f);
             }
 
-            // 5. Dark chunks of metal thrown out.
-            if (FxPool.TryAcquire("Chunks", out var chunks, out isNew))
+            // 4. Real 3D wreckage: lit, tumbling metal shards that land on the ground.
+            if (FxPool.TryAcquire("Shards", out var shards, out isNew))
             {
-                Place(chunks, pos, Quaternion.identity);
+                Place(shards, pos, Quaternion.identity);
                 if (isNew)
                 {
-                    Setup(chunks, assets.ParticleAlpha());
-                    var rot = chunks.rotationOverLifetime;
+                    Setup(shards, assets.Burnt());
+                    var sr = shards.GetComponent<ParticleSystemRenderer>();
+                    sr.renderMode = ParticleSystemRenderMode.Mesh;
+                    sr.mesh = ShardMesh();
+                    sr.alignment = ParticleSystemRenderSpace.World;
+                    sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    sr.receiveShadows = true;
+                    var km0 = shards.main;
+                    km0.startRotation3D = true;
+                    km0.startSize3D = true;
+                    var rot = shards.rotationOverLifetime;
                     rot.enabled = true;
-                    rot.z = new ParticleSystem.MinMaxCurve(-8f, 8f);
+                    rot.separateAxes = true;
+                    rot.x = new ParticleSystem.MinMaxCurve(-9f, 9f);
+                    rot.y = new ParticleSystem.MinMaxCurve(-9f, 9f);
+                    rot.z = new ParticleSystem.MinMaxCurve(-9f, 9f);
+                    var col = shards.collision;
+                    col.enabled = true;
+                    col.type = ParticleSystemCollisionType.World;
+                    col.mode = ParticleSystemCollisionMode.Collision3D;
+                    col.quality = ParticleSystemCollisionQuality.Low;
+                    col.bounce = 0.25f;
+                    col.dampen = 0.5f;
+                    col.lifetimeLoss = 0f;
+                    col.collidesWith = ~(1 << 2);
+                    var alpha = shards.colorOverLifetime;
+                    alpha.enabled = false;
+                    var shrink = shards.sizeOverLifetime;
+                    shrink.enabled = true;
+                    shrink.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.85f, 1f), new Keyframe(1f, 0f)));
                 }
-                var km = chunks.main;
-                km.startLifetime = new ParticleSystem.MinMaxCurve(1f, 2f);
-                km.startSpeed = new ParticleSystem.MinMaxCurve(8f * Mathf.Sqrt(size), 22f * Mathf.Sqrt(size));
-                km.startSize = new ParticleSystem.MinMaxCurve(0.5f * size, 1.3f * size);
-                km.startColor = new Color(0.08f, 0.07f, 0.06f, 1f);
-                km.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-                km.gravityModifier = 2f;
-                var ks = chunks.shape;
+                var km = shards.main;
+                km.startLifetime = new ParticleSystem.MinMaxCurve(2.5f, 4f);
+                km.startSpeed = new ParticleSystem.MinMaxCurve(7f * Mathf.Sqrt(size), 20f * Mathf.Sqrt(size));
+                km.startSizeX = new ParticleSystem.MinMaxCurve(0.4f * size, 1.1f * size);
+                km.startSizeY = new ParticleSystem.MinMaxCurve(0.15f * size, 0.5f * size);
+                km.startSizeZ = new ParticleSystem.MinMaxCurve(0.3f * size, 0.9f * size);
+                km.startRotationX = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                km.startRotationY = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                km.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                km.startColor = Color.white;
+                km.gravityModifier = 2.2f;
+                var ks = shards.shape;
                 ks.enabled = true;
                 ks.shapeType = ParticleSystemShapeType.Hemisphere;
-                ks.radius = 0.5f * size;
+                ks.radius = 0.6f * size;
                 ks.rotation = new Vector3(-90f, 0f, 0f);
-                Burst(chunks, high ? 14 : 6);
-                Play(chunks, 2.2f);
+                Burst(shards, high ? 12 : 6);
+                Play(shards, 4.2f);
             }
 
-            // 6. Smoke column that rises and spreads.
+            // 5. Smoke: fed from inside the fireball a moment later, so the flames sink
+            //    into it, then a dark column climbs and spreads.
             if (FxPool.TryAcquire("Smoke", out var smoke, out isNew))
             {
-                Place(smoke, pos, Quaternion.identity);
+                Place(smoke, pos + Vector3.up * 0.5f * size, Quaternion.identity);
                 if (isNew)
                 {
-                    Setup(smoke, assets.ParticleAlpha());
-                    AlphaFade(smoke, new Color(0.2f, 0.19f, 0.18f));
-                    SizeCurve(smoke, 0.5f, 2.6f);
-                    Drag(smoke, 1.5f);
+                    Setup(smoke, assets.SmokeBillow());
+                    Billows(smoke);
+                    SmokeFade(smoke);
+                    SizeCurve(smoke, 0.55f, 2.4f);
+                    Drag(smoke, 1.6f);
+                    Spin(smoke, 0.5f);
                 }
                 m = smoke.main;
-                m.startLifetime = new ParticleSystem.MinMaxCurve(3f, 6f);
+                m.startLifetime = new ParticleSystem.MinMaxCurve(3.5f, 6.5f);
                 m.startSpeed = new ParticleSystem.MinMaxCurve(1.5f * size, 5f * size);
-                m.startSize = new ParticleSystem.MinMaxCurve(3.5f * size, 7f * size);
-                m.startColor = new ParticleSystem.MinMaxGradient(new Color(0.09f, 0.085f, 0.08f, 0.8f), new Color(0.26f, 0.24f, 0.22f, 0.65f));
+                m.startSize = new ParticleSystem.MinMaxCurve(3.5f * size, 6.5f * size);
+                m.startColor = new ParticleSystem.MinMaxGradient(new Color(0.16f, 0.15f, 0.14f, 0.9f), new Color(0.32f, 0.3f, 0.28f, 0.8f));
                 m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-                m.gravityModifier = -0.12f;
-                SphereShape(smoke, 1.2f * size);
-                Burst(smoke, high ? 22 : 12);
-                Play(smoke, 6.5f);
+                m.gravityModifier = -0.14f;
+                SphereShape(smoke, 1.1f * size);
+                Burst(smoke, high ? 20 : 11, 0.12f);
+                Play(smoke, 7f);
             }
 
-            Sparks(pos, Vector3.up, Mathf.RoundToInt(36 * Mathf.Clamp(size, 0.5f, 3f)), 28f * Mathf.Sqrt(size), 180f);
-            Dust(pos, size * 1.4f);
-            Scorch(pos, size);
-            Flash(pos, new Color(1f, 0.62f, 0.28f), 30f * size, 9f, 0.4f);
+            // 6. Dust skirt kicked out along the ground by the blast.
+            if (nearGround) Dust(new Vector3(pos.x, groundY, pos.z), size * 1.3f);
 
-            // Big blasts keep going: a few follow-up explosions around the first.
+            Sparks(pos, Vector3.up, Mathf.RoundToInt(22 * Mathf.Clamp(size, 0.5f, 3f)), 26f * Mathf.Sqrt(size), 180f);
+            Scorch(pos, size);
+            Flash(pos, new Color(1f, 0.62f, 0.28f), 30f * size, 9f, 0.5f);
+
+            // Big blasts keep going: secondary bursts inside the same cloud.
             if (size >= 2f && high)
                 CoroutineHost.Run(Aftershocks(pos, size));
+        }
+
+        static void FireballSetup(ParticleSystem fire, GameAssets assets)
+        {
+            Setup(fire, assets.FireBillow());
+            Billows(fire);
+            Drag(fire, 3f);
+            Spin(fire, 0.8f);
+            SizeCurve(fire, 0.45f, 1.9f);
+            // Cools as it rises: white-hot, orange, deep red, then soot that fades out.
+            var col = fire.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(new Color(1f, 0.55f, 0.15f), 0.18f),
+                        new GradientColorKey(new Color(0.45f, 0.12f, 0.04f), 0.4f), new GradientColorKey(new Color(0.11f, 0.1f, 0.09f), 0.65f),
+                        new GradientColorKey(new Color(0.16f, 0.15f, 0.14f), 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.5f), new GradientAlphaKey(0.7f, 0.75f), new GradientAlphaKey(0f, 1f) });
+            col.color = new ParticleSystem.MinMaxGradient(g);
         }
 
         static System.Collections.IEnumerator Aftershocks(Vector3 pos, float size)
@@ -188,9 +223,9 @@ namespace RobotArena
             int n = size >= 3f ? 3 : 2;
             for (int i = 0; i < n; i++)
             {
-                yield return new WaitForSeconds(Random.Range(0.12f, 0.3f));
-                Vector3 p = pos + Vector3.Scale(Random.insideUnitSphere, new Vector3(1f, 0.5f, 1f)) * 3f * size;
-                SmallBlast(p, size * 0.45f);
+                yield return new WaitForSeconds(Random.Range(0.15f, 0.35f));
+                Vector3 p = pos + Vector3.Scale(Random.insideUnitSphere, new Vector3(1f, 0.6f, 1f)) * 1.3f * size;
+                SmallBlast(p, size * 0.5f);
                 GameAudio.Play(Sfx.Explosion, p, 0.7f, Random.Range(1f, 1.2f));
             }
         }
@@ -201,24 +236,88 @@ namespace RobotArena
             var assets = GameAssets.Get();
             if (assets == null || !FxPool.TryAcquire("Fireball", out var fire, out bool isNew)) return;
             Place(fire, pos, Quaternion.identity);
-            if (isNew)
-            {
-                Setup(fire, assets.ParticleAdditive());
-                ColorFade(fire, Core, Fire2, Fire3);
-                SizeCurve(fire, 0.4f, 1.6f);
-                Drag(fire, 3.5f);
-            }
+            if (isNew) FireballSetup(fire, assets);
             var m = fire.main;
-            m.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.8f);
-            m.startSpeed = new ParticleSystem.MinMaxCurve(2f * size, 8f * size);
-            m.startSize = new ParticleSystem.MinMaxCurve(2.5f * size, 5f * size);
-            m.startColor = new ParticleSystem.MinMaxGradient(Fire1, Fire2);
+            m.startLifetime = new ParticleSystem.MinMaxCurve(0.7f, 1.3f);
+            m.startSpeed = new ParticleSystem.MinMaxCurve(2f * size, 7f * size);
+            m.startSize = new ParticleSystem.MinMaxCurve(2.2f * size, 4.2f * size);
+            m.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.8f), new Color(1f, 0.75f, 0.4f));
             m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            m.gravityModifier = -0.25f;
+            m.gravityModifier = -0.3f;
             SphereShape(fire, 0.6f * size);
-            Burst(fire, 18);
-            Play(fire, 1f);
-            Sparks(pos, Vector3.up, 16, 20f, 160f);
+            Burst(fire, 14);
+            Play(fire, 1.5f);
+            Sparks(pos, Vector3.up, 12, 18f, 160f);
+        }
+
+        /// <summary>Use the 4x4 puff sheet: each particle gets one random puff for its whole life.</summary>
+        static void Billows(ParticleSystem ps)
+        {
+            var assets = GameAssets.Get();
+            var ts = ps.textureSheetAnimation;
+            if (assets == null || !assets.HasBillows) { ts.enabled = false; return; }
+            ts.enabled = true;
+            ts.mode = ParticleSystemAnimationMode.Grid;
+            ts.numTilesX = 4;
+            ts.numTilesY = 4;
+            ts.animation = ParticleSystemAnimationType.WholeSheet;
+            ts.frameOverTime = new ParticleSystem.MinMaxCurve(0f, 0.999f);
+            ts.cycleCount = 1;
+        }
+
+        /// <summary>Slow random roll so puffs churn instead of sliding.</summary>
+        static void Spin(ParticleSystem ps, float radiansPerSecond)
+        {
+            var rot = ps.rotationOverLifetime;
+            rot.enabled = true;
+            rot.z = new ParticleSystem.MinMaxCurve(-radiansPerSecond, radiansPerSecond);
+        }
+
+        /// <summary>Smoke that thickens quickly, then thins out slowly.</summary>
+        static void SmokeFade(ParticleSystem ps)
+        {
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(
+                new[] { new GradientColorKey(new Color(0.6f, 0.45f, 0.35f), 0f), new GradientColorKey(Color.white, 0.25f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.08f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0f, 1f) });
+            col.color = new ParticleSystem.MinMaxGradient(g);
+        }
+
+        static Mesh shardMesh;
+
+        /// <summary>A jagged, bent plate of torn armour for debris particles.</summary>
+        static Mesh ShardMesh()
+        {
+            if (shardMesh != null) return shardMesh;
+            var v = new[]
+            {
+                new Vector3(-0.5f, 0.1f, -0.35f), new Vector3(0.1f, 0.15f, -0.5f), new Vector3(0.55f, 0f, -0.1f),
+                new Vector3(0.3f, -0.05f, 0.45f), new Vector3(-0.2f, 0.05f, 0.5f), new Vector3(-0.55f, 0.2f, 0.1f),
+            };
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+            // Top and bottom faces of a thick, bent plate, plus the torn edge.
+            Vector3 down = new Vector3(0f, -0.28f, 0f);
+            int n = v.Length;
+            for (int i = 0; i < n; i++) verts.Add(v[i]);
+            for (int i = 0; i < n; i++) verts.Add(v[i] + down + new Vector3(0f, Mathf.Sin(i * 1.7f) * 0.05f, 0f));
+            for (int i = 1; i < n - 1; i++) { tris.Add(0); tris.Add(i + 1); tris.Add(i); tris.Add(n); tris.Add(n + i); tris.Add(n + i + 1); }
+            for (int i = 0; i < n; i++)
+            {
+                int a = i, b = (i + 1) % n;
+                tris.Add(a); tris.Add(b); tris.Add(n + b);
+                tris.Add(a); tris.Add(n + b); tris.Add(n + a);
+            }
+            // Flat-shade: unshare vertices so the torn edges catch the light.
+            var fv = new Vector3[tris.Count];
+            var ft = new int[tris.Count];
+            for (int i = 0; i < tris.Count; i++) { fv[i] = verts[tris[i]]; ft[i] = i; }
+            shardMesh = new Mesh { name = "Shard", vertices = fv, triangles = ft };
+            shardMesh.RecalculateNormals();
+            shardMesh.RecalculateBounds();
+            return shardMesh;
         }
 
         // Scorch marks are pooled quads on the ground that fade out.
@@ -310,16 +409,18 @@ namespace RobotArena
             Place(ps, pos + Vector3.up * 0.3f, Quaternion.identity);
             if (isNew)
             {
-                Setup(ps, assets.ParticleAlpha());
+                Setup(ps, assets.SmokeBillow());
+                Billows(ps);
                 AlphaFade(ps, new Color(0.4f, 0.37f, 0.33f));
-                SizeCurve(ps, 0.7f, 2f);
+                SizeCurve(ps, 0.6f, 2.2f);
                 Drag(ps, 4f);
+                Spin(ps, 0.4f);
             }
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(1.2f, 2.4f);
-            m.startSpeed = new ParticleSystem.MinMaxCurve(4f * size, 9f * size);
-            m.startSize = new ParticleSystem.MinMaxCurve(1.5f * size, 3.5f * size);
-            m.startColor = new ParticleSystem.MinMaxGradient(new Color(0.45f, 0.42f, 0.38f, 0.55f), new Color(0.3f, 0.28f, 0.25f, 0.45f));
+            m.startSpeed = new ParticleSystem.MinMaxCurve(5f * size, 12f * size);
+            m.startSize = new ParticleSystem.MinMaxCurve(1.6f * size, 3.4f * size);
+            m.startColor = new ParticleSystem.MinMaxGradient(new Color(0.55f, 0.5f, 0.44f, 0.75f), new Color(0.38f, 0.35f, 0.31f, 0.6f));
             m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             m.gravityModifier = 0.05f;
             var shape = ps.shape;
@@ -328,7 +429,7 @@ namespace RobotArena
             shape.radius = 0.8f * size;
             shape.rotation = new Vector3(-90f, 0f, 0f);
             shape.radiusThickness = 0f;
-            Burst(ps, 16);
+            Burst(ps, 20);
             Play(ps, 3f);
         }
 
@@ -361,7 +462,8 @@ namespace RobotArena
             Place(smoke, pos, Quaternion.LookRotation(dir));
             if (isNew)
             {
-                Setup(smoke, assets.ParticleAlpha());
+                Setup(smoke, assets.SmokeBillow());
+                Billows(smoke);
                 AlphaFade(smoke, new Color(0.55f, 0.55f, 0.55f));
                 SizeCurve(smoke, 0.6f, 2f);
                 Drag(smoke, 3f);
@@ -454,7 +556,9 @@ namespace RobotArena
             var ps = FxPool.AcquireContinuous("SmokeTrail");
             Place(ps, parent.position, parent.rotation);
             ps.transform.SetParent(parent, true);
-            Setup(ps, assets.ParticleAlpha());
+            Setup(ps, assets.SmokeBillow());
+            Billows(ps);
+            Spin(ps, 0.5f);
             var m = ps.main;
             m.loop = true;
             m.duration = 1f;
@@ -530,11 +634,11 @@ namespace RobotArena
 
         static readonly ParticleSystem.Burst[] OneBurst = new ParticleSystem.Burst[1];
 
-        static void Burst(ParticleSystem ps, int count)
+        static void Burst(ParticleSystem ps, int count, float delay = 0f)
         {
             var e = ps.emission;
             e.enabled = true;
-            OneBurst[0] = new ParticleSystem.Burst(0f, (short)Mathf.Clamp(count, 1, 200));
+            OneBurst[0] = new ParticleSystem.Burst(delay, (short)Mathf.Clamp(count, 1, 200));
             e.SetBursts(OneBurst, 1);
         }
 

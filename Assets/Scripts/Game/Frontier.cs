@@ -28,28 +28,33 @@ namespace RobotArena
             var rnd = new System.Random(11 + (int)map * 13);
 
             Material ground = GroundMat(map);
-            Prim(PrimitiveType.Cube, root, new Vector3(0f, -0.5f, 0f), 0f, new Vector3(2000f, 1f, 2000f), ground);
+            // Plain ground far out; the sculpted BattleGround mesh sits just above it near the fight.
+            Prim(PrimitiveType.Cube, root, new Vector3(0f, -0.56f, 0f), 0f, new Vector3(2000f, 1f, 2000f), ground);
 
             if (map == MapId.Canyon)
             {
                 // Canyon walls rise straight from the edge of the battlefield.
-                Mountains(root, RockMat(new Color(0.6f, 0.43f, 0.32f)), Half - 4f, 70f, 120f, 150f, 0.75f, 5);
+                Mountains(root, map, RockMat(new Color(0.6f, 0.43f, 0.32f)), Half - 4f, 70f, 120f, 150f, 0.75f, 5);
             }
             else if (map == MapId.FrozenPass)
             {
                 // Snow-covered ridges close in on the pass.
-                Mountains(root, RockMat(new Color(0.86f, 0.9f, 0.95f)), Half - 4f, 90f, 140f, 230f, 0.7f, 3);
+                Mountains(root, map, RockMat(new Color(0.86f, 0.9f, 0.95f)), Half - 4f, 90f, 140f, 230f, 0.7f, 3);
             }
             else
             {
                 Skyline(root, map, rnd);
                 // Distant range behind the city, grey-blue in the haze.
-                Mountains(root, RockMat(new Color(0.48f, 0.47f, 0.46f)), Half + 95f, 260f, 150f, 280f, 0.5f, 9);
+                Mountains(root, map, RockMat(new Color(0.48f, 0.47f, 0.46f)), Half + 95f, 260f, 150f, 280f, 0.5f, 9);
             }
             Outskirts(root, map, layout, rnd);
             Blockers(root);
 
             StaticBatchingUtility.Combine(root.gameObject);
+
+            // Sculpted, photo-textured ground. Built last so it can stay flat under everything placed above.
+            var groundRoot = new GameObject("Ground").transform;
+            if (!BattleGround.Build(groundRoot, map, layout)) Object.Destroy(groundRoot.gameObject);
 
             // See the horizon: haze starts further out so the mountains read as far away and huge.
             RenderSettings.fogStartDistance = 160f;
@@ -67,7 +72,7 @@ namespace RobotArena
             foreach (Transform t in arena.transform)
                 if (t.name == "Wall" || t.name == "WallTrim" || t.name == "WallLamp" || t.name == "Buttress" || t.name == "Floor")
                     doomed.Add(t.gameObject);
-            foreach (var g in doomed) Object.Destroy(g);
+            foreach (var g in doomed) { g.SetActive(false); Object.Destroy(g); }
         }
 
         public static Material GroundMat(MapId map)
@@ -112,7 +117,7 @@ namespace RobotArena
         /// centre, squared-off with rounded corners), climbs over <paramref name="rise"/>
         /// metres to peaks between minH and maxH. steep (0..1) sharpens the first slope.
         /// </summary>
-        static void Mountains(Transform root, Material mat, float start, float rise, float minH, float maxH, float steep, int seed)
+        static void Mountains(Transform root, MapId map, Material mat, float start, float rise, float minH, float maxH, float steep, int seed)
         {
             const float L = 1000f;
             const int N = 100;
@@ -152,6 +157,8 @@ namespace RobotArena
             mesh.triangles = tris.ToArray();
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
+            var terrain = BattleGround.Mat(map, true);
+            if (terrain != null) { BattleGround.PaintSlopes(mesh, map); mat = terrain; }
             var go = new GameObject("Mountains");
             go.transform.SetParent(root, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;

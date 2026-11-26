@@ -75,6 +75,14 @@ namespace RobotArena.EditorTools
             ga.hazardMat = hazard;
             ga.glowMat = glowStrip;
             ga.containerMats = containerMats;
+            ga.terrainMats = new[]
+            {
+                TerrainMat("TerrainIndustrial", "dirt", 6f, "rubble", 5f, "rock", 14f, new Color(0.92f, 0.9f, 0.86f), new Color(1f, 1f, 1f), new Color(0.9f, 0.9f, 0.9f)),
+                TerrainMat("TerrainDock", "asphalt", 5f, "gravel", 4f, "rock", 14f, new Color(0.9f, 0.9f, 0.9f), new Color(0.95f, 0.93f, 0.9f), new Color(0.9f, 0.9f, 0.9f)),
+                TerrainMat("TerrainDesert", "sand", 5f, "dune", 7f, "cliff", 18f, new Color(1f, 0.93f, 0.85f), new Color(1f, 0.95f, 0.88f), new Color(1f, 0.72f, 0.55f)),
+                TerrainMat("TerrainSnow", "snow", 6f, "ice", 7f, "cliff", 18f, Color.white, new Color(0.95f, 0.97f, 1f), new Color(0.75f, 0.78f, 0.82f)),
+                TerrainMat("TerrainCity", "asphalt", 5f, "rubble", 5f, "rock", 14f, new Color(0.85f, 0.85f, 0.85f), new Color(0.9f, 0.88f, 0.86f), new Color(0.9f, 0.9f, 0.9f)),
+            };
 
             // ---- Arena ----
             var arena = new GameObject("Arena").transform;
@@ -342,7 +350,40 @@ namespace RobotArena.EditorTools
             return mat;
         }
 
-        static Material ParticleMat(string name, string shaderName)
+/// <summary>Ground material blending three photo-scanned sets (see RobotArenaTerrain.shader).</summary>
+        static Material TerrainMat(string name, string baseSet, float baseTile, string patchSet, float patchTile, string rockSet, float rockTile, Color baseTint, Color patchTint, Color rockTint)
+        {
+            var shader = Shader.Find("RobotArena/Terrain");
+            if (shader == null)
+            {
+                Debug.LogWarning("[ArenaBuilder] Terrain shader missing; using Standard for " + name);
+                return Mat(name, "Standard", baseTint, 0f, 0.2f);
+            }
+            string path = MaterialDir + "/" + name + ".mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            mat.shader = shader;
+            string dir = TextureDir + "/Pbr/terrain_";
+            void Layer(string prefix, string set, float tile, Color tint)
+            {
+                mat.SetTexture("_" + prefix + "Tex", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + set + "_albedo.jpg"));
+                mat.SetTexture("_" + prefix + "Mask", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + set + "_mask.jpg"));
+                mat.SetTexture("_" + prefix + "N", AssetDatabase.LoadAssetAtPath<Texture2D>(dir + set + "_n.jpg"));
+                mat.SetFloat("_" + prefix + "Tiling", tile);
+                mat.SetColor("_" + prefix + "Color", tint);
+            }
+            Layer("Base", baseSet, baseTile, baseTint);
+            Layer("Patch", patchSet, patchTile, patchTint);
+            Layer("Rock", rockSet, rockTile, rockTint);
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+                static Material ParticleMat(string name, string shaderName)
         {
             var shader = Shader.Find(shaderName);
             if (shader == null) shader = Shader.Find("Particles/Standard Unlit");

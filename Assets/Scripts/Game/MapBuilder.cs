@@ -72,7 +72,9 @@ namespace RobotArena
             foreach (var name in new[] { "Arena", "Containers", "BuildingDetails" })
             {
                 var old = GameObject.Find(name);
-                if (old != null) Object.Destroy(old);
+                // Deactivate first: Destroy only happens at the end of the frame, and the
+                // new map's placement checks must not see the Foundry's colliders.
+                if (old != null) { old.SetActive(false); Object.Destroy(old); }
             }
             var root = new GameObject("Arena").transform;
             var layout = Layout(map);

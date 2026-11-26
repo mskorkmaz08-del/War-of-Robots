@@ -21,6 +21,19 @@ namespace RobotArena.EditorTools
                 ti.wrapMode = TextureWrapMode.Repeat;
                 ti.mipmapEnabled = true;
                 ti.anisoLevel = 4;
+                // Terrain roughness/AO masks are soft: half size keeps the download small.
+                ti.maxTextureSize = p.Contains("/terrain_") && p.EndsWith("_mask.jpg") ? 512 : 1024;
+                ti.textureCompression = TextureImporterCompression.Compressed;
+            }
+            else if (p.StartsWith("Assets/Resources/Fx/"))
+            {
+                // Particle puff sheets: keep alpha, no tiling bleed between cells.
+                ti.textureType = TextureImporterType.Default;
+                ti.sRGBTexture = true;
+                ti.alphaSource = TextureImporterAlphaSource.FromInput;
+                ti.alphaIsTransparency = true;
+                ti.wrapMode = TextureWrapMode.Clamp;
+                ti.mipmapEnabled = true;
                 ti.maxTextureSize = 1024;
                 ti.textureCompression = TextureImporterCompression.Compressed;
             }

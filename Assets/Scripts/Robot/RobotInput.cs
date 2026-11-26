@@ -203,7 +203,11 @@ namespace RobotArena
                 commands.hasMove = true;
                 commands.move = wanted * mag;
                 commands.hasFace = true;
-                commands.face = camFwd;
+                // The legs turn to walk straight the way you push, while the torso keeps
+                // aiming where you look. Only when you pull back does it back-pedal
+                // (the torso can't turn all the way round).
+                float off = Vector3.Angle(wanted, camFwd);
+                commands.face = off <= 100f ? wanted : camFwd;
                 commands.throttle = Vector3.Dot(wanted, fwd) * mag;
                 commands.steer = 0f;
                 return;

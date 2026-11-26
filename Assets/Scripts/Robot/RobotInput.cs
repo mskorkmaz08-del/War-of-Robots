@@ -160,6 +160,8 @@ namespace RobotArena
         /// steer toward it, or reverse when it is behind them. The direction is fixed in the world
         /// while the stick is held, so the robot doesn't chase the camera round in circles.
         /// </summary>
+        float firmHold;
+
         void DriveTowards(Vector2 move, FollowCamera cam, bool shooting, bool looking)
         {
             Vector3 fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
@@ -203,11 +205,14 @@ namespace RobotArena
                 commands.hasMove = true;
                 commands.move = wanted * mag;
                 commands.hasFace = true;
-                // The legs turn to walk straight the way you push, while the torso keeps
-                // aiming where you look. Only when you pull back does it back-pedal
-                // (the torso can't turn all the way round).
+                // Small or short sideways pushes crab-walk (legs step sideways, hips stay).
+                // A firm push held for a moment turns the hips toward the walk direction
+                // and the legs walk straight, while the torso keeps aiming where you look.
+                // Pulling back back-pedals (the torso can't turn all the way round).
                 float off = Vector3.Angle(wanted, camFwd);
-                commands.face = off <= 100f ? wanted : camFwd;
+                bool firm = mag > 0.6f && off > 20f && off <= 100f;
+                firmHold = firm ? firmHold + Time.deltaTime : 0f;
+                commands.face = firmHold > 0.3f ? wanted : camFwd;
                 commands.throttle = Vector3.Dot(wanted, fwd) * mag;
                 commands.steer = 0f;
                 return;

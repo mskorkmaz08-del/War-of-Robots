@@ -500,21 +500,24 @@ namespace RobotArena
             var vis = Group(t, "Wheel", localPos);
             var ws = Group(vis, "WheelStatic", Vector3.zero);
             float d = radius * 2f;
-            P(ws, Shape.Cylinder, Vector3.zero, new Vector3(0f, 0f, 90f), new Vector3(d, width, d), mRubber);
-            P(ws, Shape.Cylinder, new Vector3(side * width * 0.52f, 0f, 0f), new Vector3(0f, 0f, 90f), new Vector3(d * 0.62f, 0.1f, d * 0.62f), mMetal);
-            P(ws, Shape.Cylinder, new Vector3(side * width * 0.58f, 0f, 0f), new Vector3(0f, 0f, 90f), new Vector3(d * 0.25f, 0.12f, d * 0.25f), mAccent);
-            for (int k = 0; k < 6; k++)
-                P(ws, Shape.Box, new Vector3(side * width * 0.55f, 0f, 0f), new Vector3(k * 60f, 0f, 0f), new Vector3(0.08f, d * 0.55f, 0.18f), mDark);
-            for (int k = 0; k < 6; k++)
+            // Tyre with rounded shoulders, a deep machined rim and a heavy hub
+            DiscPart(ws, Vector3.zero, new Vector3(0f, 0f, 90f), d * 0.97f, width, mRubber);
+            DiscPart(ws, new Vector3(side * width * 0.18f, 0f, 0f), new Vector3(0f, 0f, 90f), d * 0.66f, width * 0.7f, mSecondary);
+            DiscPart(ws, new Vector3(side * width * 0.5f, 0f, 0f), new Vector3(0f, 0f, 90f), d * 0.3f, 0.22f, mChrome);
+            P(ws, Shape.Cylinder, new Vector3(side * width * 0.58f, 0f, 0f), new Vector3(0f, 0f, 90f), new Vector3(d * 0.12f, 0.12f, d * 0.12f), mAccent);
+            for (int k = 0; k < 8; k++)
             {
-                float a = (k * 60f + 30f) * Mathf.Deg2Rad;
-                P(ws, Shape.Cylinder, new Vector3(side * width * 0.56f, Mathf.Cos(a) * radius * 0.42f, Mathf.Sin(a) * radius * 0.42f),
-                    new Vector3(0f, 0f, 90f), new Vector3(0.14f, 0.06f, 0.14f), mMetal);
+                float a = (k * 45f + 22.5f) * Mathf.Deg2Rad;
+                P(ws, Shape.Cylinder, new Vector3(side * width * 0.54f, Mathf.Cos(a) * radius * 0.42f, Mathf.Sin(a) * radius * 0.42f),
+                    new Vector3(0f, 0f, 90f), new Vector3(0.13f, 0.08f, 0.13f), mMetal);
             }
-            for (int k = 0; k < 14; k++)
+            // Chevron tread blocks
+            for (int k = 0; k < 16; k++)
             {
-                float a = k * (360f / 14f) * Mathf.Deg2Rad;
-                P(ws, Shape.Box, new Vector3(0f, Mathf.Cos(a) * radius * 0.98f, Mathf.Sin(a) * radius * 0.98f), new Vector3(k * (360f / 14f), 0f, 0f), new Vector3(width * 1.04f, 0.14f, radius * 0.22f), mRubber);
+                float ang = k * (360f / 16f);
+                float a = ang * Mathf.Deg2Rad;
+                for (int sd = -1; sd <= 1; sd += 2)
+                    P(ws, Shape.Box, new Vector3(sd * width * 0.24f, Mathf.Cos(a) * radius * 0.97f, Mathf.Sin(a) * radius * 0.97f), new Vector3(ang, sd * 18f, 0f), new Vector3(width * 0.46f, 0.18f, radius * 0.2f), mRubber);
             }
             MeshMerge.Merge(ws);
             return new WheeledLocomotion.Wheel { anchor = anchor, visual = vis };

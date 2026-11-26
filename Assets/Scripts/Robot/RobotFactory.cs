@@ -57,7 +57,7 @@ namespace RobotArena
         static GameAssets A => GameAssets.Get();
 
         // Shared materials for the robot being built.
-        static Material mPrimary, mSecondary, mDark, mMetal, mAccent, mGlow, mHot, mRubber, mBlack;
+        static Material mPrimary, mSecondary, mDark, mMetal, mAccent, mGlow, mHot, mRubber, mBlack, mChrome;
 
         static void PrepareMaterials(Livery l)
         {
@@ -71,11 +71,14 @@ namespace RobotArena
             mHot = A.Glow(new Color(1f, 0.45f, 0.1f), 2.5f);
             mRubber = A.Paint(new Color(0.06f, 0.06f, 0.06f), 0f, 0.25f, false);
             mBlack = A.Paint(new Color(0.03f, 0.03f, 0.035f), 0.5f, 0.3f, false);
+            mChrome = A.Paint(new Color(0.78f, 0.79f, 0.8f), 1f, 0.95f, false);
         }
 
         public static GameObject Build(RobotType type, Vector3 groundPos, Quaternion rotation, int team, Livery livery, bool player, string name, Loadout? loadout = null)
         {
             PrepareMaterials(livery);
+            segDims.Clear();
+            footDims.Clear();
             Chassis c;
             switch (type)
             {
@@ -124,6 +127,7 @@ namespace RobotArena
 
         static void MergeLegs(List<WalkerLocomotion.Leg> legs)
         {
+            AddLegRams(legs);
             foreach (var leg in legs)
             {
                 MeshMerge.Merge(leg.thigh);
@@ -179,7 +183,14 @@ namespace RobotArena
             go.transform.localPosition = localPos;
             go.transform.localRotation = Quaternion.Euler(localEuler);
             Mesh mesh;
-            if (shape == Shape.Box && Mathf.Min(Mathf.Abs(scale.x), Mathf.Min(Mathf.Abs(scale.y), Mathf.Abs(scale.z))) >= 0.08f)
+            float minDim = Mathf.Min(Mathf.Abs(scale.x), Mathf.Min(Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+            if (shape == Shape.Box && minDim >= 0.45f)
+            {
+                // Big hull blocks become cast, rounded shells rather than sharp boxes.
+                mesh = Shapes.RoundedBox(new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z)), Mathf.Min(minDim * 0.2f, 0.45f));
+                go.transform.localScale = Vector3.one;
+            }
+            else if (shape == Shape.Box && minDim >= 0.08f)
             {
                 // Armour plates get real chamfered edges sized in metres.
                 mesh = Shapes.BevelBox(new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
@@ -187,6 +198,8 @@ namespace RobotArena
             }
             else
             {
+                // Bolts, rivets and thin rods: a six-sided prism reads the same at a fraction of the vertices.
+                if (shape == Shape.Cylinder && Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z)) < 0.3f) shape = Shape.Hex;
                 mesh = Shapes.Get(shape);
                 go.transform.localScale = scale;
             }

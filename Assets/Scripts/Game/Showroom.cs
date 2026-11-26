@@ -7,7 +7,7 @@ namespace RobotArena
     /// slowly rotating before the player deploys it. The robot is a real build with
     /// its brains switched off.
     /// </summary>
-    public class Showroom : MonoBehaviour
+    public partial class Showroom : MonoBehaviour
     {
         public static bool Active { get; private set; }
         public static readonly Vector3 Spot = new Vector3(0f, 0f, -1200f);
@@ -174,6 +174,8 @@ namespace RobotArena
                 Part(Shape.Cylinder, new Vector3(-44f, 4f + i * 2.6f, 10f), new Vector3(90f, 0f, 0f), new Vector3(1.2f, 12f, 1.2f), i % 2 == 0 ? darkMat : steelMat);
             }
 
+            BuildDetails(darkMat, steelMat, plateMat, hazard, coldLamp);
+
             MeshMerge.Merge(transform);
             foreach (var r in GetComponentsInChildren<MeshRenderer>())
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -207,7 +209,7 @@ namespace RobotArena
             rl.type = LightType.Point;
             rl.range = 70f;
             rl.intensity = 2f;
-            rl.color = UiKit.Orange;
+            rl.color = new Color(0.45f, 0.75f, 1f);
             rl.shadows = LightShadows.None;
         }
 

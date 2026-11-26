@@ -11,11 +11,14 @@ namespace RobotArena
     /// </summary>
     public static class UiKit
     {
-        // Palette: gunmetal panels, amber primary, steel-blue secondary accent.
+        // Palette: gunmetal panels, teal accent, steel-blue secondary accent.
         public static readonly Color PanelColor = new Color(0.055f, 0.065f, 0.08f, 0.9f);
         public static readonly Color PanelEdge = new Color(0.62f, 0.68f, 0.76f, 0.35f);
         public static readonly Color Cyan = new Color(0.42f, 0.78f, 0.95f);
-        public static readonly Color Orange = new Color(1f, 0.64f, 0.12f);
+        /// <summary>The UI accent: a cool electric teal that sits well in the dark, cold-lit hangar.</summary>
+        public static readonly Color Accent = new Color(0.2f, 0.84f, 0.76f);
+        /// <summary>Old name for the accent, kept so every screen picks up the new colour.</summary>
+        public static readonly Color Orange = Accent;
         public static readonly Color Yellow = new Color(1f, 0.8f, 0.3f);
         public static readonly Color Red = new Color(0.95f, 0.27f, 0.2f);
         public static readonly Color Green = new Color(0.45f, 0.9f, 0.45f);
@@ -92,19 +95,19 @@ namespace RobotArena
 
         /// <summary>Cut-corner plate used by panels and buttons.</summary>
         public static Sprite Chamfer => chamfer != null ? chamfer : chamfer =
-            MakeSprite("Chamfer", 96, (x, y, s) => 0.5f - ChamferDist(x, y, s, 28f), new Vector4(32, 32, 32, 32));
+            MakeSprite("Chamfer", 96, (x, y, s) => 0.5f - ChamferDist(x, y, s, 20f), new Vector4(32, 32, 32, 32));
 
         /// <summary>Thin 2px outline of the cut-corner plate.</summary>
         public static Sprite ChamferOutline => chamferOutline != null ? chamferOutline : chamferOutline =
             MakeSprite("ChamferOutline", 96, (x, y, s) =>
             {
-                float d = ChamferDist(x, y, s, 28f);
-                return Mathf.Min(0.5f - d, d + 2.5f);
+                float d = ChamferDist(x, y, s, 20f);
+                return Mathf.Min(0.5f - d, d + 1.8f);
             }, new Vector4(32, 32, 32, 32));
 
         /// <summary>Faint lighter band along the top edge (replaces the old glossy blob).</summary>
         public static Sprite Sheen => sheen != null ? sheen : sheen =
-            MakeSprite("Sheen", 96, (x, y, s) => Mathf.Clamp01(0.5f - ChamferDist(x, y, s, 28f)) * Mathf.Clamp01((y / s - 0.5f) * 2f) * 0.1f, new Vector4(32, 32, 32, 32));
+            MakeSprite("Sheen", 96, (x, y, s) => Mathf.Clamp01(0.5f - ChamferDist(x, y, s, 20f)) * Mathf.Clamp01((y / s - 0.5f) * 2f) * 0.08f, new Vector4(32, 32, 32, 32));
 
         /// <summary>Vertical fade: opaque at the bottom, clear at the top.</summary>
         public static Sprite VGrad => vgrad != null ? vgrad : vgrad =
@@ -263,31 +266,49 @@ namespace RobotArena
 
         public enum ButtonStyle { Primary, Secondary, Danger }
 
-        /// <summary>Cut-corner button: solid amber (primary), dark steel with an amber tab (secondary) or dark red.</summary>
+        /// <summary>
+        /// Cut-corner button. Primary: dark glass with a teal outline, a soft teal glow rising
+        /// from the bottom and a bright underline. Secondary: dark steel with a thin teal tab.
+        /// Danger: the same in red.
+        /// </summary>
         public static Button Button(Transform parent, string label, Vector2 anchor, Vector2 pos, Vector2 size, ButtonStyle style, UnityEngine.Events.UnityAction onClick, int fontSize = 0)
         {
             var rt = Rect(label, parent, anchor, pos, size);
-            Color fill, text, edge;
+            Color fill, text, edge, tint;
             switch (style)
             {
-                case ButtonStyle.Primary: fill = Orange; text = new Color(0.07f, 0.05f, 0.02f); edge = new Color(1f, 0.85f, 0.5f, 0.9f); break;
-                case ButtonStyle.Danger: fill = new Color(0.42f, 0.09f, 0.08f, 0.95f); text = TextBright; edge = new Color(0.95f, 0.4f, 0.32f, 0.8f); break;
-                default: fill = Steel; text = TextBright; edge = PanelEdge; break;
+                case ButtonStyle.Primary:
+                    fill = new Color(0.04f, 0.13f, 0.14f, 0.94f); text = TextBright; edge = new Color(Accent.r, Accent.g, Accent.b, 0.95f); tint = Accent; break;
+                case ButtonStyle.Danger:
+                    fill = new Color(0.16f, 0.05f, 0.05f, 0.94f); text = TextBright; edge = new Color(0.95f, 0.4f, 0.32f, 0.85f); tint = Red; break;
+                default:
+                    fill = new Color(0.07f, 0.085f, 0.1f, 0.92f); text = TextBright; edge = new Color(0.62f, 0.7f, 0.78f, 0.3f); tint = Accent; break;
             }
             var img = Image(rt, Chamfer, fill, true);
-            // Darker lower half gives the plate some depth.
-            var shade = Child(rt, "Shade", VGrad, new Color(0f, 0f, 0f, style == ButtonStyle.Primary ? 0.18f : 0.3f), 2f);
-            shade.rectTransform.anchorMax = new Vector2(1f, 0.6f);
+            // Soft glow of the accent colour rising from the bottom edge.
+            var glow = Child(rt, "Glow", VGrad, new Color(tint.r, tint.g, tint.b, style == ButtonStyle.Secondary ? 0.06f : 0.22f), 2f);
+            glow.rectTransform.anchorMax = new Vector2(1f, 0.75f);
             Child(rt, "Sheen", Sheen, Color.white);
             Child(rt, "Edge", ChamferOutline, edge);
-            if (style != ButtonStyle.Primary)
+            if (style == ButtonStyle.Secondary)
             {
-                // Accent tab on the left edge.
-                var tab = Rect("Tab", rt, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(5f, size.y * 0.46f));
-                Image(tab, null, style == ButtonStyle.Danger ? Red : Orange);
+                // Thin accent tab on the left edge.
+                var tab = Rect("Tab", rt, new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(3f, size.y * 0.42f));
+                Image(tab, null, Accent);
+            }
+            else
+            {
+                // Bright underline, inset from the cut corners.
+                var line = Rect("Underline", rt, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(size.x * 0.56f, 3f));
+                Image(line, null, new Color(tint.r, tint.g, tint.b, 0.95f));
+                // Small chevrons either side of the label.
+                foreach (float sx in new[] { -1f, 1f })
+                {
+                    var chev = Rect("Chevron", rt, new Vector2(0.5f + sx * 0.5f, 0.5f), new Vector2(-sx * 22f, 0f), new Vector2(8f, size.y * 0.3f));
+                    Image(chev, null, new Color(tint.r, tint.g, tint.b, 0.55f));
+                }
             }
             var t = Label(rt, label, fontSize > 0 ? fontSize : Mathf.RoundToInt(size.y * 0.38f), text, TextAnchor.MiddleCenter, true);
-            if (style == ButtonStyle.Primary) t.GetComponent<Shadow>().effectColor = new Color(1f, 1f, 1f, 0.2f);
 
             var btn = rt.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;

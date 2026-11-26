@@ -23,15 +23,16 @@ namespace RobotArena
 
             // ---- Pelvis ----
             var hull = Group(t, "HullStatic", Vector3.zero);
-            P(hull, Shape.Box, Vector3.zero, Vector3.zero, new Vector3(3.6f, 1.7f, 3.0f), mDark);
-            P(hull, Shape.Box, new Vector3(0f, 0.55f, 0f), Vector3.zero, new Vector3(4.0f, 0.6f, 3.2f), mSecondary);
-            Armor(hull, new Vector3(0f, -0.35f, 1.6f), new Vector3(12f, 0f, 0f), new Vector3(2.0f, 1.5f, 0.45f), mPrimary);
-            Armor(hull, new Vector3(0f, -0.25f, -1.6f), new Vector3(-10f, 180f, 0f), new Vector3(2.6f, 1.3f, 0.4f), mPrimary);
-            P(hull, Shape.Cylinder, new Vector3(0f, 1.0f, 0f), Vector3.zero, new Vector3(3.0f, 0.5f, 3.0f), mDark);
+            Shell(hull, Vector3.zero, Vector3.zero, new Vector3(3.8f, 1.9f, 3.2f), mDark, 0.5f, 0.9f, 0.9f);
+            Shell(hull, new Vector3(0f, 0.6f, 0f), Vector3.zero, new Vector3(4.2f, 0.7f, 3.4f), mSecondary, 0.25f);
+            Armor(hull, new Vector3(0f, -0.4f, 1.65f), new Vector3(14f, 0f, 0f), new Vector3(2.2f, 1.6f, 0.45f), mPrimary);
+            Armor(hull, new Vector3(0f, -0.3f, -1.65f), new Vector3(-10f, 180f, 0f), new Vector3(2.6f, 1.4f, 0.4f), mPrimary);
+            DiscPart(hull, new Vector3(0f, 1.05f, 0f), Vector3.zero, 3.2f, 0.5f, mDark);
             for (int s = -1; s <= 1; s += 2)
             {
-                Joint(hull, new Vector3(s * 2.35f, -0.5f, 0f), 2.1f, 0.9f);
-                Armor(hull, new Vector3(s * 2.1f, 0.35f, 0f), new Vector3(0f, s * 90f, s * 25f), new Vector3(2.8f, 1.1f, 0.35f), mPrimary);
+                Joint(hull, new Vector3(s * 2.45f, -0.5f, 0f), 2.5f, 1.0f);
+                Shell(hull, new Vector3(s * 2.2f, 0.45f, 0f), new Vector3(0f, 0f, -s * 22f), new Vector3(1.4f, 0.9f, 3.0f), mPrimary, 0.35f, 0.85f, 0.9f);
+                Hose(hull, new[] { new Vector3(s * 1.4f, 0.3f, -1.4f), new Vector3(s * 2.1f, -0.2f, -1.6f), new Vector3(s * 2.5f, -1.2f, -0.9f) }, 0.12f);
             }
 
             // ---- Legs ----
@@ -41,21 +42,19 @@ namespace RobotArena
                 var hip = Group(t, s < 0 ? "HipL" : "HipR", new Vector3(s * 2.75f, -0.5f, 0f));
 
                 var thighT = Group(t, "Thigh", Vector3.zero);
-                LegSegment(thighT, thigh, 1.8f, 2.0f, s, false);
+                LegSegment(thighT, thigh, 2.2f, 2.4f, s, false);
 
                 var kneeT = Group(t, "Knee", Vector3.zero);
-                Joint(kneeT, Vector3.zero, 1.9f, 1.7f);
-                Armor(kneeT, new Vector3(0f, 0.45f, 1.0f), new Vector3(-20f, 0f, 0f), new Vector3(1.9f, 1.9f, 0.5f), mPrimary);
-                Lamp(kneeT, new Vector3(0f, 1.25f, 1.25f), new Vector3(-20f, 0f, 0f), 0.35f, mGlow);
+                Joint(kneeT, Vector3.zero, 2.3f, 2.1f);
+                Shell(kneeT, new Vector3(0f, 0.35f, 1.15f), new Vector3(-18f, 0f, 0f), new Vector3(2.0f, 2.0f, 0.7f), mPrimary, 0.3f, 0.8f, 0.9f);
+                P(kneeT, Shape.Box, new Vector3(0f, 0.9f, 1.5f), new Vector3(-18f, 0f, 0f), new Vector3(1.2f, 0.08f, 0.1f), mBlack);
+                Lamp(kneeT, new Vector3(0f, 1.3f, 1.35f), new Vector3(-18f, 0f, 0f), 0.35f, mGlow);
 
                 var shinT = Group(t, "Shin", Vector3.zero);
-                LegSegment(shinT, shin, 1.7f, 1.9f, s, true);
-                // Calf heat sinks
-                for (int k = 0; k < 3; k++)
-                    P(shinT, Shape.Box, new Vector3(0f, -1.05f, -0.6f + k * 0.55f), Vector3.zero, new Vector3(1.2f, 0.25f, 0.18f), mBlack);
+                LegSegment(shinT, shin, 2.1f, 2.3f, s, true);
 
                 var footT = Group(t, "Foot", Vector3.zero);
-                MechFoot(footT, 3.0f, 4.9f, mPrimary);
+                MechFoot(footT, 3.2f, 5.0f, mPrimary);
 
                 legs.Add(new WalkerLocomotion.Leg { hip = hip, thigh = thighT, knee = kneeT, shin = shinT, foot = footT, side = s });
             }
@@ -63,51 +62,64 @@ namespace RobotArena
             // ---- Upper body (turns to aim) ----
             var upper = Group(t, "Upper", new Vector3(0f, 1.4f, 0f));
             var torso = Group(upper, "TorsoStatic", Vector3.zero);
-            P(torso, Shape.Cylinder, new Vector3(0f, 0.2f, 0f), Vector3.zero, new Vector3(3.2f, 0.6f, 3.2f), mDark);
-            P(torso, Shape.Box, new Vector3(0f, 1.3f, 0f), Vector3.zero, new Vector3(3.6f, 1.6f, 3.0f), mDark);
+            // Waist bearing and the rams that brace the chest on it
+            DiscPart(torso, new Vector3(0f, 0.25f, 0f), Vector3.zero, 3.4f, 0.6f, mDark);
+            Shell(torso, new Vector3(0f, 1.3f, 0.1f), Vector3.zero, new Vector3(3.8f, 1.6f, 3.0f), mDark, 0.45f, 1.25f, 1.15f);
             for (int s = -1; s <= 1; s += 2)
-                Piston(torso, new Vector3(s * 1.2f, 0.4f, 1.1f), new Vector3(s * 1.5f, 2.2f, 1.3f), 0.16f);
-            // Main chest: layered hull with a keel down the middle
-            P(torso, Shape.Box, new Vector3(0f, 3.0f, -0.3f), Vector3.zero, new Vector3(5.8f, 3.4f, 4.0f), mSecondary);
-            P(torso, Shape.Box, new Vector3(0f, 4.55f, -0.2f), Vector3.zero, new Vector3(5.2f, 0.5f, 3.8f), mPrimary);
-            Armor(torso, new Vector3(0f, 2.7f, 1.95f), new Vector3(-6f, 0f, 0f), new Vector3(1.4f, 2.8f, 0.5f), mPrimary);
-            Vent(torso, new Vector3(0f, 1.75f, 2.0f), Vector3.zero, 1.1f, 0.7f, 3);
-            // Back: reactor housing, vents and exhaust stacks
-            Armor(torso, new Vector3(0f, 2.9f, -2.35f), new Vector3(0f, 180f, 0f), new Vector3(4.2f, 2.8f, 0.4f), mPrimary);
-            P(torso, Shape.Cylinder, new Vector3(0f, 2.9f, -2.75f), new Vector3(90f, 0f, 0f), new Vector3(2.0f, 0.4f, 2.0f), mDark);
-            P(torso, Shape.Cylinder, new Vector3(0f, 2.9f, -2.98f), new Vector3(90f, 0f, 0f), new Vector3(1.4f, 0.1f, 1.4f), mGlow);
+                Piston(torso, new Vector3(s * 1.3f, 0.45f, 1.0f), new Vector3(s * 1.7f, 2.1f, 1.45f), 0.18f);
+            // Barrel chest: one cast hull, a raised collar and a keel down the front
+            Shell(torso, new Vector3(0f, 3.0f, -0.3f), Vector3.zero, new Vector3(5.8f, 3.6f, 4.4f), mSecondary, 1.0f, 0.9f, 0.88f);
+            Shell(torso, new Vector3(0f, 4.6f, -0.2f), Vector3.zero, new Vector3(4.8f, 0.7f, 3.6f), mPrimary, 0.3f, 0.92f, 0.9f);
+            Shell(torso, new Vector3(0f, 2.65f, 1.95f), new Vector3(-8f, 0f, 0f), new Vector3(1.3f, 2.9f, 0.7f), mPrimary, 0.28f, 0.75f, 1f);
+            P(torso, Shape.Box, new Vector3(0f, 3.2f, 2.33f), new Vector3(-8f, 0f, 0f), new Vector3(0.7f, 0.08f, 0.1f), mBlack);
+            P(torso, Shape.Box, new Vector3(0f, 2.3f, 2.38f), new Vector3(-8f, 0f, 0f), new Vector3(0.7f, 0.08f, 0.1f), mBlack);
+            Vent(torso, new Vector3(0f, 1.45f, 1.62f), new Vector3(-10f, 0f, 0f), 1.4f, 0.8f, 4);
+            // Back: reactor housing with a glowing core, vents and exhaust stacks
+            Shell(torso, new Vector3(0f, 2.9f, -2.55f), Vector3.zero, new Vector3(3.8f, 3.0f, 1.3f), mPrimary, 0.5f, 0.9f, 0.9f);
+            DiscPart(torso, new Vector3(0f, 2.9f, -3.2f), new Vector3(90f, 0f, 0f), 2.1f, 0.4f, mDark);
+            P(torso, Shape.Cylinder, new Vector3(0f, 2.9f, -3.42f), new Vector3(90f, 0f, 0f), new Vector3(0.95f, 0.06f, 0.95f), mGlow);
             for (int s = -1; s <= 1; s += 2)
             {
-                Vent(torso, new Vector3(s * 2.95f, 2.6f, -0.4f), new Vector3(0f, s * 90f, 0f), 2.4f, 1.6f, 4);
-                P(torso, Shape.Cylinder, new Vector3(s * 1.7f, 5.4f, -1.9f), Vector3.zero, new Vector3(0.7f, 1.8f, 0.7f), mDark);
-                P(torso, Shape.Cylinder, new Vector3(s * 1.7f, 6.32f, -1.9f), Vector3.zero, new Vector3(0.55f, 0.08f, 0.55f), mHot);
-                P(torso, Shape.Box, new Vector3(s * 2.3f, 1.0f, -2.0f), new Vector3(30f, 0f, 0f), new Vector3(1.3f, 1.2f, 1.4f), mDark);
+                Vent(torso, new Vector3(s * 2.75f, 2.7f, -0.4f), new Vector3(0f, s * 90f, 0f), 2.2f, 1.5f, 5);
+                P(torso, Shape.Cylinder, new Vector3(s * 1.6f, 5.35f, -2.0f), Vector3.zero, new Vector3(0.75f, 1.9f, 0.75f), mDark);
+                DiscPart(torso, new Vector3(s * 1.6f, 4.75f, -2.0f), Vector3.zero, 1.0f, 0.25f, mSecondary);
+                P(torso, Shape.Cylinder, new Vector3(s * 1.6f, 6.31f, -2.0f), Vector3.zero, new Vector3(0.58f, 0.06f, 0.58f), mHot);
+                Shell(torso, new Vector3(s * 2.25f, 1.0f, -2.0f), new Vector3(30f, 0f, 0f), new Vector3(1.3f, 1.2f, 1.4f), mDark, 0.3f);
+                // Hoses from the reactor to the shoulders
+                Hose(torso, new[] { new Vector3(s * 1.5f, 3.9f, -2.6f), new Vector3(s * 2.6f, 4.5f, -1.9f), new Vector3(s * 3.3f, 4.1f, -0.9f) }, 0.16f);
+                Hose(torso, new[] { new Vector3(s * 1.2f, 2.0f, -2.9f), new Vector3(s * 2.4f, 1.6f, -2.4f), new Vector3(s * 2.9f, 2.2f, -1.4f) }, 0.12f);
             }
-            // Head
-            Cockpit(torso, new Vector3(0f, 5.4f, 1.0f), 2.4f, 1.4f, 2.2f);
-            P(torso, Shape.Box, new Vector3(0f, 4.85f, 0.6f), Vector3.zero, new Vector3(1.6f, 0.4f, 1.6f), mDark);
+            // Head, sunk between the shoulders on an armoured collar
+            Shell(torso, new Vector3(0f, 4.95f, 0.75f), Vector3.zero, new Vector3(2.4f, 0.6f, 2.0f), mDark, 0.25f);
+            Cockpit(torso, new Vector3(0f, 5.55f, 1.05f), 2.3f, 1.35f, 2.1f);
             var antenna = Antenna(upper, new Vector3(-1.0f, 6.0f, 0.2f), 2.2f);
 
             // Chest armour plates (blow off when damaged)
-            var chestL = Group(upper, "ChestPlateL", new Vector3(-1.85f, 3.0f, 2.05f));
-            chestL.localRotation = Quaternion.Euler(-6f, 14f, 0f);
-            Armor(chestL, Vector3.zero, Vector3.zero, new Vector3(2.2f, 3.0f, 0.5f), mPrimary);
-            P(chestL, Shape.Box, new Vector3(0.2f, 1.1f, 0.36f), Vector3.zero, new Vector3(1.3f, 0.16f, 0.05f), mAccent);
-            var chestR = Group(upper, "ChestPlateR", new Vector3(1.85f, 3.0f, 2.05f));
-            chestR.localRotation = Quaternion.Euler(-6f, -14f, 0f);
-            Armor(chestR, Vector3.zero, Vector3.zero, new Vector3(2.2f, 3.0f, 0.5f), mPrimary);
-            P(chestR, Shape.Box, new Vector3(-0.2f, 1.1f, 0.36f), Vector3.zero, new Vector3(1.3f, 0.16f, 0.05f), mAccent);
+            var chestL = Group(upper, "ChestPlateL", new Vector3(-1.8f, 3.0f, 2.0f));
+            chestL.localRotation = Quaternion.Euler(-6f, 16f, 0f);
+            Shell(chestL, Vector3.zero, Vector3.zero, new Vector3(2.3f, 3.0f, 0.6f), mPrimary, 0.28f, 0.9f, 1f);
+            P(chestL, Shape.Box, new Vector3(0f, -0.5f, 0.31f), Vector3.zero, new Vector3(1.7f, 0.06f, 0.08f), mBlack);
+            P(chestL, Shape.Box, new Vector3(0.15f, 1.0f, 0.31f), Vector3.zero, new Vector3(1.3f, 0.16f, 0.05f), mAccent);
+            Lamp(chestL, new Vector3(-0.6f, 0.3f, 0.35f), Vector3.zero, 0.3f, mGlow);
+            var chestR = Group(upper, "ChestPlateR", new Vector3(1.8f, 3.0f, 2.0f));
+            chestR.localRotation = Quaternion.Euler(-6f, -16f, 0f);
+            Shell(chestR, Vector3.zero, Vector3.zero, new Vector3(2.3f, 3.0f, 0.6f), mPrimary, 0.28f, 0.9f, 1f);
+            P(chestR, Shape.Box, new Vector3(0f, -0.5f, 0.31f), Vector3.zero, new Vector3(1.7f, 0.06f, 0.08f), mBlack);
+            P(chestR, Shape.Box, new Vector3(-0.15f, 1.0f, 0.31f), Vector3.zero, new Vector3(1.3f, 0.16f, 0.05f), mAccent);
+            Stencil(chestR, new Vector3(0.1f, -0.95f, 0.31f), Vector3.zero, 1.2f);
 
-            // Shoulder armour
+            // Shoulder armour: big cast pauldrons with a side skirt and a work light
             var pauldrons = new Transform[2];
             for (int s = -1; s <= 1; s += 2)
             {
-                var pd = Group(upper, s < 0 ? "PauldronL" : "PauldronR", new Vector3(s * 4.0f, 4.3f, 0.1f));
-                pd.localRotation = Quaternion.Euler(0f, 0f, -s * 14f);
-                Armor(pd, new Vector3(0f, 0.2f, 0f), new Vector3(-90f, 0f, 0f), new Vector3(2.7f, 3.5f, 0.7f), mPrimary);
-                Armor(pd, new Vector3(s * 1.35f, -0.4f, 0f), new Vector3(0f, s * 90f, 0f), new Vector3(3.3f, 1.5f, 0.45f), mPrimary);
-                P(pd, Shape.Box, new Vector3(s * 1.62f, -0.15f, 0f), Vector3.zero, new Vector3(0.06f, 0.24f, 2.6f), mAccent);
-                Lamp(pd, new Vector3(0f, 0.2f, 1.8f), Vector3.zero, 0.4f, A.Glow(Color.white, 3f));
+                var pd = Group(upper, s < 0 ? "PauldronL" : "PauldronR", new Vector3(s * 4.0f, 4.4f, 0.1f));
+                pd.localRotation = Quaternion.Euler(0f, 0f, -s * 12f);
+                Shell(pd, new Vector3(0f, 0.15f, 0f), Vector3.zero, new Vector3(3.1f, 1.5f, 3.8f), mPrimary, 0.6f, 0.82f, 0.88f);
+                Shell(pd, new Vector3(s * 1.45f, -0.6f, 0f), new Vector3(0f, 0f, s * 8f), new Vector3(0.5f, 1.9f, 3.4f), mPrimary, 0.2f, 1f, 0.92f);
+                P(pd, Shape.Box, new Vector3(s * 1.72f, -0.3f, 0f), Vector3.zero, new Vector3(0.06f, 0.22f, 2.8f), mAccent);
+                for (int k = 0; k < 3; k++)
+                    P(pd, Shape.Box, new Vector3(s * 0.3f, 0.92f, -0.9f + k * 0.6f), Vector3.zero, new Vector3(1.6f, 0.06f, 0.12f), mBlack);
+                Lamp(pd, new Vector3(0f, 0.1f, 1.92f), Vector3.zero, 0.45f, A.Glow(Color.white, 3f));
                 pauldrons[s < 0 ? 0 : 1] = pd;
             }
 
@@ -118,18 +130,21 @@ namespace RobotArena
             for (int s = -1; s <= 1; s += 2)
             {
                 float x = s * 4.0f;
-                Joint(armStatic, new Vector3(x, 0f, 0f), 1.9f, 1.8f);
-                // Upper arm
-                P(armStatic, Shape.Box, new Vector3(x, -1.4f, 0f), Vector3.zero, new Vector3(1.1f, 2.4f, 1.2f), mDark);
-                Armor(armStatic, new Vector3(x + s * 0.55f, -1.3f, 0f), new Vector3(0f, s * 90f, 0f), new Vector3(1.5f, 2.2f, 0.35f), mSecondary);
-                Piston(armStatic, new Vector3(x - s * 0.55f, -0.4f, 0.5f), new Vector3(x - s * 0.55f, -2.4f, 0.6f), 0.15f);
-                // Elbow and forearm
-                Joint(armStatic, new Vector3(x, -2.75f, 0.1f), 1.4f, 1.5f);
-                Armor(armStatic, new Vector3(x, -2.75f, 0.9f), new Vector3(-90f, 0f, 0f), new Vector3(1.8f, 2.2f, 1.6f), mSecondary);
-                Armor(armStatic, new Vector3(x + s * 0.95f, -2.75f, 0.9f), new Vector3(0f, s * 90f, 0f), new Vector3(2.0f, 1.4f, 0.3f), mPrimary, mDark, false);
+                Joint(armStatic, new Vector3(x, 0f, 0f), 2.4f, 1.7f);
+                // Upper arm with its own ram
+                Shell(armStatic, new Vector3(x, -1.4f, -0.1f), Vector3.zero, new Vector3(1.3f, 2.4f, 1.4f), mDark, 0.35f);
+                Shell(armStatic, new Vector3(x + s * 0.65f, -1.3f, -0.1f), Vector3.zero, new Vector3(0.4f, 2.2f, 1.6f), mSecondary, 0.15f);
+                Piston(armStatic, new Vector3(x - s * 0.1f, -0.5f, 0.75f), new Vector3(x - s * 0.1f, -2.3f, 0.85f), 0.2f);
+                // Elbow and a heavy armoured forearm
+                Joint(armStatic, new Vector3(x, -2.75f, 0.1f), 1.8f, 1.6f);
+                Shell(armStatic, new Vector3(x, -2.75f, 1.0f), Vector3.zero, new Vector3(2.0f, 2.0f, 2.6f), mSecondary, 0.5f, 0.92f, 1f);
+                Shell(armStatic, new Vector3(x, -1.72f, 1.0f), Vector3.zero, new Vector3(1.6f, 0.35f, 2.2f), mPrimary, 0.15f);
+                Shell(armStatic, new Vector3(x + s * 1.02f, -2.75f, 1.0f), Vector3.zero, new Vector3(0.3f, 1.5f, 2.2f), mPrimary, 0.12f);
+                P(armStatic, Shape.Box, new Vector3(x + s * 1.18f, -2.75f, 1.0f), Vector3.zero, new Vector3(0.05f, 0.2f, 1.6f), mAccent);
+                Hose(armStatic, new[] { new Vector3(x - s * 0.6f, -0.6f, -0.6f), new Vector3(x - s * 0.8f, -1.9f, -0.5f), new Vector3(x - s * 0.7f, -2.8f, 0.2f), new Vector3(x - s * 0.6f, -2.9f, 0.8f) }, 0.12f);
                 // Clamp that holds the weapon
                 for (int c = -1; c <= 1; c += 2)
-                    P(armStatic, Shape.Box, new Vector3(x, -2.75f + c * 0.85f, 1.75f), Vector3.zero, new Vector3(1.2f, 0.28f, 0.7f), mDark);
+                    Shell(armStatic, new Vector3(x, -2.75f + c * 0.85f, 1.85f), Vector3.zero, new Vector3(1.3f, 0.3f, 0.7f), mDark, 0.1f);
                 mounts[s < 0 ? 0 : 1] = Group(arms, s < 0 ? "MountL" : "MountR", new Vector3(x, -2.75f, 1.6f));
             }
             var shoulder = Group(arms, "ShoulderMount", new Vector3(-4.0f, 2.2f, -0.2f));

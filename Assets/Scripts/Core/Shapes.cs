@@ -245,6 +245,222 @@ namespace RobotArena
             return m;
         }
 
+        struct RoundKey
+        {
+            public Vector3Int size; public int r, tx, tz;
+            public override int GetHashCode() => size.GetHashCode() * 31 + r * 7 + tx * 13 + tz * 17;
+            public override bool Equals(object o) => o is RoundKey k && k.size.Equals(size) && k.r == r && k.tx == tx && k.tz == tz;
+        }
+        static readonly Dictionary<RoundKey, Mesh> RoundCache = new Dictionary<RoundKey, Mesh>();
+
+        /// <summary>
+        /// A sculpted armour shell: a box of the given size (metres) with smoothly rounded
+        /// edges of the given radius, and optionally narrower at the top (taperX, taperZ are
+        /// the top face's width and depth as a fraction of the bottom's). Smooth-shaded, so
+        /// big plates read as cast and machined metal instead of blocks.
+        /// </summary>
+        public static Mesh RoundedBox(Vector3 size, float radius, float taperX = 1f, float taperZ = 1f)
+        {
+            var key = new RoundKey
+            {
+                size = new Vector3Int(Mathf.RoundToInt(size.x * 20f), Mathf.RoundToInt(size.y * 20f), Mathf.RoundToInt(size.z * 20f)),
+                r = Mathf.RoundToInt(radius * 40f), tx = Mathf.RoundToInt(taperX * 20f), tz = Mathf.RoundToInt(taperZ * 20f)
+            };
+            if (RoundCache.TryGetValue(key, out var cached) && cached != null) return cached;
+            Vector3 h = new Vector3(key.size.x, key.size.y, key.size.z) / 40f;
+            float r = Mathf.Min(key.r / 40f, Mathf.Min(h.x, Mathf.Min(h.y, h.z)) * 0.95f);
+            float ftx = key.tx / 20f, ftz = key.tz / 20f;
+
+            // Grid lines across each face: dense in the rounded margin, sparse in the flat middle.
+            float[] Lines(float half)
+            {
+                float inner = half - r;
+                return new[] { -half, -half + r * 0.3f, -inner, inner, half - r * 0.3f, half };
+            }
+            var v = new List<Vector3>();
+            var n = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var t = new List<int>();
+            Vector3 hin = new Vector3(h.x - r, h.y - r, h.z - r);
+            for (int axis = 0; axis < 3; axis++)
+                for (int sgn = -1; sgn <= 1; sgn += 2)
+                {
+                    int a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
+                    float[] L1 = Lines(h[a1]), L2 = Lines(h[a2]);
+                    int start = v.Count;
+                    for (int j = 0; j < L2.Length; j++)
+                        for (int i = 0; i < L1.Length; i++)
+                        {
+                            Vector3 q = Vector3.zero;
+                            q[axis] = sgn * h[axis]; q[a1] = L1[i]; q[a2] = L2[j];
+                            Vector3 c = new Vector3(Mathf.Clamp(q.x, -hin.x, hin.x), Mathf.Clamp(q.y, -hin.y, hin.y), Mathf.Clamp(q.z, -hin.z, hin.z));
+                            Vector3 nn = (q - c).normalized;
+                            Vector3 pos = c + nn * r;
+                            // Taper towards the top.
+                            float f = (pos.y / h.y + 1f) * 0.5f;
+                            float sx = Mathf.Lerp(1f, ftx, f), sz = Mathf.Lerp(1f, ftz, f);
+                            pos.x *= sx; pos.z *= sz;
+                            v.Add(pos);
+                            n.Add(nn);
+                            uv.Add(new Vector2(q[a1], q[a2]));
+                        }
+                    int w = L1.Length;
+                    for (int j = 0; j < L2.Length - 1; j++)
+                        for (int i = 0; i < w - 1; i++)
+                        {
+                            int a = start + j * w + i, b = a + 1, c = a + w, d = c + 1;
+                            // Wind outward: check against the face normal.
+                            Vector3 cr = Vector3.Cross(v[b] - v[a], v[c] - v[a]);
+                            Vector3 fn = Vector3.zero; fn[axis] = sgn;
+                            if (Vector3.Dot(cr, fn) >= 0f) { t.Add(a); t.Add(b); t.Add(c); t.Add(b); t.Add(d); t.Add(c); }
+                            else { t.Add(a); t.Add(c); t.Add(b); t.Add(b); t.Add(c); t.Add(d); }
+                        }
+                }
+            var m = new Mesh();
+            m.SetVertices(v);
+            m.SetUVs(0, uv);
+            m.SetTriangles(t, 0);
+            if (ftx != 1f || ftz != 1f) SmoothNormals(m, v, t);
+            else m.SetNormals(n);
+            m.RecalculateBounds();
+            m.RecalculateTangents();
+            m.name = "RoundedBox";
+            RoundCache[key] = m;
+            return m;
+        }
+
+        /// <summary>Smooth normals that ignore seams between separately built faces (welds by position).</summary>
+        static void SmoothNormals(Mesh m, List<Vector3> v, List<int> t)
+        {
+            var acc = new Dictionary<Vector3Int, Vector3>();
+            Vector3Int K(Vector3 p) => new Vector3Int(Mathf.RoundToInt(p.x * 1000f), Mathf.RoundToInt(p.y * 1000f), Mathf.RoundToInt(p.z * 1000f));
+            for (int i = 0; i < t.Count; i += 3)
+            {
+                Vector3 fn = Vector3.Cross(v[t[i + 1]] - v[t[i]], v[t[i + 2]] - v[t[i]]);
+                for (int k = 0; k < 3; k++)
+                {
+                    var key = K(v[t[i + k]]);
+                    acc.TryGetValue(key, out var cur);
+                    acc[key] = cur + fn;
+                }
+            }
+            var n = new List<Vector3>(v.Count);
+            foreach (var p in v) n.Add(acc[K(p)].normalized);
+            m.SetNormals(n);
+        }
+
+        static readonly Dictionary<Vector3Int, Mesh> DiscCache = new Dictionary<Vector3Int, Mesh>();
+
+        /// <summary>
+        /// A machined disc along local Y (diameter, height in metres): chamfered rims and,
+        /// on both faces, a recessed ring around a raised hub. Big joints and wheels.
+        /// </summary>
+        public static Mesh Disc(float diameter, float height)
+        {
+            var key = new Vector3Int(Mathf.RoundToInt(diameter * 20f), Mathf.RoundToInt(height * 20f), 0);
+            if (DiscCache.TryGetValue(key, out var cached) && cached != null) return cached;
+            float R = key.x / 40f, H = key.y / 40f;
+            float b = Mathf.Min(R * 0.12f, H * 0.4f);
+            // Profile from the axis outwards over the top face, down the rim, back over the bottom.
+            // (radius, y) pairs; the hub is raised, the ring around it recessed.
+            float hubR = R * 0.42f, ringIn = R * 0.5f, ringOut = R * 0.78f, rec = Mathf.Min(H * 0.18f, 0.12f);
+            var prof = new List<Vector2>
+            {
+                new Vector2(0f, H + rec * 0.6f), new Vector2(hubR - 0.02f, H + rec * 0.6f), new Vector2(hubR, H),
+                new Vector2(ringIn, H - rec), new Vector2(ringOut, H - rec), new Vector2(ringOut + 0.01f, H),
+                new Vector2(R - b, H), new Vector2(R, H - b), new Vector2(R, -H + b), new Vector2(R - b, -H),
+                new Vector2(ringOut + 0.01f, -H), new Vector2(ringOut, -H + rec), new Vector2(ringIn, -H + rec),
+                new Vector2(hubR, -H), new Vector2(hubR - 0.02f, -H - rec * 0.6f), new Vector2(0f, -H - rec * 0.6f),
+            };
+            const int seg = 16;
+            var v = new List<Vector3>();
+            var n = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var t = new List<int>();
+            // Each profile edge becomes its own band (hard edges between bands).
+            for (int e = 0; e < prof.Count - 1; e++)
+            {
+                Vector2 p0 = prof[e], p1 = prof[e + 1];
+                float dx = p1.x - p0.x, dy = p1.y - p0.y;
+                float dl = Mathf.Sqrt(dx * dx + dy * dy);
+                if (dl < 1e-4f) continue;
+                Vector2 pn = new Vector2(dy / dl, -dx / dl); // outward in (r, y)
+                int start = v.Count;
+                for (int s = 0; s <= seg; s++)
+                {
+                    float a = s / (float)seg * Mathf.PI * 2f;
+                    float c = Mathf.Cos(a), sn = Mathf.Sin(a);
+                    v.Add(new Vector3(c * p0.x, p0.y, sn * p0.x));
+                    v.Add(new Vector3(c * p1.x, p1.y, sn * p1.x));
+                    Vector3 nn = new Vector3(c * pn.x, pn.y, sn * pn.x).normalized;
+                    n.Add(nn); n.Add(nn);
+                    uv.Add(new Vector2(c * p0.x, sn * p0.x)); uv.Add(new Vector2(c * p1.x, sn * p1.x));
+                }
+                for (int s = 0; s < seg; s++)
+                {
+                    int i0 = start + s * 2, i1 = i0 + 1, i2 = i0 + 2, i3 = i0 + 3;
+                    Vector3 cr = Vector3.Cross(v[i1] - v[i0], v[i2] - v[i0]);
+                    Vector3 mid = (v[i0] + v[i1] + v[i2]) / 3f;
+                    Vector3 nn = n[i0];
+                    if (Vector3.Dot(cr, nn) >= 0f) { t.Add(i0); t.Add(i1); t.Add(i2); t.Add(i1); t.Add(i3); t.Add(i2); }
+                    else { t.Add(i0); t.Add(i2); t.Add(i1); t.Add(i1); t.Add(i2); t.Add(i3); }
+                }
+            }
+            var m = Build(v, n, uv, t);
+            m.name = "Disc";
+            DiscCache[key] = m;
+            return m;
+        }
+
+        /// <summary>A flexible hose through the given points (smooth Catmull-Rom curve).</summary>
+        public static Mesh Tube(IList<Vector3> pts, float radius, int sides = 8)
+        {
+            var path = new List<Vector3>();
+            for (int i = 0; i < pts.Count - 1; i++)
+            {
+                Vector3 p0 = pts[Mathf.Max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Mathf.Min(pts.Count - 1, i + 2)];
+                for (int k = 0; k < 6; k++)
+                {
+                    float u = k / 6f, u2 = u * u, u3 = u2 * u;
+                    path.Add(0.5f * (2f * p1 + (-p0 + p2) * u + (2f * p0 - 5f * p1 + 4f * p2 - p3) * u2 + (-p0 + 3f * p1 - 3f * p2 + p3) * u3));
+                }
+            }
+            path.Add(pts[pts.Count - 1]);
+            var v = new List<Vector3>();
+            var n = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var t = new List<int>();
+            Vector3 prevUp = Vector3.up;
+            for (int i = 0; i < path.Count; i++)
+            {
+                Vector3 fwd = (path[Mathf.Min(i + 1, path.Count - 1)] - path[Mathf.Max(i - 1, 0)]).normalized;
+                if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.forward;
+                Vector3 right = Vector3.Cross(prevUp, fwd);
+                if (right.sqrMagnitude < 1e-6f) right = Vector3.Cross(Vector3.right, fwd);
+                right.Normalize();
+                Vector3 up = Vector3.Cross(fwd, right);
+                prevUp = up;
+                for (int s = 0; s <= sides; s++)
+                {
+                    float a = s / (float)sides * Mathf.PI * 2f;
+                    Vector3 d = right * Mathf.Cos(a) + up * Mathf.Sin(a);
+                    v.Add(path[i] + d * radius); n.Add(d); uv.Add(new Vector2(s / (float)sides, i * 0.2f));
+                }
+            }
+            int w = sides + 1;
+            for (int i = 0; i < path.Count - 1; i++)
+                for (int s = 0; s < sides; s++)
+                {
+                    int a = i * w + s, b = a + 1, c = a + w, d = c + 1;
+                    Vector3 cr = Vector3.Cross(v[b] - v[a], v[c] - v[a]);
+                    if (Vector3.Dot(cr, n[a]) >= 0f) { t.Add(a); t.Add(b); t.Add(c); t.Add(b); t.Add(d); t.Add(c); }
+                    else { t.Add(a); t.Add(c); t.Add(b); t.Add(b); t.Add(c); t.Add(d); }
+                }
+            var m = Build(v, n, uv, t);
+            m.name = "Tube";
+            return m;
+        }
+
         /// <summary>Adds a flat convex face, wound so it faces away from the origin.</summary>
         static void Poly(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t, Vector3[] p)
         {

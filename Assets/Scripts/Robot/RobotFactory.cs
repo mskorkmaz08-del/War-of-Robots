@@ -79,7 +79,9 @@ namespace RobotArena
             PrepareMaterials(livery);
             segDims.Clear();
             footDims.Clear();
-            Chassis c;
+            // Sculpted models first; the procedural builders remain as a fallback.
+            Chassis c = TryModel(type, groundPos, rotation, team, player, name);
+            if (c == null)
             switch (type)
             {
                 case RobotType.Raptor: c = BuildRaptor(groundPos, rotation, team, player, name); break;
@@ -121,6 +123,7 @@ namespace RobotArena
             dmg.smokePoint = smoke;
             dmg.detachableParts = parts;
             if (frontArmor > 0f) dmg.frontArmor = frontArmor;
+            root.AddComponent<HitReaction>();
             ResetHealth(dmg);
             return dmg;
         }

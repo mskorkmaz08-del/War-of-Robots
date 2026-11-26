@@ -93,7 +93,10 @@ namespace RobotArena
                 Vector3 local = transform.InverseTransformDirection(AimPoint - yawPivot.position);
                 float wantedYaw = Mathf.Clamp(Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg, -maxYaw, maxYaw);
                 yaw = Mathf.MoveTowardsAngle(yaw, wantedYaw, yawSpeed * Time.deltaTime);
-                yawPivot.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                // Hit flinch: a damped spring that rocks the upper body and settles back.
+                flinchVel += (-flinch * 90f - flinchVel * 9f) * Time.deltaTime;
+                flinch += flinchVel * Time.deltaTime;
+                yawPivot.localRotation = Quaternion.Euler(flinch.x, yaw + flinch.y, flinch.z);
             }
 
             if (pitchPivot != null)
@@ -105,6 +108,14 @@ namespace RobotArena
                 pitch = Mathf.MoveTowardsAngle(pitch, wantedPitch, pitchSpeed * Time.deltaTime);
                 pitchPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
             }
+        }
+
+        Vector3 flinch, flinchVel;
+
+        /// <summary>Kicks the upper body (degrees per second of pitch, yaw, roll); it rocks and settles back.</summary>
+        public void Flinch(Vector3 kick)
+        {
+            flinchVel += kick;
         }
 
         /// <summary>Angle in degrees between where a muzzle points and the aim point.</summary>

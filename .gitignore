@@ -35,3 +35,4 @@ Thumbs.db
 *.aab
 *.ipa
 *.unitypackage
+__pycache__/

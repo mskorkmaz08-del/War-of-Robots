@@ -13,6 +13,15 @@ namespace RobotArena
     /// flying forward, reaching down while falling.
     /// Every footstep thuds, kicks up dust and shakes the camera.
     /// Boost fires jump jets; landing from a jump causes a shockwave.
+    ///
+    /// Weight (scaling research: a 10-15 m machine walks at well under one step a
+    /// second and can't change speed quickly): the hull leans into every change of
+    /// speed and direction; each footfall drops the hull a little on bending knees
+    /// (a damped spring that overshoots slightly, like a real suspension); the feet
+    /// push off on the toes and come down heel first; jumps start with a deep crouch
+    /// and thrusters that take a moment to spool up; landings compress the legs in
+    /// proportion to the fall and leave the robot briefly sluggish while it recovers;
+    /// boosting pitches the body into the thrust.
     /// </summary>
     public class WalkerLocomotion : Locomotion
     {
@@ -58,6 +67,13 @@ namespace RobotArena
         public float stepHeight = 1.8f;
         public float thighLength = 4.2f;
         public float shinLength = 4.4f;
+        [Tooltip("Height of the ankle pivot above the sole.")]
+        public float ankleHeight = 0.35f;
+
+        [Header("Weight")]
+        [Tooltip("Degrees of lean per m/s² of acceleration.")]
+        public float leanPerAccel = 1.1f;
+        public float maxLean = 6f;
 
         [Header("Jump jets")]
         public float jetAccel = 22f;
@@ -83,6 +99,13 @@ namespace RobotArena
         float jumpCrouch;
         bool boostHeld;
         float weightShift;   // -1 leaning on the left foot, +1 on the right
+        float dipVel;        // body-dip spring velocity
+        float dipTarget;     // where the dip spring pulls to (crouch before a jump)
+        float jetThrottle;   // thrusters spool up and down rather than switching
+        float landStun;      // seconds of sluggish control after a hard landing
+        float staggerTime;
+        Vector3 prevFlatVel, smoothAccel;
+        bool legPush;
         float SizeScale => Mathf.Max(0.6f, standHeight / 7f);
         const float SwingFraction = 0.42f;
 
@@ -154,6 +177,9 @@ namespace RobotArena
 
             Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             Vector3 flatVel = new Vector3(velocity.x, 0f, velocity.z);
+            Vector3 flatAcc = (flatVel - prevFlatVel) / Mathf.Max(dt, 0.001f);
+            prevFlatVel = flatVel;
+            smoothAccel = Vector3.Lerp(smoothAccel, Vector3.ClampMagnitude(flatAcc, 12f), 1f - Mathf.Exp(-5f * dt));
 
             // Slope along the way we're walking: lean into climbs, back on descents.
             uphill = 0f;
@@ -168,6 +194,18 @@ namespace RobotArena
             // Heavy side-to-side weight shift onto the standing foot.
             if (grounded)
                 targetUp = Quaternion.AngleAxis(-weightShift * (legs.Length <= 2 ? 1.3f : 0.4f), flatForward) * targetUp;
+            // Lean into acceleration: forward when setting off, back when braking, inward on turns.
+            if (smoothAccel.sqrMagnitude > 0.04f)
+            {
+                float lean = Mathf.Min(smoothAccel.magnitude * leanPerAccel, maxLean) * (grounded ? 1f : 0.5f);
+                targetUp = Quaternion.AngleAxis(lean, Vector3.Cross(Vector3.up, smoothAccel.normalized)) * targetUp;
+            }
+            // In the air under thrust the body pitches into the push.
+            if (!grounded && jetThrottle > 0.1f && commands.hasMove && commands.move.sqrMagnitude > 0.01f)
+            {
+                Vector3 push = Vector3.ProjectOnPlane(commands.move, Vector3.up).normalized;
+                targetUp = Quaternion.AngleAxis(9f * jetThrottle, Vector3.Cross(Vector3.up, push)) * targetUp;
+            }
 
             // Stay upright (or leaning as above), allow yaw. Firm and well damped so it doesn't wobble.
             Vector3 tilt = Vector3.Cross(transform.up, targetUp);
@@ -191,13 +229,16 @@ namespace RobotArena
                 wanted = flatForward * commands.throttle * speedLimit;
             }
             if (jumpCrouch > 0f) wanted *= 0.3f;
-            if (sprintBoost && boosting && grounded)
+            if (sprintBoost && jetThrottle > 0.01f && grounded)
             {
-                // Charge: a longer, faster stride driven by the back thrusters.
+                // Charge: a longer, faster stride driven by the back thrusters as they spool up.
                 if (wanted.sqrMagnitude < 0.01f) wanted = flatForward * walkSpeed;
-                wanted *= sprintMultiplier;
+                wanted *= Mathf.Lerp(1f, sprintMultiplier, jetThrottle);
             }
             float control = grounded ? acceleration : acceleration * 0.35f;
+            // After a hard landing the legs are busy absorbing it: barely any drive for a moment.
+            if (landStun > 0f) control *= 0.25f;
+            if (staggerTime > 0f) control *= 0.6f;
             Vector3 change = Vector3.ClampMagnitude(wanted - flatVel, 50f) * control;
             rb.AddForce(change, ForceMode.Acceleration);
 
@@ -214,23 +255,46 @@ namespace RobotArena
             // Jump jets: a short crouch first, then lift off.
             bool pressed = commands.boost && !boostHeld;
             boostHeld = commands.boost;
-            if (!sprintBoost && pressed && grounded && Fuel01 > 0.2f)
+            if (!sprintBoost && pressed && grounded && Fuel01 > 0.2f && landStun <= 0f)
             {
-                jumpCrouch = 0.16f;
-                bodyDip = Mathf.Max(bodyDip, 1.6f);
+                // Anticipation: a heavy machine sinks deep into its knees before it can leave the ground.
+                jumpCrouch = 0.2f + 0.08f * SizeScale;
+                dipTarget = Mathf.Min(1.3f * SizeScale, standHeight * 0.22f);
+                legPush = true;
             }
-            if (jumpCrouch > 0f) jumpCrouch -= dt;
-            if (boosting && jumpCrouch <= 0f && !sprintBoost)
+            if (jumpCrouch > 0f)
             {
-                float lift = grounded ? jetAccel * 1.6f : jetAccel;
+                jumpCrouch -= dt;
+                if (jumpCrouch <= 0f)
+                {
+                    dipTarget = 0f;
+                    // The legs straighten hard and throw the hull up as the jets light.
+                    if (legPush && grounded) rb.AddForce(Vector3.up * (3.2f + 0.6f * SizeScale), ForceMode.VelocityChange);
+                    legPush = false;
+                }
+            }
+            // Thrusters spool up over a third of a second and wind down a little faster.
+            bool thrusting = boosting && (sprintBoost || jumpCrouch <= 0f);
+            jetThrottle = Mathf.MoveTowards(jetThrottle, thrusting ? 1f : 0f, dt * (thrusting ? 3f : 4.5f));
+            if (!sprintBoost && jetThrottle > 0.001f && jumpCrouch <= 0f && (boosting || !grounded))
+            {
+                float lift = (grounded ? jetAccel * 1.6f : jetAccel) * jetThrottle;
                 Vector3 push = commands.hasMove ? Vector3.ClampMagnitude(commands.move, 1f) : flatForward * Mathf.Max(0.3f, commands.throttle);
-                rb.AddForce(Vector3.up * lift + push * 7f, ForceMode.Acceleration);
+                rb.AddForce(Vector3.up * lift + push * 7f * jetThrottle, ForceMode.Acceleration);
             }
 
             ApplyExtraGravity(grounded);
 
-            // Recover the dip after each stomp.
-            bodyDip = Mathf.MoveTowards(bodyDip, 0f, dt * 1.8f);
+            // The body-dip spring: footfalls, landings and hits push it; it settles with a slight overshoot.
+            float kDip = 30f / SizeScale;
+            float cDip = 2f * 0.5f * Mathf.Sqrt(kDip);
+            dipVel += (-kDip * (bodyDip - dipTarget) - cDip * dipVel) * dt;
+            bodyDip += dipVel * dt;
+            float maxDip = standHeight * 0.3f;
+            if (bodyDip > maxDip) { bodyDip = maxDip; dipVel = Mathf.Min(dipVel, 0f); }
+            if (bodyDip < -0.5f) { bodyDip = -0.5f; dipVel = Mathf.Max(dipVel, 0f); }
+            landStun -= dt;
+            staggerTime -= dt;
         }
 
         void Land(float fallSpeed)
@@ -238,7 +302,10 @@ namespace RobotArena
             if (fallSpeed < 3f) return;
             Vector3 pos = new Vector3(rb.position.x, groundY, rb.position.z);
             float strength = Mathf.Clamp01(fallSpeed / 20f);
-            bodyDip = Mathf.Lerp(0.6f, 2.2f, strength);
+            // The legs take the impact: the hull keeps sinking on bending knees, then recovers.
+            dipVel += fallSpeed * 0.85f;
+            dipTarget = 0f;
+            landStun = Mathf.Lerp(0.15f, 0.9f, strength) * Mathf.Sqrt(SizeScale);
             GameAudio.Play(Sfx.Landing, pos, Mathf.Lerp(0.6f, 1f, strength), 0.9f);
             GameAudio.Play(Sfx.Hiss, pos + Vector3.up * 6f, 0.35f);
             Fx.Dust(pos, Mathf.Lerp(2f, 5f, strength));
@@ -277,9 +344,8 @@ namespace RobotArena
 
             foreach (var leg in legs) SolveLeg(leg);
 
-            bool jetsOn = IsBoosting;
-            foreach (var j in jets) Fx.SetRate(j, jetsOn ? 260f : 0f);
-            if (jetAudio != null) jetAudio.volume = Mathf.MoveTowards(jetAudio.volume, jetsOn ? 1f : 0f, dt * 4f);
+            foreach (var j in jets) Fx.SetRate(j, jetThrottle > 0.05f ? 260f * jetThrottle : 0f);
+            if (jetAudio != null) jetAudio.volume = Mathf.MoveTowards(jetAudio.volume, jetThrottle, dt * 4f);
             if (humAudio != null) humAudio.pitch = Mathf.Lerp(0.6f, 0.9f, flatVel.magnitude / walkSpeed);
         }
 
@@ -430,9 +496,10 @@ namespace RobotArena
             Vector3 p = leg.footPos;
             GameAudio.Play(Sfx.Footstep, p, 1f, Random.Range(0.85f, 1f));
             Fx.Dust(p, 1.2f);
-            FollowCamera.Shake(0.09f, p, 90f);
-            // The hull settles slightly under its weight on every footfall.
-            bodyDip = Mathf.Max(bodyDip, 0.12f * SizeScale);
+            FollowCamera.Shake(0.06f + 0.04f * SizeScale, p, 90f);
+            // The hull settles under its weight on every footfall (heavier robots, harder steps).
+            float pace = Mathf.Clamp01(new Vector3(Compat.GetVelocity(rb).x, 0f, Compat.GetVelocity(rb).z).magnitude / Mathf.Max(1f, walkSpeed));
+            dipVel += (0.6f + 0.9f * pace) * SizeScale;
             Explosions.ApplyForce(p, 5f, 3f, GetComponent<Damageable>());
         }
 
@@ -456,7 +523,7 @@ namespace RobotArena
         void SolveLeg(Leg leg)
         {
             Vector3 hip = leg.hip.position;
-            Vector3 footTarget = leg.footPos + Vector3.up * 0.35f;
+            Vector3 footTarget = leg.footPos + Vector3.up * ankleHeight;
             Vector3 toFoot = footTarget - hip;
             float maxReach = thighLength + shinLength - 0.05f;
             float d = Mathf.Clamp(toFoot.magnitude, 0.5f, maxReach);
@@ -486,10 +553,22 @@ namespace RobotArena
                 }
                 else
                 {
-                    // Toes dip during the swing.
-                    leg.foot.rotation = yaw * Quaternion.Euler(Mathf.Sin(leg.stepT * Mathf.PI) * 18f, 0f, 0f);
+                    // Toe-off then heel strike: the foot rolls forward off its toes as it lifts,
+                    // and comes down heel first, toes raised, flattening as it plants.
+                    float st = leg.stepT;
+                    float pitchDeg = st < 0.45f ? Mathf.Sin(st / 0.45f * Mathf.PI) * 22f : -Mathf.Sin((st - 0.45f) / 0.55f * Mathf.PI) * 14f;
+                    if (!grounded) pitchDeg = 8f;
+                    leg.foot.rotation = yaw * Quaternion.Euler(pitchDeg, 0f, 0f);
                 }
             }
+        }
+
+        /// <summary>A hit: the knees give a little and drive falters; a big hit forces a recovery step.</summary>
+        public void Stagger(Vector3 awayFromHit, float severity)
+        {
+            dipVel += severity * 1.1f;
+            staggerTime = Mathf.Max(staggerTime, 0.25f * severity);
+            weightShift = Mathf.Clamp(weightShift + Vector3.Dot(awayFromHit, transform.right) * severity * 0.8f, -1f, 1f);
         }
 
         /// <summary>Stands the legs on the ground without physics (for the hangar preview).</summary>

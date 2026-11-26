@@ -17,7 +17,7 @@ namespace RobotArena.EditorTools
         public const string CompanyName = "Mustafa";
         public const string BundleId = "com.mustafa.warofrobots";
         /// <summary>Unity Gaming Services project used for online play (Relay rooms). Not a secret.</summary>
-        public const string CloudProjectId = "";
+        public const string CloudProjectId = "2538ba18-7cb3-4e0d-8e70-71e1170fdf33";
 
         public static void Build()
         {

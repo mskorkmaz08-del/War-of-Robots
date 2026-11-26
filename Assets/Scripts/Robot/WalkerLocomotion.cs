@@ -310,7 +310,11 @@ namespace RobotArena
 
             // Cycles per second: follows speed, within limits so steps never get frantic or sluggish.
             // Long strides at a slow, heavy cadence: a giant takes few big steps.
-            float cycle = strideLength * 2.4f;
+            // Side-steps and backing up use shorter, quicker steps, so the feet keep up
+            // with the body without having to reach across each other.
+            Vector3 lv = transform.InverseTransformDirection(flatVel);
+            float forwardness = speed > 0.5f ? Mathf.Clamp01(lv.z / speed) : 1f;
+            float cycle = strideLength * 2.4f * Mathf.Lerp(0.55f, 1f, forwardness);
             float minRate = 0.22f;
             float maxRate = 1f / (Mathf.Max(stepDuration, 0.4f) * 1.8f);
             float rate = 0f;
@@ -320,7 +324,11 @@ namespace RobotArena
 
             float lift = stepHeight * (1f + Mathf.Clamp01(uphill * 3f) * 0.8f);
             float stanceTime = rate > 0.01f ? (1f - SwingFraction) / rate : 0f;
-            Vector3 lead = flatVel * stanceTime * 0.5f;
+            // Where the feet reach to, in the hull's frame: full stride forward, shorter
+            // backward, and short side-steps that never cross one leg over the other.
+            Vector3 leadLocal = transform.InverseTransformDirection(flatVel * stanceTime * 0.5f);
+            leadLocal.y = 0f;
+            if (leadLocal.z < 0f) leadLocal.z *= 0.75f;
             float bob = 0f;
             float shift = 0f;
             float moving01 = Mathf.Clamp01(speed / 2.5f);
@@ -340,7 +348,10 @@ namespace RobotArena
                         GameAudio.Play(Sfx.Servo, leg.hip.position, 0.3f, Random.Range(0.85f, 1.05f));
                     }
                     leg.stepT = s;
-                    leg.stepTo = FootHome(leg, lead);
+                    Vector3 legLead = leadLocal;
+                    // Stepping toward the other leg: small step. Stepping outward: moderate.
+                    legLead.x *= leg.side * legLead.x < 0f ? 0.3f : 0.55f;
+                    leg.stepTo = FootHome(leg, transform.TransformDirection(legLead));
                     // Heavy step: the foot lifts first, swings through high, then drops
                     // down hard at the end instead of hopping in a quick arc.
                     float hs = Mathf.Clamp01((s - 0.12f) / 0.76f);

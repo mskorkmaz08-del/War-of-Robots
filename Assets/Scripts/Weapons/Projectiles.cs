@@ -82,6 +82,8 @@ namespace RobotArena
         public float speed = 70f;
         public float turnRate = 140f;
         public float launchTime = 0.4f;
+        /// <summary>With no target, fly to this point (where the player aimed).</summary>
+        public Vector3? aimPoint;
 
         Rigidbody rb;
         ParticleSystem smoke;
@@ -155,6 +157,8 @@ namespace RobotArena
                     float t = Vector3.Distance(transform.position, target.Center) / speed;
                     desired = (target.Center + tv * t * 0.7f - transform.position).normalized;
                 }
+                else if (aimPoint.HasValue && (aimPoint.Value - transform.position).sqrMagnitude > 9f)
+                    desired = (aimPoint.Value - transform.position).normalized;
                 // A little wobble so a salvo spreads out like a swarm.
                 Vector3 wobble = new Vector3(
                     Mathf.PerlinNoise(wobbleSeed.x, age * 2f) - 0.5f,

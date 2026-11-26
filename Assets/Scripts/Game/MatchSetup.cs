@@ -74,7 +74,7 @@ namespace RobotArena
                 briefing = "Two enemy scouts are probing the Foundry. Hunt them down." },
             new MissionInfo { name = "SUPPLY RAID", map = MapId.Dockyard, goal = MissionGoal.DestroyDepots, allies = 1,
                 enemies = new[] { RobotType.Raptor, RobotType.Arachne },
-                briefing = "Destroy the three enemy fuel depots in the dockyard. Expect guards." },
+                briefing = "Destroy the three enemy fuel tanks in the dockyard. Expect guards." },
             new MissionInfo { name = "HOLD THE LINE", map = MapId.Canyon, goal = MissionGoal.DefendReactor, allies = 2, amount = 150f,
                 enemies = new[] { RobotType.Hornet, RobotType.Raptor, RobotType.Titan, RobotType.Bastion },
                 briefing = "Keep the outpost reactor alive until reinforcements arrive." },

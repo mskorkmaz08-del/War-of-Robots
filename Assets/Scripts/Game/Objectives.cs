@@ -193,11 +193,13 @@ namespace RobotArena
             return go.transform;
         }
 
-        static Damageable Finish(GameObject go, int team, string name, float health, float size, Vector3 smokeAt)
+        static Damageable Finish(GameObject go, int team, string name, float health, float size, Vector3 smokeAt, Vector3? aimAt = null)
         {
             var rb = go.AddComponent<Rigidbody>();
             rb.isKinematic = true;
             rb.mass = 50000f;
+            // Auto-aim and missiles go for the centre of mass: put it on the target itself.
+            rb.centerOfMass = aimAt ?? new Vector3(0f, smokeAt.y * 0.5f, 0f);
             var smoke = new GameObject("Smoke").transform;
             smoke.SetParent(go.transform, false);
             smoke.localPosition = smokeAt;
@@ -214,27 +216,37 @@ namespace RobotArena
 
         public static Damageable FuelDepot(Vector3 pos, float yaw)
         {
+            // One big fuel tank: a single, obvious target that auto-aim locks onto squarely.
             var a = GameAssets.Get();
             var go = new GameObject("Fuel Depot");
             go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
             var t = go.transform;
             var concrete = a.floorMat != null ? a.floorMat : a.Paint(new Color(0.4f, 0.4f, 0.4f), 0f, 0.3f, false);
-            var tank = a.Paint(new Color(0.55f, 0.22f, 0.12f), 0.6f, 0.45f);
+            var tank = a.Paint(new Color(0.62f, 0.24f, 0.12f), 0.6f, 0.45f);
             var steel = a.Paint(new Color(0.3f, 0.32f, 0.34f), 0.8f, 0.5f);
             var hazard = a.hazardMat != null ? a.hazardMat : a.Paint(UiKit.Yellow, 0.2f, 0.4f, false);
-            Part(PrimitiveType.Cube, t, new Vector3(0f, 0.5f, 0f), new Vector3(20f, 1f, 12f), concrete);
-            for (int i = -1; i <= 1; i += 2)
+
+            Part(PrimitiveType.Cube, t, new Vector3(0f, 0.5f, 0f), new Vector3(16f, 1f, 16f), concrete);
+            Part(PrimitiveType.Cylinder, t, new Vector3(0f, 7.5f, 0f), new Vector3(11f, 6.5f, 11f), tank);
+            NoCollide(Part(PrimitiveType.Sphere, t, new Vector3(0f, 14f, 0f), new Vector3(11f, 3.2f, 11f), tank));
+            NoCollide(Part(PrimitiveType.Cylinder, t, new Vector3(0f, 3.2f, 0f), new Vector3(11.3f, 0.7f, 11.3f), hazard));
+            NoCollide(Part(PrimitiveType.Cylinder, t, new Vector3(0f, 9f, 0f), new Vector3(11.2f, 0.25f, 11.2f), steel));
+            NoCollide(Part(PrimitiveType.Cylinder, t, new Vector3(0f, 12f, 0f), new Vector3(11.2f, 0.25f, 11.2f), steel));
+            // Legs, ladder and pipework
+            for (int i = 0; i < 4; i++)
             {
-                Part(PrimitiveType.Cylinder, t, new Vector3(i * 5f, 6f, 0f), new Vector3(7.5f, 5f, 7.5f), tank);
-                Part(PrimitiveType.Cylinder, t, new Vector3(i * 5f, 11.2f, 0f), new Vector3(6.5f, 0.3f, 6.5f), steel);
-                Part(PrimitiveType.Cylinder, t, new Vector3(i * 5f, 3f, 0f), new Vector3(7.7f, 0.6f, 7.7f), hazard);
+                Vector3 o = Quaternion.Euler(0f, 45f + i * 90f, 0f) * new Vector3(0f, 0f, 5.6f);
+                NoCollide(Part(PrimitiveType.Cube, t, o + new Vector3(0f, 2f, 0f), new Vector3(0.8f, 3f, 0.8f), steel, 45f + i * 90f));
             }
-            Part(PrimitiveType.Cube, t, new Vector3(0f, 8f, 0f), new Vector3(3f, 0.8f, 0.8f), steel);
-            Part(PrimitiveType.Cube, t, new Vector3(0f, 2.5f, 4.8f), new Vector3(12f, 0.6f, 0.6f), steel);
-            var lamp = Part(PrimitiveType.Cube, t, new Vector3(0f, 9.2f, 0f), new Vector3(0.8f, 1f, 0.8f), a.Glow(UiKit.Red, 3f));
-            Object.Destroy(lamp.GetComponent<Collider>());
-            return Finish(go, 1, "FUEL DEPOT", 1400f, 2.2f, new Vector3(0f, 9f, 0f));
+            NoCollide(Part(PrimitiveType.Cube, t, new Vector3(0f, 8f, -5.8f), new Vector3(1.2f, 13f, 0.25f), steel));
+            NoCollide(Part(PrimitiveType.Cylinder, t, new Vector3(4f, 1.6f, -6.5f), new Vector3(0.9f, 1.2f, 0.9f), steel));
+            NoCollide(Part(PrimitiveType.Cube, t, new Vector3(4f, 2.8f, -4.5f), new Vector3(0.7f, 0.7f, 4f), steel));
+            var lamp = Part(PrimitiveType.Cube, t, new Vector3(0f, 17.3f, 0f), new Vector3(0.8f, 1f, 0.8f), a.Glow(UiKit.Red, 3f));
+            NoCollide(lamp);
+            return Finish(go, 1, "FUEL TANK", 1400f, 2.2f, new Vector3(0f, 15f, 0f), new Vector3(0f, 7.5f, 0f));
         }
+
+        static void NoCollide(Transform part) => Object.Destroy(part.GetComponent<Collider>());
 
         public static Damageable Reactor(Vector3 pos)
         {

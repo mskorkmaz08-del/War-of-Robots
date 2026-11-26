@@ -71,6 +71,7 @@ namespace RobotArena
                 Vector3 launch = (tube.forward + Random.insideUnitSphere * 0.15f).normalized;
                 var m = Missile.Spawn(tube.position + tube.forward * 0.8f, launch, owner, target);
                 m.damage = damagePerMissile;
+                if (target == null && turret != null) m.aimPoint = turret.AimPoint + Random.insideUnitSphere * 3f;
                 Fx.MuzzleFlash(tube.position, tube.forward, 0.6f);
                 GameAudio.Play(Sfx.MissileLaunch, tube.position, 0.8f, Random.Range(0.9f, 1.15f));
                 if (IsPlayer) FollowCamera.Shake(0.06f, tube.position, 60f);

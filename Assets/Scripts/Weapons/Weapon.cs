@@ -57,9 +57,22 @@ namespace RobotArena
         /// </summary>
         bool TurretStillSwinging()
         {
-            if (!IsPlayer || turret == null || turret.Target == null || muzzles.Length == 0 || muzzles[0] == null) return false;
-            return turret.AimError(muzzles[0]) > 25f;
+            if (slot != Slot.Primary || !IsPlayer || turret == null || turret.Target == null || muzzles.Length == 0 || muzzles[0] == null)
+            {
+                waitingSince = -1f;
+                return false;
+            }
+            // Only guns that swing with the turret wait. Missile tubes and mortar
+            // racks are fixed to the hull and guide their shots themselves.
+            Transform aimed = turret.pitchPivot != null ? turret.pitchPivot : turret.yawPivot;
+            if (aimed == null || !muzzles[0].IsChildOf(aimed)) return false;
+            if (turret.AimError(muzzles[0]) <= 25f) { waitingSince = -1f; return false; }
+            // Never hold fire for long, whatever the geometry.
+            if (waitingSince < 0f) waitingSince = Time.time;
+            return Time.time - waitingSince < 0.4f;
         }
+
+        float waitingSince = -1f;
 
         protected Transform NextMuzzle()
         {

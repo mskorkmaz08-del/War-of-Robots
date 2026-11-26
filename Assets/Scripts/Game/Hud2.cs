@@ -221,7 +221,7 @@ namespace RobotArena
         {
             switch (m.goal)
             {
-                case MissionGoal.DestroyDepots: return "Destroy 3 fuel depots";
+                case MissionGoal.DestroyDepots: return "Destroy 3 fuel tanks";
                 case MissionGoal.DefendReactor: return "Defend the reactor for " + Mathf.RoundToInt(m.amount / 60f * 10f) / 10f + " min";
                 case MissionGoal.HoldUplink: return "Hold the uplink for " + Mathf.RoundToInt(m.amount) + " s";
                 case MissionGoal.KillCommander: return "Destroy the commander";

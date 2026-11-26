@@ -210,7 +210,9 @@ namespace RobotArena
                     {
                         var dep = Structures.FuelDepot(L.depots[i], i * 35f - 35f);
                         depots.Add(dep);
-                        Markers.Add(new WorldMarker { label = "DEPOT", color = UiKit.Red, target = dep, height = 10f });
+                        // Depots aren't robots, so listen for their destruction directly.
+                        dep.Died += DepotDestroyed;
+                        Markers.Add(new WorldMarker { label = "FUEL TANK", color = UiKit.Red, target = dep, height = 19f });
                         yield return null;
                     }
                     break;
@@ -333,13 +335,21 @@ namespace RobotArena
             UpdateText();
         }
 
+        void DepotDestroyed(Damageable d)
+        {
+            if (Over) return;
+            M.Announce("FUEL TANK DESTROYED", UiKit.Orange);
+            if (Alive(depots) == 0) Win("MISSION COMPLETE", "The enemy fuel supply is burning.");
+            UpdateText();
+        }
+
         void UpdateText()
         {
             int alive = Alive(M.Enemies);
             switch (goal)
             {
                 case MissionGoal.DestroyDepots:
-                    Objective = "Destroy the fuel depots  " + (depots.Count - Alive(depots)) + " / " + depots.Count;
+                    Objective = "Destroy the fuel tanks  " + (depots.Count - Alive(depots)) + " / " + depots.Count;
                     Status = "ENEMIES " + alive;
                     break;
                 case MissionGoal.DefendReactor:
@@ -371,13 +381,6 @@ namespace RobotArena
 
             switch (goal)
             {
-                case MissionGoal.DestroyDepots:
-                    if (depots.Contains(d))
-                    {
-                        M.Announce("DEPOT DESTROYED", UiKit.Orange);
-                        if (Alive(depots) == 0) Win("MISSION COMPLETE", "The enemy fuel supply is burning.");
-                    }
-                    break;
                 case MissionGoal.KillCommander:
                     if (d == commander) Win("MISSION COMPLETE", "WARLORD is scrap metal. Their army is leaderless.");
                     break;

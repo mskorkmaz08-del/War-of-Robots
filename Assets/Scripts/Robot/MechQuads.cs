@@ -137,6 +137,8 @@ namespace RobotArena
             }
             var smoke = Group(t, "SmokePoint", new Vector3(0f, 2.2f, -2.4f));
 
+            Ladder(body, new Vector3(2.4f, -0.7f, 2.2f), 1.9f, 90f);
+            Hatch(body, new Vector3(0f, 1.0f, -4.2f), new Vector3(-60f, 180f, 0f), 0.8f);
             MeshMerge.Merge(body);
             MeshMerge.Merge(hs);
             MeshMerge.Merge(gs);
@@ -287,6 +289,11 @@ namespace RobotArena
             }
             var smoke = Group(t, "SmokePoint", new Vector3(0f, 2.4f, -2.8f));
 
+            Railing(body, new Vector3(0f, 2.2f, -2.6f), 4.2f, 3.2f);
+            Ladder(body, new Vector3(2.9f, -0.6f, -3.0f), 2.8f, 90f);
+            Ladder(body, new Vector3(-2.9f, -0.6f, -3.0f), 2.8f, -90f);
+            Hatch(body, new Vector3(0f, 2.23f, -1.5f), new Vector3(-90f, 0f, 0f), 1.0f);
+            Stencil(body, new Vector3(2.88f, 1.2f, 1.0f), new Vector3(0f, 90f, 0f), 1.6f);
             MeshMerge.Merge(body);
             MeshMerge.Merge(cs);
             MeshMerge.Merge(armStatic);
@@ -308,7 +315,8 @@ namespace RobotArena
             walker.acceleration = 2.8f;
             walker.turnRate = 0.65f;
             walker.jetAccel = 18f;
-            walker.fuelDrain = 50f;
+            walker.fuelDrain = 20f;
+            walker.sprintBoost = true;
 
             var turret = root.AddComponent<Turret>();
             turret.yawPivot = cab;

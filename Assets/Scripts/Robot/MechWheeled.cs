@@ -107,6 +107,10 @@ namespace RobotArena
             u.backs[0] = Group(u.upper, "BackL", new Vector3(-1.45f, 3.85f, -1.8f) * k);
             u.backs[1] = Group(u.upper, "BackR", new Vector3(1.45f, 3.85f, -1.8f) * k);
             u.smoke = Group(u.upper, "SmokePoint", new Vector3(0f, 2.4f, -1.2f) * k);
+            // Crew-scale details (not scaled with k: a ladder is always human-sized)
+            Ladder(torso, new Vector3(1.75f, 0.6f, -1.72f) * k, 2.9f * k, 180f);
+            Railing(torso, new Vector3(0f, 3.75f, -0.9f) * k, 3.4f * k, 1.3f * k);
+            Stencil(torso, new Vector3(-1.3f, 3.0f, -1.72f) * k, new Vector3(0f, 180f, 0f), 1.1f);
             return u;
         }
 
@@ -215,6 +219,8 @@ namespace RobotArena
 
             var u = WheeledUpper(t, waist, k, 1, mSecondary);
             Pedestal(hull, waist, 1.55f, k);
+            Ladder(hull, new Vector3(2.42f, 0.0f, -1.6f), 1.5f, 90f);
+            Hatch(hull, new Vector3(0.9f, 1.57f, 1.9f), new Vector3(-90f, 0f, 0f), 0.9f);
             MeshMerge.Merge(hull);
             MergeUpper(u);
 
@@ -288,6 +294,7 @@ namespace RobotArena
 
             var u = WheeledUpper(t, waist, k, 2, mSecondary);
             Pedestal(hull, waist, 1.3f, k);
+            Ladder(hull, new Vector3(1.97f, 0.0f, 0.2f), 1.25f, 90f);
             MeshMerge.Merge(hull);
             MergeUpper(u);
 
@@ -371,6 +378,8 @@ namespace RobotArena
 
             var u = WheeledUpper(t, waist, k, 0, mSecondary);
             Pedestal(hull, waist, 2.05f, k);
+            Railing(hull, new Vector3(0f, 2.05f, -3.4f), 4.6f, 2.6f);
+            Hatch(hull, new Vector3(-1.2f, 2.07f, 2.6f), new Vector3(-90f, 0f, 0f), 1.0f);
             // Heavy collar armour on the big torso
             Armor(u.torso, new Vector3(0f, 3.25f, 1.25f) * k, new Vector3(-30f, 0f, 0f), new Vector3(3.0f, 0.8f, 0.3f) * k, mPrimary, mDark, false);
             MeshMerge.Merge(hull);
@@ -454,6 +463,8 @@ namespace RobotArena
 
             var u = WheeledUpper(t, waist, k, 1, mSecondary);
             Pedestal(hull, waist, 1.92f, k);
+            Ladder(hull, new Vector3(2.62f, 0.1f, -1.8f), 1.8f, 90f);
+            Hatch(hull, new Vector3(-1.0f, 1.94f, 2.2f), new Vector3(-90f, 0f, 0f), 0.9f);
             MeshMerge.Merge(hull);
             MergeUpper(u);
 

@@ -126,6 +126,9 @@ namespace RobotArena
             }
             var smoke = Group(upper, "SmokePoint", new Vector3(0f, 2.6f, -1f));
 
+            Railing(torso, new Vector3(0f, 3.9f, -0.9f), 3.2f, 1.4f);
+            Ladder(torso, new Vector3(1.65f, 1.0f, -1.75f), 2.8f, 180f);
+            Stencil(torso, new Vector3(-1.4f, 3.0f, -1.72f), new Vector3(0f, 180f, 0f), 1.0f);
             MeshMerge.Merge(hull);
             MeshMerge.Merge(torso);
             MeshMerge.Merge(armStatic);

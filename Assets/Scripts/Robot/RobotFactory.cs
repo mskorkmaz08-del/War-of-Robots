@@ -15,32 +15,32 @@ namespace RobotArena
 
         public static Livery Player => new Livery
         {
-            primary = new Color(0.16f, 0.36f, 0.72f),
-            secondary = new Color(0.62f, 0.64f, 0.68f),
-            accent = new Color(1f, 0.55f, 0.08f),
-            glow = new Color(0.2f, 0.85f, 1f)
+            primary = new Color(0.22f, 0.3f, 0.4f),
+            secondary = new Color(0.3f, 0.31f, 0.33f),
+            accent = new Color(0.82f, 0.56f, 0.12f),
+            glow = new Color(0.35f, 0.8f, 1f)
         };
 
         public static Livery Enemy => new Livery
         {
-            primary = new Color(0.62f, 0.1f, 0.08f),
-            secondary = new Color(0.2f, 0.2f, 0.22f),
-            accent = new Color(0.95f, 0.8f, 0.1f),
+            primary = new Color(0.4f, 0.12f, 0.08f),
+            secondary = new Color(0.22f, 0.21f, 0.21f),
+            accent = new Color(0.8f, 0.62f, 0.12f),
             glow = new Color(1f, 0.15f, 0.1f)
         };
 
         public static Livery Ally => new Livery
         {
-            primary = new Color(0.2f, 0.42f, 0.5f),
-            secondary = new Color(0.58f, 0.6f, 0.62f),
-            accent = new Color(0.95f, 0.75f, 0.2f),
+            primary = new Color(0.24f, 0.33f, 0.32f),
+            secondary = new Color(0.3f, 0.31f, 0.31f),
+            accent = new Color(0.8f, 0.62f, 0.18f),
             glow = new Color(0.3f, 1f, 0.85f)
         };
 
         public static Livery Enemy2 => new Livery
         {
-            primary = new Color(0.24f, 0.28f, 0.16f),
-            secondary = new Color(0.12f, 0.12f, 0.12f),
+            primary = new Color(0.27f, 0.29f, 0.18f),
+            secondary = new Color(0.16f, 0.16f, 0.15f),
             accent = new Color(0.9f, 0.35f, 0.05f),
             glow = new Color(1f, 0.4f, 0.05f)
         };
@@ -61,12 +61,13 @@ namespace RobotArena
 
         static void PrepareMaterials(Livery l)
         {
-            mPrimary = A.Paint(l.primary, 0.55f, 0.5f);
-            mSecondary = A.Paint(l.secondary, 0.75f, 0.55f);
-            mDark = A.Paint(new Color(0.14f, 0.14f, 0.15f), 0.8f, 0.45f);
-            mMetal = A.Paint(new Color(0.55f, 0.56f, 0.58f), 0.95f, 0.7f, false);
-            mAccent = A.Paint(l.accent, 0.3f, 0.5f);
-            mGlow = A.Glow(l.glow, 3f);
+            // Matte, worn military paint: gloss makes big machines look like plastic toys.
+            mPrimary = A.Paint(l.primary, 0.45f, 0.22f);
+            mSecondary = A.Paint(l.secondary, 0.65f, 0.28f);
+            mDark = A.Paint(new Color(0.11f, 0.11f, 0.12f), 0.75f, 0.3f);
+            mMetal = A.Paint(new Color(0.42f, 0.42f, 0.43f), 0.9f, 0.45f, false);
+            mAccent = A.Paint(l.accent, 0.3f, 0.25f);
+            mGlow = A.Glow(l.glow, 2f);
             mHot = A.Glow(new Color(1f, 0.45f, 0.1f), 2.5f);
             mRubber = A.Paint(new Color(0.06f, 0.06f, 0.06f), 0f, 0.25f, false);
             mBlack = A.Paint(new Color(0.03f, 0.03f, 0.035f), 0.5f, 0.3f, false);

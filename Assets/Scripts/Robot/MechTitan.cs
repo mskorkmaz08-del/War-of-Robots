@@ -151,6 +151,11 @@ namespace RobotArena
 
             var smoke = Group(upper, "SmokePoint", new Vector3(0.6f, 4.8f, -1.2f));
 
+            // Crew-scale details: roof deck railing, access ladder, hatch, stencils
+            Railing(torso, new Vector3(0f, 4.8f, -1.0f), 4.6f, 2.2f);
+            Ladder(torso, new Vector3(1.7f, 1.0f, -2.6f), 3.8f, 180f);
+            Hatch(torso, new Vector3(-0.6f, 4.82f, -0.9f), new Vector3(-90f, 0f, 0f), 1.0f);
+            Stencil(torso, new Vector3(-1.2f, 4.0f, -2.58f), new Vector3(0f, 180f, 0f), 1.6f);
             MeshMerge.Merge(hull);
             MeshMerge.Merge(torso);
             MeshMerge.Merge(armStatic);
@@ -169,7 +174,8 @@ namespace RobotArena
             walker.thighLength = thigh;
             walker.shinLength = shin;
             walker.strideLength = 5.5f;
-            walker.fuelDrain = 45f;
+            walker.fuelDrain = 20f;
+            walker.sprintBoost = true;
 
             var turret = root.AddComponent<Turret>();
             turret.yawPivot = upper;

@@ -66,6 +66,22 @@ namespace RobotArena
             Health = Mathf.Min(maxHealth, Health + amount);
         }
 
+        float nextBoundsCheck;
+
+        /// <summary>
+        /// A robot that falls through or under the map, or gets outside the battlefield,
+        /// is destroyed, so a match can never get stuck waiting for it.
+        /// </summary>
+        void Update()
+        {
+            if (IsDead || NetClient || Body == null || Body.isKinematic || Time.time < nextBoundsCheck) return;
+            nextBoundsCheck = Time.time + 0.5f;
+            Vector3 p = transform.position;
+            float limit = Frontier.Half + 25f;
+            if (p.y < -30f || Mathf.Abs(p.x) > limit || Mathf.Abs(p.z) > limit)
+                ApplyDamage(Health + maxHealth, p, null, true);
+        }
+
         public void TakeDamage(float amount, Vector3 point, Damageable attacker = null)
         {
             if (NetClient) return;

@@ -182,7 +182,7 @@ namespace RobotArena
             Fx.MuzzleFlash(from, dir, 2.5f);
             GameAudio.Play(Sfx.RailFire, from, 1f, 1f);
             FollowCamera.Shake(IsPlayer ? 0.75f : 0.3f, from, 150f);
-            if (body != null) body.AddForce(-dir * 2.5f, ForceMode.VelocityChange);
+            if (body != null) body.AddForce(-dir * 0.8f, ForceMode.VelocityChange);
         }
 
         void OnDisable()

@@ -11,7 +11,7 @@ namespace RobotArena
     public class Minimap : MonoBehaviour
     {
         public float worldRadius = 170f;
-        public float arenaHalfSize = 140f;
+        public float arenaHalfSize = Frontier.Half;
 
         RectTransform rotor;
         RectTransform arenaRect;

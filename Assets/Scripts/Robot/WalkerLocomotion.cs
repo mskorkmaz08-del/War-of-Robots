@@ -45,7 +45,7 @@ namespace RobotArena
         [Header("Body")]
         public float standHeight = 7f;
         public float heightStiffness = 9f;
-        public float heightDamping = 6f;
+        public float heightDamping = 10f;
         public float uprightStiffness = 14f;
         public float uprightDamping = 6f;
 
@@ -61,6 +61,9 @@ namespace RobotArena
 
         [Header("Jump jets")]
         public float jetAccel = 22f;
+        [Tooltip("Heavy walkers: boost is a thruster-assisted charge along the ground instead of a jump.")]
+        public bool sprintBoost;
+        public float sprintMultiplier = 1.9f;
         public float landingShockSpeed = 7f;
 
         ParticleSystem[] jets = new ParticleSystem[0];
@@ -138,7 +141,7 @@ namespace RobotArena
 
             if (grounded)
             {
-                // Springy stance: holds the hull at stand height with a heavy, slightly bouncy feel.
+                // Stance: holds the hull at stand height, well damped so a giant never bounces.
                 float targetHeight = standHeight - bodyDip + gaitBob;
                 float error = targetHeight - height;
                 float accel = heightStiffness * error - heightDamping * velocity.y + Physics.gravity.magnitude;
@@ -164,7 +167,7 @@ namespace RobotArena
             }
             // Heavy side-to-side weight shift onto the standing foot.
             if (grounded)
-                targetUp = Quaternion.AngleAxis(-weightShift * (legs.Length <= 2 ? 4f : 1.5f), flatForward) * targetUp;
+                targetUp = Quaternion.AngleAxis(-weightShift * (legs.Length <= 2 ? 1.3f : 0.4f), flatForward) * targetUp;
 
             // Stay upright (or leaning as above), allow yaw. Firm and well damped so it doesn't wobble.
             Vector3 tilt = Vector3.Cross(transform.up, targetUp);
@@ -188,6 +191,12 @@ namespace RobotArena
                 wanted = flatForward * commands.throttle * speedLimit;
             }
             if (jumpCrouch > 0f) wanted *= 0.3f;
+            if (sprintBoost && boosting && grounded)
+            {
+                // Charge: a longer, faster stride driven by the back thrusters.
+                if (wanted.sqrMagnitude < 0.01f) wanted = flatForward * walkSpeed;
+                wanted *= sprintMultiplier;
+            }
             float control = grounded ? acceleration : acceleration * 0.35f;
             Vector3 change = Vector3.ClampMagnitude(wanted - flatVel, 50f) * control;
             rb.AddForce(change, ForceMode.Acceleration);
@@ -205,13 +214,13 @@ namespace RobotArena
             // Jump jets: a short crouch first, then lift off.
             bool pressed = commands.boost && !boostHeld;
             boostHeld = commands.boost;
-            if (pressed && grounded && Fuel01 > 0.2f)
+            if (!sprintBoost && pressed && grounded && Fuel01 > 0.2f)
             {
                 jumpCrouch = 0.16f;
                 bodyDip = Mathf.Max(bodyDip, 1.6f);
             }
             if (jumpCrouch > 0f) jumpCrouch -= dt;
-            if (boosting && jumpCrouch <= 0f)
+            if (boosting && jumpCrouch <= 0f && !sprintBoost)
             {
                 float lift = grounded ? jetAccel * 1.6f : jetAccel;
                 Vector3 push = commands.hasMove ? Vector3.ClampMagnitude(commands.move, 1f) : flatForward * Mathf.Max(0.3f, commands.throttle);
@@ -317,6 +326,7 @@ namespace RobotArena
             float cycle = strideLength * 2.4f * Mathf.Lerp(0.55f, 1f, forwardness);
             float minRate = 0.22f;
             float maxRate = 1f / (Mathf.Max(stepDuration, 0.4f) * 1.8f);
+            if (sprintBoost && IsBoosting) maxRate *= 1.45f;
             float rate = 0f;
             if (drive > 0.4f) rate = Mathf.Clamp(drive / cycle, minRate, maxRate);
             else if (anySwing || needSettle) rate = 0.4f;
@@ -361,7 +371,7 @@ namespace RobotArena
                     pos.y += arc * lift * Mathf.Clamp(drive / 3f, 0.45f, 1f);
                     leg.footPos = pos;
                     // The hull rises over the standing leg and sinks as the foot comes down.
-                    bob = Mathf.Max(bob, Mathf.Sin(s * Mathf.PI) * 0.5f * SizeScale * moving01);
+                    bob = Mathf.Max(bob, Mathf.Sin(s * Mathf.PI) * 0.16f * SizeScale * moving01);
                     shift += -leg.side * Mathf.Sin(s * Mathf.PI) * moving01;
                 }
                 else if (leg.swinging)
@@ -372,9 +382,9 @@ namespace RobotArena
                     Footfall(leg);
                 }
             }
-            gaitBob = bob;
+            gaitBob = Mathf.Lerp(gaitBob, bob, 1f - Mathf.Exp(-4f * dt));
             float swingCount = Mathf.Max(1f, legs.Length * 0.5f);
-            weightShift = Mathf.Lerp(weightShift, Mathf.Clamp(shift / swingCount, -1f, 1f), 1f - Mathf.Exp(-8f * dt));
+            weightShift = Mathf.Lerp(weightShift, Mathf.Clamp(shift / swingCount, -1f, 1f), 1f - Mathf.Exp(-3f * dt));
         }
 
         /// <summary>Still leg poses in the air, held relative to the hull and blended smoothly.</summary>
@@ -420,9 +430,9 @@ namespace RobotArena
             Vector3 p = leg.footPos;
             GameAudio.Play(Sfx.Footstep, p, 1f, Random.Range(0.85f, 1f));
             Fx.Dust(p, 1.2f);
-            FollowCamera.Shake(0.12f, p, 90f);
-            // The whole hull sinks a little under its weight on every footfall.
-            bodyDip = Mathf.Max(bodyDip, 0.45f * SizeScale);
+            FollowCamera.Shake(0.09f, p, 90f);
+            // The hull settles slightly under its weight on every footfall.
+            bodyDip = Mathf.Max(bodyDip, 0.12f * SizeScale);
             Explosions.ApplyForce(p, 5f, 3f, GetComponent<Damageable>());
         }
 

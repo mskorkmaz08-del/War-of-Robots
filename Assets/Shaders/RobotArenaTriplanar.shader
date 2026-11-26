@@ -19,6 +19,7 @@ Shader "RobotArena/Triplanar"
         _Glossiness ("Smoothness scale", Range(0,1.5)) = 1
         _AOStrength ("AO strength", Range(0,1)) = 0.7
         _EmissionColor ("Emission", Color) = (0,0,0,0)
+        _Grime ("Grime and rain streaks", Range(0,1)) = 0.75
     }
     SubShader
     {
@@ -31,7 +32,7 @@ Shader "RobotArena/Triplanar"
 
         sampler2D _MainTex, _MaskTex, _BumpMap;
         fixed4 _Color, _BareColor, _EmissionColor;
-        half _BumpScale, _Tiling, _Metallic, _Glossiness, _AOStrength;
+        half _BumpScale, _Tiling, _Metallic, _Glossiness, _AOStrength, _Grime;
 
         struct Input
         {
@@ -95,9 +96,15 @@ Shader "RobotArena/Triplanar"
             half3 worldN = normalize(UnityObjectToWorldNormal(objN));
 
             half paint = mask.b;
-            o.Albedo = albedo.rgb * lerp(_BareColor.rgb, _Color.rgb, paint);
+            // Weathering: vertical rain/oil streaks from a stretched sample of the
+            // AO map, and dirt collecting on surfaces that face down. Big machines
+            // look used and heavy; clean even paint reads as a plastic toy.
+            half streak = tex2D(_MaskTex, float2((p.x + p.z) * 0.9, p.y * 0.12)).g;
+            half grime = lerp(1, 0.5 + 0.5 * streak, _Grime);
+            grime *= 1 - 0.35 * _Grime * saturate(-worldN.y);
+            o.Albedo = albedo.rgb * lerp(_BareColor.rgb, _Color.rgb, paint) * grime;
             o.Metallic = lerp(0.85, _Metallic, paint);
-            o.Smoothness = saturate((1 - mask.r) * _Glossiness);
+            o.Smoothness = saturate((1 - mask.r) * _Glossiness) * lerp(1, 0.75, _Grime * (1 - streak));
             o.Occlusion = lerp(1, mask.g, _AOStrength);
             o.Normal = WorldToTangentNormal(IN, worldN);
             o.Emission = _EmissionColor.rgb;

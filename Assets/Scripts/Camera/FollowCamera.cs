@@ -37,6 +37,7 @@ namespace RobotArena
         float pitch;
         float lastLookTime = -999f;
         float trauma;
+        float smoothY = float.NaN;
         float seed;
         Camera cam;
         Rigidbody targetBody;
@@ -128,7 +129,10 @@ namespace RobotArena
             }
 
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-            Vector3 pivot = target.position + Vector3.up * lookHeight;
+            // Follow height slowly so the robot's stride and footfalls don't bob the view.
+            float ty = target.position.y;
+            smoothY = float.IsNaN(smoothY) || Mathf.Abs(smoothY - ty) > 15f ? ty : Mathf.Lerp(smoothY, ty, 1f - Mathf.Exp(-2.5f * dt));
+            Vector3 pivot = new Vector3(target.position.x, smoothY, target.position.z) + Vector3.up * lookHeight;
             // Camera sits behind and above the pivot, so the robot stays in the lower
             // part of the screen and the crosshair in the middle is free to aim.
             Vector3 desired = pivot + rotation * new Vector3(0f, 0f, -distance) + Vector3.up * (height + distance * 0.45f);
@@ -159,7 +163,8 @@ namespace RobotArena
         {
             if (trauma <= 0f) return;
             float s = trauma * trauma;
-            float t = Time.time * 25f;
+            // Low-frequency rumble reads as something huge; fast jitter reads as a small toy.
+            float t = Time.time * 11f;
             float pitch = maxShakeAngle * s * (Mathf.PerlinNoise(seed, t) * 2f - 1f);
             float yawS = maxShakeAngle * s * (Mathf.PerlinNoise(seed + 1f, t) * 2f - 1f);
             float roll = maxShakeAngle * s * (Mathf.PerlinNoise(seed + 2f, t) * 2f - 1f);

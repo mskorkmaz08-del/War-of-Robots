@@ -50,13 +50,25 @@ namespace RobotArena
                     l.reactor = new Vector3(0f, 0f, -78f);
                     break;
             }
+            // The battlefield is bigger than the original yard: spread everything out.
+            // Bases sit near the edges, objectives across the wider middle.
+            for (int i = 0; i < l.allySpawns.Length; i++) l.allySpawns[i] = new Vector3(l.allySpawns[i].x * 1.3f, 0f, -175f - (Mathf.Abs(l.allySpawns[i].x) > 60f ? 8f : 0f));
+            for (int i = 0; i < l.enemySpawns.Length; i++) l.enemySpawns[i] = new Vector3(l.enemySpawns[i].x * 1.3f, 0f, 172f + (Mathf.Abs(l.enemySpawns[i].x) > 60f ? 8f : 0f));
+            for (int i = 0; i < l.zones.Length; i++) l.zones[i] *= 1.35f;
+            for (int i = 0; i < l.depots.Length; i++) l.depots[i] *= 1.35f;
+            l.reactor *= 1.35f;
             return l;
         }
 
         /// <summary>Replaces the Foundry with another map (no-op for the Foundry).</summary>
         public static void Build(MapId map)
         {
-            if (map == MapId.Foundry || A == null) return;
+            if (A == null) return;
+            if (map == MapId.Foundry)
+            {
+                Frontier.Build(map, Layout(map));
+                return;
+            }
             foreach (var name in new[] { "Arena", "Containers", "BuildingDetails" })
             {
                 var old = GameObject.Find(name);
@@ -66,6 +78,7 @@ namespace RobotArena
             if (map == MapId.Dockyard) BuildDockyard(root);
             else BuildCanyon(root);
             StaticBatchingUtility.Combine(root.gameObject);
+            Frontier.Build(map, Layout(map));
         }
 
         // ---------------------------------------------------------------------
@@ -129,8 +142,6 @@ namespace RobotArena
 
         static void BuildDockyard(Transform root)
         {
-            Floor(root, A.floorMat);
-            Walls(root, A.wallMat, A.hazardMat);
 
             // Container rows along both sides of the central lane, leaving the capture points open.
             int seed = 0;
@@ -215,24 +226,7 @@ namespace RobotArena
             var sand = A.Tinted(A.floorMat, new Color(0.86f, 0.7f, 0.52f));
             var rock = A.Tinted(A.wallMat, new Color(0.62f, 0.44f, 0.33f));
             var rockDark = A.Tinted(A.wallMat, new Color(0.45f, 0.32f, 0.25f));
-            Floor(root, sand);
-
-            // Cliff walls instead of a concrete wall: tilted slabs of rock.
             var rnd = new System.Random(7);
-            float half = ArenaSize * 0.5f;
-            for (int i = 0; i < 4; i++)
-            {
-                float yaw = i * 90f;
-                Quaternion r = Quaternion.Euler(0f, yaw, 0f);
-                for (float u = -half - 10f; u <= half + 10f; u += 18f)
-                {
-                    float h = 22f + (float)rnd.NextDouble() * 18f;
-                    float w = 20f + (float)rnd.NextDouble() * 8f;
-                    Vector3 p = r * new Vector3(u, h * 0.4f, half + 6f + (float)rnd.NextDouble() * 4f);
-                    Prim(PrimitiveType.Cube, root, p, yaw + (float)(rnd.NextDouble() * 20 - 10), new Vector3(w, h, 14f), rnd.NextDouble() < 0.5 ? rock : rockDark, (float)(rnd.NextDouble() * 10 - 14), (float)(rnd.NextDouble() * 8 - 4));
-                }
-            }
-
             // Mesas: clusters of big tilted rocks.
             var mesas = new (Vector3 p, float size)[]
             {

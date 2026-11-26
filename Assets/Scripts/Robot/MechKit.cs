@@ -165,5 +165,59 @@ namespace RobotArena
             P(foot, Shape.Wedge, new Vector3(0f, -0.14f, -len * 0.38f), new Vector3(0f, 180f, 0f), new Vector3(w * 0.5f, 0.42f, len * 0.22f), toeMat);
             Joint(foot, new Vector3(0f, 0.3f, 0f), w * 0.4f, w * 0.48f);
         }
+
+        // ---- Human-scale details ----
+        // Ladders, handrails, hatches and stencils are sized for a person. Next to
+        // them the eye reads the machine as huge; without them it reads as a toy.
+
+        /// <summary>A maintenance ladder from bottom upwards, facing local +Z after yaw.</summary>
+        static void Ladder(Transform parent, Vector3 bottom, float height, float yaw = 0f)
+        {
+            var g = Group(parent, "Ladder", bottom);
+            g.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            for (int s = -1; s <= 1; s += 2)
+                P(g, Shape.Box, new Vector3(s * 0.24f, height * 0.5f, 0.08f), Vector3.zero, new Vector3(0.06f, height, 0.06f), mMetal);
+            for (float y = 0.25f; y < height - 0.1f; y += 0.34f)
+                P(g, Shape.Box, new Vector3(0f, y, 0.08f), Vector3.zero, new Vector3(0.48f, 0.04f, 0.04f), mMetal);
+        }
+
+        /// <summary>A waist-high handrail around a w x d deck centred on pos.</summary>
+        static void Railing(Transform parent, Vector3 pos, float w, float d)
+        {
+            var g = Group(parent, "Railing", pos);
+            const float h = 1.0f;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                P(g, Shape.Box, new Vector3(0f, h, s * d * 0.5f), Vector3.zero, new Vector3(w, 0.05f, 0.05f), mAccent);
+                P(g, Shape.Box, new Vector3(s * w * 0.5f, h, 0f), Vector3.zero, new Vector3(0.05f, 0.05f, d), mAccent);
+                P(g, Shape.Box, new Vector3(0f, h * 0.5f, s * d * 0.5f), Vector3.zero, new Vector3(w, 0.03f, 0.03f), mMetal);
+                for (float x = -w * 0.5f; x <= w * 0.5f + 0.01f; x += Mathf.Max(0.8f, w / 6f))
+                    P(g, Shape.Box, new Vector3(x, h * 0.5f, s * d * 0.5f), Vector3.zero, new Vector3(0.05f, h, 0.05f), mMetal);
+                for (float z = -d * 0.5f + 0.9f; z < d * 0.5f - 0.4f; z += Mathf.Max(0.8f, d / 4f))
+                    P(g, Shape.Box, new Vector3(s * w * 0.5f, h * 0.5f, z), Vector3.zero, new Vector3(0.05f, h, 0.05f), mMetal);
+            }
+        }
+
+        /// <summary>A crew hatch with hinges and a handle, on a surface facing local +Z after euler.</summary>
+        static void Hatch(Transform parent, Vector3 pos, Vector3 euler, float size = 0.9f)
+        {
+            var g = Group(parent, "Hatch", pos);
+            g.localRotation = Quaternion.Euler(euler);
+            P(g, Shape.Box, Vector3.zero, Vector3.zero, new Vector3(size, size * 1.2f, 0.08f), mSecondary);
+            P(g, Shape.Box, new Vector3(0f, 0f, 0.06f), Vector3.zero, new Vector3(size * 0.35f, 0.05f, 0.06f), mMetal);
+            for (int s = -1; s <= 1; s += 2)
+                P(g, Shape.Box, new Vector3(-size * 0.5f, s * size * 0.35f, 0.04f), Vector3.zero, new Vector3(0.1f, 0.18f, 0.1f), mDark);
+        }
+
+        /// <summary>A painted stencil block: unit number bars and a hazard strip.</summary>
+        static void Stencil(Transform parent, Vector3 pos, Vector3 euler, float w)
+        {
+            var g = Group(parent, "Stencil", pos);
+            g.localRotation = Quaternion.Euler(euler);
+            for (int i = 0; i < 3; i++)
+                P(g, Shape.Box, new Vector3(-w * 0.3f + i * w * 0.16f, 0f, 0f), Vector3.zero, new Vector3(w * 0.06f, w * 0.22f, 0.02f), mAccent);
+            for (int i = 0; i < 4; i++)
+                P(g, Shape.Box, new Vector3(w * 0.12f + i * w * 0.09f, 0f, 0f), new Vector3(0f, 0f, 40f), new Vector3(w * 0.04f, w * 0.22f, 0.02f), i % 2 == 0 ? mAccent : mDark);
+        }
     }
 }

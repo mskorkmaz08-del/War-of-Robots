@@ -99,7 +99,8 @@ namespace RobotArena
         protected void Recoil(Vector3 dir, Vector3 at, float speedChange)
         {
             if (body == null) return;
-            body.AddForceAtPosition(-dir * speedChange * 0.5f * body.mass, at, ForceMode.Impulse);
+            // A giant absorbs its own recoil: a small push through the centre of mass, no rocking.
+            body.AddForce(-dir * speedChange * 0.15f, ForceMode.VelocityChange);
         }
 
         /// <summary>Raycast that skips the owner's own colliders.</summary>

@@ -9,23 +9,93 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="War of Robots">
     <title>{{{ PRODUCT_NAME }}}</title>
+    <link rel="icon" type="image/png" href="TemplateData/favicon.png">
+    <link rel="apple-touch-icon" href="TemplateData/apple-touch-icon.png">
+    <meta name="theme-color" content="#07090c">
     <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0d0f12; }
+      @font-face { font-family: "Orbitron"; src: url("TemplateData/Orbitron-Black.ttf") format("truetype"); font-weight: 900; font-display: swap; }
+      @font-face { font-family: "Rajdhani"; src: url("TemplateData/Rajdhani-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+      @font-face { font-family: "Rajdhani"; src: url("TemplateData/Rajdhani-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+      :root { --accent: #33d6c2; --accent-dim: rgba(51,214,194,0.35); --panel: rgba(14,17,21,0.92); --edge: rgba(158,173,194,0.28); --text: #f2f4f7; --dim: #aeb7c3; --red: #f2453a; }
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #07090c; }
       body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
       #unity-canvas { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: block; background: #1a1c20; outline: none; }
-      #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #0d0f12; color: #fff; font-family: -apple-system, system-ui, sans-serif; }
-      #loading .title { font-size: 34px; font-weight: 800; letter-spacing: 3px; color: #ff8c1a; }
-      #loading .bar { width: min(70vw, 420px); height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; }
-      #loading .fill { width: 0%; height: 100%; background: #ff8c1a; transition: width 0.2s; }
-      #loading .msg { font-size: 15px; opacity: 0.75; text-align: center; padding: 0 20px; }
+
+      /* Loading screen: same look as the game's menus (dark steel, teal accent, cut corners). */
+      #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2vh;
+        color: var(--text); font-family: "Rajdhani", -apple-system, system-ui, sans-serif; font-weight: 600;
+        background:
+          radial-gradient(ellipse at 50% 38%, rgba(51,214,194,0.10), transparent 55%),
+          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px) 0 0 / 100% 48px,
+          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px) 0 0 / 48px 100%,
+          radial-gradient(ellipse at center, #121820 0%, #07090c 75%);
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        transition: opacity 0.5s; }
+      #loading.done { opacity: 0; pointer-events: none; }
+      #loading .frame { position: absolute; inset: 14px; pointer-events: none;
+        background:
+          linear-gradient(var(--accent), var(--accent)) 0 0 / 28px 3px no-repeat, linear-gradient(var(--accent), var(--accent)) 0 0 / 3px 28px no-repeat,
+          linear-gradient(var(--accent), var(--accent)) 100% 0 / 28px 3px no-repeat, linear-gradient(var(--accent), var(--accent)) 100% 0 / 3px 28px no-repeat,
+          linear-gradient(var(--accent), var(--accent)) 0 100% / 28px 3px no-repeat, linear-gradient(var(--accent), var(--accent)) 0 100% / 3px 28px no-repeat,
+          linear-gradient(var(--accent), var(--accent)) 100% 100% / 28px 3px no-repeat, linear-gradient(var(--accent), var(--accent)) 100% 100% / 3px 28px no-repeat;
+        opacity: 0.7; }
+      #loading .brand { display: flex; align-items: center; gap: 3vh; }
+      #loading .logo { width: min(22vh, 26vw); height: min(22vh, 26vw); filter: drop-shadow(0 0 18px rgba(51,214,194,0.35)); animation: pulse 2.4s ease-in-out infinite; }
+      @keyframes pulse { 50% { filter: drop-shadow(0 0 30px rgba(51,214,194,0.6)); } }
+      #loading .names { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6vh; }
+      #loading .over { font-size: clamp(11px, 2.6vh, 18px); letter-spacing: 0.5em; color: var(--accent); font-weight: 700; }
+      #loading .title { font-family: "Orbitron", "Rajdhani", sans-serif; font-weight: 900; font-size: clamp(26px, 9vh, 64px); letter-spacing: 0.04em; line-height: 1; color: var(--text); text-shadow: 0 4px 0 rgba(0,0,0,0.6); }
+      #loading .rule { width: 100%; height: 2px; background: linear-gradient(90deg, var(--accent) 0 18%, rgba(255,255,255,0.22) 18%); margin-top: 0.8vh; }
+      #loading .card { width: min(78vw, 560px); padding: 14px 18px; background: var(--panel); border: 1px solid var(--edge);
+        clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+      #loading .row { display: flex; justify-content: space-between; align-items: baseline; font-size: clamp(12px, 3vh, 17px); letter-spacing: 0.18em; color: var(--dim); margin-bottom: 10px; }
+      #loading .row b { color: var(--accent); font-weight: 700; letter-spacing: 0.08em; }
+      #loading .segs { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 12px; }
+      #loading .segs i { background: rgba(255,255,255,0.08); transform: skewX(-20deg); transition: background 0.2s, box-shadow 0.2s; }
+      #loading .segs i.on { background: var(--accent); box-shadow: 0 0 8px rgba(51,214,194,0.55); }
+      #loading .tip { margin-top: 10px; font-size: clamp(11px, 2.6vh, 15px); color: var(--dim); text-align: center; min-height: 1.3em; }
+      #loading .err { display: none; flex-direction: column; align-items: center; gap: 10px; width: min(78vw, 560px); text-align: center; font-size: clamp(12px, 3vh, 16px); color: var(--text); }
+      #loading.failed .card { display: none; }
+      #loading.failed .err { display: flex; }
+      #loading .err .head { color: var(--red); letter-spacing: 0.3em; font-weight: 700; }
+      #loading .retry { font-family: "Rajdhani", sans-serif; font-weight: 700; font-size: clamp(15px, 4vh, 22px); letter-spacing: 0.2em; color: var(--text);
+        background: rgba(10,33,36,0.95); border: 1px solid var(--accent); padding: 10px 44px; cursor: pointer;
+        clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); box-shadow: inset 0 0 18px rgba(51,214,194,0.25); }
+      #loading .retry:active { transform: scale(0.97); }
+      #loading details { color: var(--dim); font-size: 11px; max-width: 100%; }
+      @media (orientation: portrait) {
+        #loading .brand { flex-direction: column; text-align: center; }
+        #loading .names { align-items: center; }
+        #loading .logo { width: 30vw; height: 30vw; }
+        #loading .title { font-size: 8.6vw; }
+        #loading .over { font-size: 3vw; letter-spacing: 0.4em; }
+      }
+      #loading details div { word-break: break-all; max-height: 18vh; overflow: auto; text-align: left; }
     </style>
   </head>
   <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">
-      <div class="title">WAR OF ROBOTS</div>
-      <div class="bar"><div class="fill" id="fill"></div></div>
-      <div class="msg" id="msg">Loading...</div>
+      <div class="frame"></div>
+      <div class="brand">
+        <img class="logo" src="TemplateData/logo.svg" alt="">
+        <div class="names">
+          <div class="over">GIANT ROBOT BATTLES</div>
+          <div class="title">WAR OF ROBOTS</div>
+          <div class="rule"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row"><span id="stage">DOWNLOADING</span><b id="pct">0%</b></div>
+        <div class="segs" id="segs"></div>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="err">
+        <div class="head">CONNECTION LOST</div>
+        <div id="errmsg">The game could not finish downloading. This usually means the mobile signal dropped for a moment.</div>
+        <button class="retry" id="retry">RETRY</button>
+        <details><summary>Details</summary><div id="msg"></div></details>
+      </div>
     </div>
     <script>
       var canvas = document.querySelector("#unity-canvas");
@@ -75,16 +145,66 @@
       window.worConfig = config;
       window.worResize = function () { window.dispatchEvent(new Event("resize")); };
 
+      // Progress bar made of segments, like the in-game bars.
+      var segs = document.querySelector("#segs"), segList = [];
+      for (var i = 0; i < 24; i++) { var seg = document.createElement("i"); segs.appendChild(seg); segList.push(seg); }
+      var tips = [
+        "Walkers can boost-jump over cover. Keep an eye on the fuel gauge.",
+        "Capture points win team battles faster than kills.",
+        "Every robot carries a special weapon. Fire it when it is charged.",
+        "Swap main and special weapons for each robot in the hangar.",
+        "Heavy robots are slow but hit hard. Fast ones should keep moving."
+      ];
+      var tipEl = document.querySelector("#tip"), tipIndex = Math.floor(Math.random() * tips.length);
+      function nextTip() { tipEl.textContent = tips[tipIndex++ % tips.length]; }
+      nextTip();
+      var tipTimer = setInterval(nextTip, 5000);
+
+      function setProgress(p) {
+        var lit = Math.round(p * segList.length);
+        for (var i = 0; i < segList.length; i++) segList[i].className = i < lit ? "on" : "";
+        document.querySelector("#pct").textContent = Math.round(p * 100) + "%";
+        document.querySelector("#stage").textContent = p < 0.9 ? "DOWNLOADING" : "STARTING ENGINES";
+      }
+
+      // A dropped mobile connection makes the download fail. Try once more by
+      // itself, then show a RETRY button instead of a wall of error text.
+      function failed(message) {
+        clearInterval(tipTimer);
+        var text = String(message);
+        document.querySelector("#msg").textContent = text;
+        var network = /fetch|network|download|wasm|load/i.test(text);
+        var tries = 0;
+        try { tries = parseInt(sessionStorage.getItem("wor_tries") || "0", 10); } catch (e) {}
+        if (network && tries < 1) {
+          try { sessionStorage.setItem("wor_tries", String(tries + 1)); } catch (e) {}
+          document.querySelector("#stage").textContent = "RECONNECTING";
+          setTimeout(function () { location.reload(); }, 1500);
+          return;
+        }
+        if (!network) {
+          document.querySelector(".err .head").textContent = "COULD NOT START";
+          document.querySelector("#errmsg").textContent = "Something went wrong while starting the game. Try again, and if it keeps happening, restart Safari.";
+        }
+        document.querySelector("#loading").classList.add("failed");
+      }
+      document.querySelector("#retry").addEventListener("click", function () {
+        try { sessionStorage.removeItem("wor_tries"); } catch (e) {}
+        location.reload();
+      });
+
       var script = document.createElement("script");
       script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
+      script.onerror = function () { failed("Could not download the loader (network)."); };
       script.onload = function () {
-        createUnityInstance(canvas, config, function (progress) {
-          document.querySelector("#fill").style.width = Math.round(progress * 100) + "%";
-        }).then(function () {
-          document.querySelector("#loading").style.display = "none";
-        }).catch(function (message) {
-          document.querySelector("#msg").textContent = "Could not start the game: " + message;
-        });
+        createUnityInstance(canvas, config, setProgress).then(function () {
+          try { sessionStorage.removeItem("wor_tries"); } catch (e) {}
+          clearInterval(tipTimer);
+          setProgress(1);
+          var l = document.querySelector("#loading");
+          l.classList.add("done");
+          setTimeout(function () { l.style.display = "none"; }, 600);
+        }).catch(failed);
       };
       document.body.appendChild(script);
     </script>

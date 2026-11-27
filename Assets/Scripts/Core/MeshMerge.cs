@@ -11,6 +11,24 @@ namespace RobotArena
     /// </summary>
     public static class MeshMerge
     {
+        static readonly Dictionary<Mesh, Mesh> mirrored = new Dictionary<Mesh, Mesh>();
+
+        /// <summary>A copy of the mesh's first submesh with every triangle's corner order reversed.</summary>
+        static Mesh Mirrored(Mesh src)
+        {
+            if (mirrored.TryGetValue(src, out var m) && m != null) return m;
+            m = new Mesh { name = src.name + " (mirrored)", indexFormat = src.indexFormat };
+            m.vertices = src.vertices;
+            m.normals = src.normals;
+            m.uv = src.uv;
+            var t = src.GetTriangles(0);
+            for (int i = 0; i < t.Length; i += 3) { int a = t[i + 1]; t[i + 1] = t[i + 2]; t[i + 2] = a; }
+            m.SetTriangles(t, 0);
+            m.RecalculateBounds();
+            mirrored[src] = m;
+            return m;
+        }
+
         public static void Merge(Transform container)
         {
             if (container == null) return;
@@ -32,11 +50,14 @@ namespace RobotArena
                     list = new List<CombineInstance>();
                     groups[mat] = list;
                 }
+                var m = toLocal * mf.transform.localToWorldMatrix;
                 list.Add(new CombineInstance
                 {
-                    mesh = mf.sharedMesh,
+                    // A mirrored part (negative scale) would come out inside out once baked:
+                    // CombineMeshes moves the corners but keeps their order.
+                    mesh = m.determinant < 0f ? Mirrored(mf.sharedMesh) : mf.sharedMesh,
                     subMeshIndex = 0,
-                    transform = toLocal * mf.transform.localToWorldMatrix
+                    transform = m
                 });
                 toClear.Add(mf.gameObject);
             }

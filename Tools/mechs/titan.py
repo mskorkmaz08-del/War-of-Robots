@@ -1,221 +1,139 @@
 """
-TITAN - 15 m heavy assault walker, modelled from scratch.
+TITAN - 15 m heavy assault walker (about 50 t), second-generation hard-surface model.
 
-Design notes (engineering research, see Tools/mechs/README.md):
-  * Square-cube law: a ~60 t machine needs short, thick legs, a low hip and a
-    wide stance; the knees stay bent so the hip rams never lock straight.
-  * Hip torque is the hardest load, so the hips are huge drum joints braced
-    into a cast pelvis. Paired hydraulic rams cross the knee and ankle.
-  * Heel strike is 3-4x body weight: big three-toed feet with rubber pads
-    and a shock ram from shin to foot.
-  * Upper body turns on a slewing ring like a crane; reactor, radiators and
-    exhausts sit at the back; the crew sits in a low armoured head with a
-    lit visor, sunk between the shoulders.
+Built like heavy plant, not a toy: a cast pelvis girder with hip housings, legs of
+cut and welded plate over an exposed dark frame, a chest hull of faceted armour with
+a low sensor head sunk into the glacis, and a reactor pack at the back. Every joint
+is driven: hip, knee and ankle cylinders on each leg and a shoulder cylinder on
+each side slide in and out as the robot walks and aims. Gear trains turn at the
+knees, shoulders and the slewing ring.
 """
-import sys, os, math, json
+import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mechlib import *
+from mechlib import reset
 import mechlib as ml
 from mathutils import Vector, Matrix
-
+from hardsurf import *
+from parts import *
 
 reset()
-
-# ---------------------------------------------------------------------------
-# Game skeleton (Blender: X right, Y forward, Z up, ground z = 0)
-# ---------------------------------------------------------------------------
-STAND = 8.5                       # root height (Unity transform)
-ROOT = Vector((0, 0, STAND))
+STAND = 8.5
 HIP_X, HIP_Z = 2.75, 8.0
 THIGH, SHIN = 4.0, 4.1
 ANKLE_Z = 1.3
-FOOT_OUT = 0.8                    # feet rest this far outside the hips
+FOOT_OUT = 0.8
 UPPER = Vector((0, 0, 9.9))
 ARMS = Vector((0, 0.2, 13.4))
 MOUNT = lambda s: Vector((s * 4.0, 1.8, 10.65))
-
-from rig import Rig, U, biped_leg, bolts_ring, stripe, run
 R = Rig('Titan', STAND)
-frames, anchors, parents = R.frames, R.anchors, R.parents
 
+# ---------------------------------------------------------------- pelvis
+ring_top = pelvis(R, HIP_X, HIP_Z, k=1.0, ring_r=1.95)
 
-# ===========================================================================
-# PELVIS (root frame)
-# ===========================================================================
-P = 'Hull'
-loft(P, 'Dark', [((-2.15, 0, 8.25), 0.9, 0.75, 3), ((-1.3, 0, 8.3), 1.35, 1.0, 3.2), ((0, 0, 8.35), 1.5, 1.1, 3.4),
-                 ((1.3, 0, 8.3), 1.35, 1.0, 3.2), ((2.15, 0, 8.25), 0.9, 0.75, 3)], axis_up=(0, 0, 1), segs=32, name='PelvisCore')
-# Cast pelvis shell: wraps the core, swept forward like a cuirass skirt
-loft(P, 'Secondary', [((-1.7, 0.05, 8.6), 1.25, 0.6, 2.6), ((0, 0.15, 8.75), 1.55, 0.75, 2.8), ((1.7, 0.05, 8.6), 1.25, 0.6, 2.6)],
-     axis_up=(0, 0, 1), segs=32, name='PelvisCast')
-for s in (-1, 1):
-    hip = Vector((s * HIP_X, 0, HIP_Z))
-    # Hip yoke: a forged bracket from the pelvis to the hip drum
-    block(P, 'Secondary', (s * 2.05, 0, 8.15), (0.7, 1.9, 1.5), bevel=0.22, segs=3, name='Yoke')
-    disc_joint(P, hip + Vector((s * 0.15, 0, 0)), (s, 0, 0), 1.3, 1.0, bolts=12)
-    # Hip actuators: a pair of rams from the pelvis into the hip drum
-    for zf in (-1, 1):
-        ram(P, (s * 1.2, zf * 1.05, 9.05), (s * 2.2, zf * 0.75, 8.6), 0.17)
-    # Armoured hip cowl over the drum (cast, swept back)
-    loft(P, 'Primary', [((s * 2.85, 1.15, 8.65), 0.85, 0.55, 2.4), ((s * 2.95, 0.0, 9.0), 1.0, 0.7, 2.6),
-                        ((s * 2.85, -1.25, 8.7), 0.8, 0.5, 2.4)], axis_up=(0, 0, 1), segs=28, name='HipCowl')
-    stripe(P, (s * 3.6, 0.1, 9.05), (0.06, 1.4, 0.16), rot=(0, s * 35, 0))
-    tube(P, 'Black', [(s * 0.9, -1.1, 8.0), (s * 1.6, -1.5, 7.7), (s * 2.4, -1.2, 7.4), (s * 2.9, -0.6, 7.5)], 0.11)
-# Groin armour and rear skirt
-plate(P, 'Primary', (0, 1.25, 7.55), (2.1, 1.7, 0.28), rot=(-14, 0, 0), curve=(0.12, 0.05), taper=0.7)
-plate(P, 'Primary', (0, -1.25, 7.7), (2.3, 1.4, 0.26), rot=(14, 0, 180), curve=(0.12, 0.05), taper=0.75)
-block(P, 'Black', (0, 1.42, 7.75), (1.1, 0.05, 0.06), rot=(-14, 0, 0), bevel=0, name='Groove')
-# Fixed half of the slewing ring
-lathe(P, 'Dark', (0, 0, 9.05), (0, 0, 1), [(0, 0), (1.95, 0), (2.0, 0.08), (2.0, 0.4), (1.85, 0.48), (0, 0.48)], segs=48, name='RingBase')
-bolts_ring(P, (0, 0, 9.53), (0, 0, 1), 1.75, 20)
-
-frames['Hull'] = frame_identity(U(ROOT))
-
-# ===========================================================================
-# TORSO (turns on the ring; Upper frame)
-# ===========================================================================
+# ---------------------------------------------------------------- torso
 T = 'Torso'
-lathe(T, 'Metal', (0, 0, 9.55), (0, 0, 1), [(0, 0), (1.8, 0), (1.85, 0.06), (1.85, 0.3), (1.7, 0.36), (0, 0.36)], segs=48, name='RingTop')
-# Armoured abdomen: two banded segments that let the chest flex
-for i, z in enumerate((10.05, 10.75)):
-    loft(T, 'Dark', [((0, 0.05, z), 1.75 + i * 0.25, 1.4 + i * 0.15, 3.5), ((0, 0.1, z + 0.62), 1.9 + i * 0.3, 1.5 + i * 0.2, 3.5)],
-         axis_up=(0, 1, 0), segs=36, sub=1, name='Abdomen')
-    loft(T, 'Secondary', [((0, 0.1, z + 0.18), 1.95 + i * 0.3, 1.55 + i * 0.2, 3.5), ((0, 0.12, z + 0.5), 2.0 + i * 0.3, 1.6 + i * 0.2, 3.5)],
-         axis_up=(0, 1, 0), segs=36, sub=1, name='Band')
-# The chest: one big cast hull, broad at the shoulders, deep and rounded
-loft(T, 'Secondary', [((0, 0.05, 11.35), 2.25, 1.65, 3.0), ((0, 0.12, 12.3), 2.95, 2.05, 3.1), ((0, 0.2, 13.5), 3.3, 2.25, 3.2),
-                      ((0, 0.15, 14.6), 3.05, 2.1, 3.3), ((0, 0.0, 15.25), 2.3, 1.7, 3.4)], axis_up=(0, 1, 0), segs=40, name='Chest')
-# Collar: a raised armoured ring the head sits down into
-loft(T, 'Primary', [((0, 0.6, 15.0), 1.75, 1.35, 3.0), ((0, 0.6, 15.45), 1.85, 1.45, 3.0), ((0, 0.55, 15.65), 1.6, 1.25, 3.0)],
-     axis_up=(0, 1, 0), segs=36, sub=2, cap=(False, True), name='Collar')
-# Sternum keel and a hazard band
-loft(T, 'Primary', [((0, 2.05, 11.6), 0.55, 0.3, 3), ((0, 2.35, 12.6), 0.75, 0.38, 3), ((0, 2.42, 13.8), 0.8, 0.4, 3), ((0, 2.15, 14.8), 0.6, 0.3, 3)],
-     axis_up=(0, 1, 0), segs=24, name='Keel')
-for z in (12.2, 13.0, 13.8):
-    block(T, 'Black', (0, 2.78, z), (0.9, 0.06, 0.05), bevel=0, name='Groove')
-vent(T, (0, 1.75, 11.15), (1.6, 0.55, 0.3), rot=(-25, 0, 0), slats=4)
-# Head: low armoured cockpit with a wrap-around lit visor
-H = Vector((0, 1.5, 15.9))
-HS = [(-1.0, 1.35, 0.9, 3.2, 0.05), (0.0, 1.45, 0.95, 3.0, 0.1), (0.95, 1.25, 0.72, 2.8, -0.05), (1.45, 0.85, 0.42, 2.6, -0.15)]
-loft(T, 'Primary', [(H + Vector((0, y, z)), w, d, e) for y, w, d, e, z in HS], axis_up=(0, 0, 1), segs=36, name='Head')
-VS = [(0.25, 1.43), (1.0, 1.23), (1.42, 0.9)]
-def hz(y):
-    return 0.08 - 0.15 * max(0.0, y - 0.3)
-loft(T, 'Black', [(H + Vector((0, y, hz(y))), w + 0.04, 0.3, 3.0) for y, w in VS], axis_up=(0, 0, 1), segs=36, sub=2, cap=(False, True), name='VisorFrame')
-loft(T, 'Glow', [(H + Vector((0, y + 0.02, hz(y))), w + 0.07, 0.13, 3.0) for y, w in VS], axis_up=(0, 0, 1), segs=36, sub=2, cap=(False, True), name='Visor')
-# Brow crest and cheek armour
-loft(T, 'Secondary', [(H + Vector((0, -0.9, 0.85)), 0.28, 0.14, 2.5), (H + Vector((0, 0.4, 0.95)), 0.34, 0.18, 2.5), (H + Vector((0, 1.25, 0.6)), 0.22, 0.1, 2.5)],
-     axis_up=(0, 0, 1), segs=16, name='Crest')
+lathe(T, 'Metal', (0, 0, ring_top), (0, 0, 1), [(0, 0), (1.85, 0), (1.9, 0.06), (1.9, 0.28), (1.75, 0.34), (0, 0.34)], segs=48, name='RingTop')
+# Waist: a faceted turret base
+armour(T, 'Dark', ngon(ring_top + 0.3, 1.75, 8, 22.5) + ngon(ring_top + 1.2, 1.95, 8, 22.5), bevel=0.05, seams=False, groove=None, name='Waist')
+# Chest hull: wide, deep, faceted, leaning forward at the top
+chest = sec(10.6, 2.0, 1.55, 0.5) + sec(11.8, 2.75, 1.95, 0.7, 0, 0.15) + sec(13.6, 3.0, 2.1, 0.8, 0, 0.25) + \
+        sec(14.9, 2.6, 1.85, 0.7, 0, 0.1) + sec(15.4, 1.9, 1.35, 0.5, 0, -0.1)
+armour(T, 'Dark', chest, bevel=0.08, seams=False, groove=None, name='ChestCore')
+# Chest armour: side plates, upper deck and a collar, each a separate cut plate
 for s in (-1, 1):
-    plate(T, 'Secondary', H + Vector((s * 1.38, 0.1, -0.45)), (1.7, 0.85, 0.2), rot=(0, 0, s * 90 + s * 8), curve=(0.15, 0.1))
-    lathe(T, 'Dark', H + Vector((s * 1.5, -0.3, 0.1)), (s, 0, 0), [(0, 0), (0.35, 0), (0.35, 0.18), (0.2, 0.25), (0, 0.25)], segs=20, name='EarCap')
-
-# Back: reactor housing, radiator, exhaust stacks
-loft(T, 'Primary', [((0, -1.6, 13.2), 2.0, 1.75, 4.0), ((0, -2.35, 13.25), 1.9, 1.7, 4.0), ((0, -2.85, 13.2), 1.6, 1.45, 4.0)],
-     axis_up=(0, 0, 1), segs=36, name='Reactor')
-lathe(T, 'Hot', (0, -2.85, 13.6), (0, -1, 0), [(0, 0.04), (0.8, 0.04), (0.8, 0.08), (0, 0.08)], segs=40, name='Core')
-lathe(T, 'Metal', (0, -2.85, 13.6), (0, -1, 0), [(0, 0.1), (0.3, 0.1), (0.3, 0.32), (0.2, 0.4), (0, 0.42)], segs=24, name='FanHub')
-for k in range(9):
-    a = 2 * math.pi * k / 9
-    block(T, 'Dark', (math.cos(a) * 0.55, -2.99, 13.6 + math.sin(a) * 0.55), (0.5, 0.06, 0.16), rot=(0, -math.degrees(a) + 25, 0), bevel=0.01, segs=1, name='Blade')
-lathe(T, 'Dark', (0, -2.85, 13.6), (0, -1, 0), [(0.82, 0.0), (1.08, 0.0), (1.08, 0.3), (0.82, 0.3)], segs=40, name='FanGuard')
-vent(T, (0, -2.95, 12.25), (2.4, 0.3, 0.9), rot=(0, 0, 180), slats=6)
+    armour(T, 'Secondary', [(s * x, y, z) for x, y, z in ((2.55, -1.6, 11.3), (2.55, 1.6, 11.3), (2.95, -1.8, 13.6), (2.95, 1.75, 13.6), (2.6, -1.6, 14.9), (2.6, 1.5, 14.9),
+                                                       (2.3, -1.6, 11.3), (2.3, 1.6, 11.3), (2.7, -1.8, 13.6), (2.7, 1.75, 13.6), (2.35, -1.6, 14.9), (2.35, 1.5, 14.9))],
+           bevel=0.06, seam_min=1.0, name='ChestSide')
+armour(T, 'Secondary', sec(15.0, 2.35, 1.6, 0.55, 0, 0.0) + sec(15.55, 1.95, 1.3, 0.45, 0, -0.05), bevel=0.06, seam_min=1.0, name='Deck')
+armour(T, 'Primary', sec(13.2, 2.2, 0.25, 0.1, 0, 1.95) + sec(15.0, 2.0, 0.25, 0.1, 0, 1.75) + [(0, 2.55, 14.0)], bevel=0.06, seam_min=0.8, name='UpperGlacis')
+# Belly armour: three stepped plates under the chest
+for i, z in enumerate((10.4, 10.95)):
+    armour(T, 'Primary', sec(z - 0.25, 1.4 - i * 0.05 + i * 0.35, 0.12, 0.08, 0, 1.75 + i * 0.25) + sec(z + 0.3, 1.6 + i * 0.35, 0.12, 0.08, 0, 1.95 + i * 0.25),
+           bevel=0.04, seam_min=10, name='BellyPlate')
+# Sensor head sunk in the upper glacis
+H = Vector((0, 1.45, 15.95))
+armour(T, 'Primary', sec(-0.55, 1.15, 0.75, 0.3, 0, 0) + sec(0.45, 1.05, 0.6, 0.3, 0, -0.1) + [(0, 0.95, -0.05), (0.7, 0.85, 0.0), (-0.7, 0.85, 0.0)],
+       Mx(H), bevel=0.05, seam_min=0.4, name='Head')
+armour(T, 'Black', boxpts((1.5, 0.3, 0.26), ch=0.08), Mx(H + Vector((0, 0.62, 0.05)), (-8, 0, 0)), bevel=0.03, seams=False, groove=None, name='VisorSlot')
+armour(T, 'Glow', boxpts((1.3, 0.1, 0.12)), Mx(H + Vector((0, 0.72, 0.05)), (-8, 0, 0)), bevel=0.0, seams=False, groove=None, name='Visor')
+armour(T, 'Secondary', sec(0.0, 1.25, 0.6, 0.25, 0, 0.2) + sec(0.2, 1.1, 0.75, 0.25, 0, 0.35), Mx(H + Vector((0, 0, 0.45))), bevel=0.04, seam_min=0.5, name='Brow')
 for s in (-1, 1):
-    # Exhaust stacks
-    lathe(T, 'Dark', (s * 1.35, -2.4, 14.55), (0, 0, 1), [(0, 0), (0.5, 0), (0.5, 0.25), (0.42, 0.3), (0.42, 2.0), (0.5, 2.05), (0.5, 2.25), (0.36, 2.25), (0.36, 2.0), (0, 2.0)], segs=24, name='Stack')
-    lathe(T, 'Hot', (s * 1.35, -2.4, 16.55), (0, 0, 1), [(0, 0), (0.36, 0), (0, 0.01)], segs=24, name='StackGlow')
-    for k in range(3):
-        lathe(T, 'Metal', (s * 1.35, -2.4, 14.95 + k * 0.45), (0, 0, 1), [(0.43, 0), (0.47, 0.02), (0.47, 0.1), (0.43, 0.12)], segs=24, name='StackBand')
-    # Side radiators
-    vent(T, (s * 3.2, -0.6, 12.6), (2.0, 0.35, 1.3), rot=(0, 0, s * 90), slats=6)
-    # Jump-jet nozzles low on the back
-    lathe(T, 'Metal', (s * 1.6, -2.15, 10.9), Vector((0, -0.35, -1)).normalized(),
-          [(0, -0.3), (0.55, -0.3), (0.6, 0.1), (0.5, 0.15), (0.75, 0.75), (0.68, 0.8), (0.42, 0.25), (0, 0.25)], segs=28, name='Nozzle')
-    block(T, 'Dark', (s * 1.6, -1.9, 11.35), (0.9, 0.8, 0.8), bevel=0.15, segs=2, name='NozzleMount')
-    tube(T, 'Black', [(s * 0.8, -2.9, 14.2), (s * 1.9, -2.6, 14.7), (s * 2.9, -1.6, 14.6), (s * 3.4, -0.6, 14.1)], 0.15)
-    tube(T, 'Black', [(s * 1.2, -2.6, 12.0), (s * 2.3, -2.2, 11.6), (s * 2.9, -1.4, 11.9)], 0.12)
-# Crew access: hatch and rails on the roof deck
-block(T, 'Dark', (-0.9, -1.2, 15.35), (1.0, 1.0, 0.12), bevel=0.04, name='Hatch')
+    lamp(T, Mx(H + Vector((s * 0.85, 0.7, -0.35))), 0.22, 0.12)
+    cyl(T, 'Dark', H + Vector((s * 1.25, 0.1, 0.0)), (1, 0, 0), 0.32, 0.3, segs=16, name='HeadPivot')
+# Shoulder sockets
 for s in (-1, 1):
-    tube(T, 'Metal', [(s * 1.5, -2.4, 15.25), (s * 1.5, -2.4, 15.85), (s * 1.5, -0.4, 15.85), (s * 1.5, -0.4, 15.4)], 0.05, segs=6)
+    armour(T, 'Dark', sec(-0.95, 0.55, 1.2, 0.35) + sec(0.95, 0.55, 1.2, 0.35), Mx((s * 3.05, 0.15, 13.4)), bevel=0.05, seams=False, groove=None, name='ShoulderSocket')
+    gear(T, (s * 3.25, 0.15, 13.4), (1, 0, 0), 0.55, 0.14)
+    # Side intake grille
+    grille(T, Mx((s * 2.95, 0.4, 11.9), (0, 0, -s * 90)), 1.6, 0.9, slats=5, depth=0.12)
+    # torso lug for the shoulder cylinder
+    armour(T, 'Dark', boxpts((0.5, 0.7, 0.7), ch=0.15), Mx((s * 3.0, -1.3, 11.35)), bevel=0.04, seams=False, groove=None, name='ShLug')
+# Back: reactor pack with radiators and exhaust stacks
+pack = sec(10.9, 1.9, 0.9, 0.3, 0, -2.2) + sec(14.6, 2.1, 1.0, 0.35, 0, -2.3) + sec(15.2, 1.7, 0.8, 0.3, 0, -2.15)
+armour(T, 'Primary', pack, bevel=0.07, seam_min=1.0, name='Reactor')
+grille(T, Mx((0, -3.25, 13.3), (0, 0, 180)), 2.6, 1.6, slats=7, depth=0.14)
+grille(T, Mx((0, -3.25, 11.6), (0, 0, 180)), 2.6, 0.9, slats=4, depth=0.14)
+hazard(T, Mx((0, -3.32, 14.55), (0, 0, 180)), 2.4, 0.3, n=7)
+for s in (-1, 1):
+    lathe(T, 'Dark', (s * 1.3, -2.6, 15.0), (0, 0, 1), [(0, 0), (0.45, 0), (0.45, 0.2), (0.38, 0.28), (0.38, 1.6), (0.48, 1.65), (0.48, 1.9), (0.32, 1.9), (0.32, 1.7), (0, 1.7)], segs=8, name='Stack')
+    lathe(T, 'Hot', (s * 1.3, -2.6, 16.7), (0, 0, 1), [(0, 0), (0.32, 0), (0, 0.01)], segs=8, name='StackGlow')
+    for kk in range(3):
+        armour(T, 'Metal', ngon(15.4 + kk * 0.4, 0.43, 8, 22.5, cx=s * 1.3, cy=-2.6) + ngon(15.48 + kk * 0.4, 0.43, 8, 22.5, cx=s * 1.3, cy=-2.6), bevel=0, seams=False, groove=None, name='StackBand')
+    # cooling fins down the sides of the pack
+    for kk in range(6):
+        armour(T, 'Dark', boxpts((0.08, 0.9, 0.5)), Mx((s * 2.05, -2.3, 11.3 + kk * 0.55)), bevel=0, seams=False, groove=None, name='Fin')
+    hose(T, [(s * 0.9, -3.2, 14.3), (s * 1.9, -3.0, 13.5), (s * 2.55, -1.8, 12.6), (s * 2.9, -0.6, 12.2)], 0.14)
+    hose(T, [(s * 1.4, -3.2, 11.0), (s * 2.3, -2.6, 10.6), (s * 2.45, -1.2, 10.9)], 0.11)
+    n = jet(T, (s * 1.45, -2.6, 10.4), (0, -0.35, -1), 0.95)
+    R.anchor('Jet' + ('L' if s < 0 else 'R'), n, 'Upper', (0, -0.35, -1))
+# roof: hatch, rails, sensor mast base
+armour(T, 'Dark', boxpts((1.0, 1.0, 0.16), ch=0.15), Mx((-0.7, -0.6, 15.45)), bevel=0.03, seams=False, groove=None, name='Hatch')
+for s in (-1, 1):
+    tube(T, 'Metal', [(s * 1.5, -1.6, 15.35), (s * 1.5, -1.6, 15.85), (s * 1.5, 0.4, 15.85), (s * 1.5, 0.4, 15.35)], 0.05, segs=6)
+R.rigid('Torso', UPPER, 'Upper')
 
-frames['Torso'] = frame_identity(U(UPPER))
-parents['Torso'] = 'Upper'
-
-# Detachable chest plates (blow off when the hull is badly damaged)
+# Detachable glacis plates
 for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
-    c = Vector((s * 1.45, 2.2, 13.25))
-    Rm = Matrix.Rotation(math.radians(-s * 27), 3, 'Z') @ Matrix.Rotation(math.radians(-8), 3, 'X')
-    plate(nm, 'Primary', c, (2.7, 3.4, 0.42), rot=(-8, 0, -s * 27), curve=(0.12, 0.05), bevel=0.1, nx=12, ny=12, taper=0.8)
-    block(nm, 'Black', c + Rm @ Vector((0, 0.24, -0.7)), (1.9, 0.06, 0.05), rot=(-8, 0, -s * 27), bevel=0, name='Groove')
-    stripe(nm, c + Rm @ Vector((s * 0.6, 0.24, -1.25)), (0.9, 0.05, 0.16), rot=(-8, 0, -s * 27))
-    frames[nm] = frame_identity(U(c)); parents[nm] = 'Upper'
+    c = Vector((s * 1.35, 2.05, 12.4))
+    M = Mx(c, (-10, 0, -s * 24))
+    armour(nm, 'Primary', [(x, y, z) for x, z in ((-1.25, -1.35), (1.25, -1.35), (1.3, 0.9), (0.6, 1.45), (-1.3, 1.0)) for y in (-0.22, 0.22)] +
+           [], M, bevel=0.06, seam_min=0.8, name="Glacis")
+    stripe(nm, M @ Mx((s * 0.55, 0.36, -0.95), (0, 0, 0)), 1.0, 0.16)
+    bolts_line(nm, M @ Vector((-1.1, 0.25, 1.0)), M @ Vector((-1.1, 0.25, -1.1)), 5, M.to_3x3() @ Vector((0, 1, 0)), 0.06)
+    R.rigid(nm, c, 'Upper')
 
-# ===========================================================================
-# ARMS (pitch to aim; Arms frame)
-# ===========================================================================
-A = 'Arms'
+# ---------------------------------------------------------------- arms
 for s in (-1, 1):
-    sh = Vector((s * 4.05, 0.2, 13.4))
-    el = Vector((s * 4.15, 0.45, 10.95))
-    disc_joint(A, sh, (s, 0, 0), 1.4, 1.3, bolts=12)
-    lathe(A, 'Dark', sh - Vector((s * 0.6, 0, 0)), (-s, 0, 0), [(0, 0), (1.0, 0), (1.0, 0.55), (0, 0.55)], segs=32, name='ShoulderBoss')
-    # Upper arm: a tapered cast member, rams down both sides
-    loft(A, 'Dark', [(sh + Vector((0, 0, -0.6)), 0.85, 0.9, 3), (sh + Vector((0, 0.05, -1.5)), 0.8, 0.85, 3), (el + Vector((0, 0, 0.45)), 0.7, 0.75, 3)],
-         axis_up=(0, 1, 0), segs=28, name='UpperArm')
-    plate(A, 'Secondary', sh + Vector((s * 0.66, 0.05, -1.35)), (1.3, 1.8, 0.2), rot=(0, 0, s * 90), curve=(0.2, 0.02))
-    for yf in (-1, 1):
-        ram(A, sh + Vector((0, yf * 0.72, -0.35)), el + Vector((0, yf * 0.7, 0.35)), 0.16)
-    disc_joint(A, el, (s, 0, 0), 0.95, 1.15, bolts=10)
-    # Forearm: a heavy armoured housing that carries the weapon cradle
-    loft(A, 'Secondary', [(el + Vector((0, -0.75, -0.2)), 0.95, 1.0, 3.2), (el + Vector((0, 0.2, -0.3)), 1.15, 1.15, 3.4),
-                          (el + Vector((0, 1.0, -0.3)), 1.1, 1.08, 3.4), (el + Vector((0, 1.4, -0.3)), 0.9, 0.88, 3.2)],
-         axis_up=(0, 0, 1), segs=32, name='Forearm')
-    loft(A, 'Primary', [(el + Vector((0, -0.5, 0.7)), 0.9, 0.26, 2.6), (el + Vector((0, 0.5, 0.82)), 1.0, 0.3, 2.6), (el + Vector((0, 1.3, 0.62)), 0.8, 0.22, 2.6)],
-         axis_up=(0, 0, 1), segs=24, name='ForearmTop')
-    plate(A, 'Primary', el + Vector((s * 1.18, 0.35, -0.3)), (1.9, 1.7, 0.22), rot=(0, 0, s * 90), curve=(0.12, 0.08))
-    stripe(A, el + Vector((s * 1.32, 0.35, 0.2)), (0.05, 1.4, 0.14))
-    # Cradle ring the weapon locks into
-    m = MOUNT(s)
-    lathe(A, 'Dark', m + Vector((0, -0.25, 0)), (0, 1, 0), [(0.55, 0), (0.95, 0), (0.95, 0.45), (0.55, 0.45)], segs=32, name='Cradle')
-    bolts_ring(A, m + Vector((0, 0.15, 0)), (0, 1, 0), 0.68, 8, 0.05)
-    tube(A, 'Black', [sh + Vector((-s * 0.5, -0.8, -0.2)), sh + Vector((-s * 0.75, -0.9, -1.4)), el + Vector((-s * 0.7, -0.75, 0.1)), el + Vector((-s * 0.6, -0.1, -0.6))], 0.12)
-    anchors['Mount' + ('L' if s < 0 else 'R')] = {'p': list(U(m)), 'parent': 'Arms'}
+    arm(R, s, (s * 4.05, 0.2, 13.4), (s * 4.15, 0.45, 10.95), MOUNT(s), k=1.1, gauntlet=(1.15, 1.0, 1.1))
+    armour('Arms', 'Dark', boxpts((0.5, 0.7, 0.7), ch=0.15), Mx((s * 3.55, -1.5, 12.75)), bevel=0.04, seams=False, groove=None, name='ArmLug')
+R.rigid('Arms', ARMS, 'Arms')
+shoulder_rams(R, [((s * 3.0, -1.3, 11.35), (s * 3.55, -1.5, 12.75)) for s in (-1, 1)], k=1.0)
 
-frames['Arms'] = frame_identity(U(ARMS))
-parents['Arms'] = 'Arms'
-
-# Pauldrons (detachable; ride on the torso, not the arm pitch)
+# Detachable pauldrons: heavy faceted shoulder armour wrapping the shoulder bearing
 for s, nm in ((-1, 'PauldronL'), (1, 'PauldronR')):
-    c = Vector((s * 4.25, 0.1, 14.85))
-    # Two overlapping cast layers, the lower one flaring out over the arm
-    loft(nm, 'Primary', [(c + Vector((s * 0.1, -2.0, -0.35)), 1.4, 0.6, 2.3), (c + Vector((s * 0.15, -0.9, 0.05)), 1.75, 0.95, 2.3),
-                         (c + Vector((s * 0.15, 0.6, 0.05)), 1.78, 0.97, 2.3), (c + Vector((s * 0.1, 1.95, -0.35)), 1.35, 0.6, 2.3)],
-         axis_up=(0, 0, 1), segs=40, name='Pauldron')
-    loft(nm, 'Secondary', [(c + Vector((-s * 0.25, -1.5, 0.55)), 0.95, 0.4, 2.3), (c + Vector((-s * 0.25, -0.3, 0.78)), 1.1, 0.5, 2.3),
-                           (c + Vector((-s * 0.25, 1.0, 0.7)), 1.05, 0.46, 2.3), (c + Vector((-s * 0.25, 1.75, 0.4)), 0.8, 0.3, 2.3)],
-         axis_up=(0, 0, 1), segs=32, name='PauldronTop')
-    plate(nm, 'Primary', c + Vector((s * 1.75, 0.0, -1.05)), (3.6, 1.8, 0.26), rot=(0, s * 12, s * 90), curve=(0.06, 0.06), taper=1.1)
-    plate(nm, 'Secondary', c + Vector((s * 1.95, 0.0, -2.0)), (3.2, 0.7, 0.2), rot=(0, s * 16, s * 90), curve=(0.06, 0.0))
-    stripe(nm, c + Vector((s * 1.93, 0.0, -0.55)), (0.05, 2.8, 0.18), rot=(0, s * 12, 0))
-    lamp(nm, c + Vector((s * 0.6, 2.05, -0.25)), 0.3)
-    for k in range(4):
-        block(nm, 'Black', c + Vector((s * 0.85, -1.1 + k * 0.6, 0.86)), (0.9, 0.06, 0.05), rot=(0, s * 30, 0), bevel=0, name='Groove')
-    frames[nm] = frame_identity(U(c)); parents[nm] = 'Upper'
+    c = Vector((s * 4.35, 0.1, 14.6))
+    M = Mx(c)
+    armour(nm, 'Primary', sec(-1.7, 1.15, 1.55, 0.45, s * 0.25, 0.05) + sec(-0.2, 1.45, 1.95, 0.6, s * 0.15, 0) + sec(0.75, 1.3, 1.8, 0.6, 0, 0)
+           + sec(1.15, 0.85, 1.35, 0.4, -s * 0.15, -0.05), M, bevel=0.08, seam_min=0.9, seam_w=0.2, name='Pauldron')
+    # outer layered plates
+    side_plate(nm, 'Secondary', [(-1.75, 0.5), (1.75, 0.5), (1.55, -1.3), (-1.55, -1.3)], 0.2, (s * 1.62, 0, -0.45), s, 6, M=M,
+               stripe_at=0.25, stripe_h=0.2, hazard_at=-0.95, bevel=0.05, seam_min=0.6, name='Plate')
+    lamp(nm, M @ Mx((s * 0.7, 1.95, 0.2)), 0.36, 0.14)
+    grille(nm, M @ Mx((s * 0.2, -1.95, -0.3), (0, 0, 180)), 1.4, 0.9, slats=4, depth=0.1)
+    bolts_line(nm, M @ Vector((s * 0.0, -1.5, 1.17)), M @ Vector((s * 0.0, 1.4, 1.17)), 8, (0, 0, 1), 0.06)
+    R.rigid(nm, c, 'Upper')
 
-anchors['BackL'] = {'p': list(U((-4.0, -0.7, 16.0))), 'parent': 'Upper'}
-anchors['BackR'] = {'p': list(U((4.0, -0.7, 16.0))), 'parent': 'Upper'}
-anchors['Shoulder'] = {'p': list(U((-4.0, 0.0, 15.6))), 'parent': 'Arms'}
+R.anchor('BackL', (-4.0, -0.7, 16.0), 'Upper')
+R.anchor('BackR', (4.0, -0.7, 16.0), 'Upper')
+R.anchor('Shoulder', (-4.0, 0.0, 15.6), 'Arms')
+R.anchor('Smoke', (0.6, -1.4, 14.6), 'Upper')
+
+# ---------------------------------------------------------------- legs
 for s in (-1, 1):
-    n = Vector((s * 1.6, -2.15, 10.9)) + Vector((0, -0.35, -1)).normalized() * 0.8
-    anchors['Jet' + ('L' if s < 0 else 'R')] = {'p': list(U(n)), 'f': list(U(Vector((0, -0.35, -1)).normalized())), 'parent': 'Upper'}
-anchors['Smoke'] = {'p': list(U((0.6, -1.4, 14.6))), 'parent': 'Upper'}
-
-# ===========================================================================
-# LEGS
-# ===========================================================================
-for s_ in (-1, 1):
-    biped_leg(R, s_, (s_ * HIP_X, 0, HIP_Z), (s_ * (HIP_X + FOOT_OUT), 0, ANKLE_Z), THIGH, SHIN, ANKLE_Z)
+    hip = (s * HIP_X, 0, HIP_Z)
+    knee, Mt, Ms = walker_leg(R, s, hip, (s * (HIP_X + FOOT_OUT), 0, ANKLE_Z), THIGH, SHIN, ANKLE_Z, k=1.2,
+                              st=dict(shin='crest', toes=3, foot_len=1.15, foot_w=1.05))
+    hip_ram(R, s, hip, Mt, THIGH, k=1.1)
 
 R.extra.update({'thigh': THIGH, 'shin': SHIN, 'ankle': ANKLE_Z, 'footOut': FOOT_OUT, 'upper': list(U(UPPER)), 'arms': list(U(ARMS))})
 run(R, os.path.dirname(os.path.abspath(__file__)), 8.6)

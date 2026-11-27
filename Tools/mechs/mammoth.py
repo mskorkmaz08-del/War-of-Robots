@@ -1,91 +1,93 @@
 """
-MAMMOTH - heavy four-legged assault walker (58 t). A long armoured hull
-like a tank's, carried on four thick legs: front knees forward, rear knees
-back, so the weight sits inside a wide, stable footprint. A crewed cab with
-twin weapon arms turns at the front; engine deck and exhausts at the rear.
+MAMMOTH - heavy four-legged assault walker (about 58 t), second-generation model.
+
+A long faceted armoured hull like a tank's, on four thick plated legs (front knees
+forward, rear knees back) so the weight sits inside a wide, stable footprint.
+Every leg has hip, knee and ankle cylinders. A crewed cab with twin armoured weapon
+arms turns at the front; engine deck, radiators and exhaust stacks at the rear.
 """
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mechlib import *
+from mechlib import reset
 from mathutils import Vector, Matrix
-from rig import Rig, U, biped_leg, bolts_ring, stripe, run, jet_nozzle, arm
+from hardsurf import *
+from parts import *
 
 reset()
 STAND = 7.2
 THIGH, SHIN, ANKLE_Z = 4.4, 4.6, 1.1
 UPPER = Vector((0, 2.6, 9.4))
 ARMS = Vector((0, 3.0, 10.3))
-K = 0.92
+K = 1.0
 R = Rig('Mammoth', STAND)
 
-# ---- Hull -----------------------------------------------------------------
 B = 'Hull'
-loft(B, 'Dark', [((0, 5.0, 7.2), 1.8, 1.0, 3.6), ((0, 3.8, 7.3), 2.55, 1.45, 3.8), ((0, -2.5, 7.4), 2.65, 1.5, 3.8), ((0, -4.9, 7.5), 2.2, 1.3, 3.6)],
-     axis_up=(0, 0, 1), segs=40, name='HullCore')
-# Upper hull armour: a long sloped shell
-loft(B, 'Secondary', [((0, 5.15, 7.7), 1.6, 0.55, 3), ((0, 3.4, 8.45), 2.45, 0.75, 3.2), ((0, -2.8, 8.55), 2.5, 0.75, 3.2), ((0, -5.0, 8.25), 2.0, 0.6, 3)],
-     axis_up=(0, 0, 1), segs=40, name='HullTop')
-# Side skirts: three overlapping plates each side
+# Hull core: a long faceted box, sloped front and rear
+core = [(x, y, z) for (y, w, zb, zt) in ((5.6, 1.6, 6.6, 7.6), (4.6, 2.5, 6.2, 8.4), (-3.6, 2.6, 6.2, 8.6), (-5.4, 2.0, 6.6, 8.2))
+        for x in (-w, w) for z in (zb, zt)]
+armour(B, 'Dark', core, bevel=0.07, seams=False, groove=None, name='HullCore')
+# Upper hull armour shell: front glacis, roof, rear deck
+armour(B, 'Secondary', [(x, y, z) for (y, w, z) in ((5.75, 1.5, 7.65), (4.5, 2.4, 8.55), (-3.4, 2.5, 8.75), (-5.3, 1.9, 8.35)) for x in (-w, w)] +
+       [(x, y, z - 0.35) for (y, w, z) in ((5.75, 1.5, 7.65), (4.5, 2.4, 8.55), (-3.4, 2.5, 8.75), (-5.3, 1.9, 8.35)) for x in (-w, w)], bevel=0.06, seam_min=1.5, seam_w=0.25, name='HullTop')
+armour(B, 'Primary', [(x, y, z) for (y, w, z) in ((5.95, 1.55, 6.6), (5.85, 1.55, 7.55), (4.7, 2.3, 8.4)) for x in (-w, w)] +
+       [(x, y - 0.3, z) for (y, w, z) in ((5.95, 1.55, 6.6), (5.85, 1.55, 7.55), (4.7, 2.3, 8.4)) for x in (-w, w)], bevel=0.06, seam_min=0.8, name='Glacis')
 for s in (-1, 1):
-    for i, y in enumerate((3.2, 0.0, -3.2)):
-        plate(B, 'Primary', (s * 2.75, y, 7.35), (3.4, 1.9, 0.3), rot=(0, s * -12, s * 90), curve=(0.05, 0.12), bevel=0.08, taper=0.92)
-        stripe(B, (s * 2.95, y, 8.0), (0.05, 2.6, 0.14), rot=(0, s * -12, 0))
-    tube(B, 'Black', [(s * 1.4, -4.2, 9.0), (s * 2.2, -2.0, 8.9), (s * 2.3, 1.5, 8.85), (s * 1.6, 3.4, 9.0)], 0.13)
-# Front glacis with lamps
-plate(B, 'Primary', (0, 5.25, 7.4), (3.6, 1.8, 0.32), rot=(-35, 0, 0), curve=(0.1, 0.05), taper=0.8)
+    lamp(B, Mx((s * 1.0, 5.95, 7.0), (-10, 0, 0)), 0.38, 0.16)
+    # Side skirts: three overlapping flared plates
+    for i, y in enumerate((3.0, 0.0, -3.0)):
+        side_plate(B, 'Primary' if i != 1 else 'Secondary', [(-1.75, 0.8), (1.75, 0.8), (1.5, -0.95), (-1.5, -0.95)], 0.26, (s * 2.85, y, 7.4), s, 10,
+                   stripe_at=0.45, stripe_h=0.14, bevel=0.05, seam_min=0.8, name='Skirt')
+    hose(B, [(s * 1.4, -4.2, 9.0), (s * 2.2, -2.0, 8.95), (s * 2.3, 1.5, 8.9), (s * 1.6, 3.4, 9.0)], 0.14)
+# Engine deck: radiator grilles, stacks, hazard band
+grille(B, Mx((0, -3.0, 8.75), (90, 0, 0)), 3.0, 1.8, slats=7, depth=0.12)
+hazard(B, Mx((0, -1.75, 8.78), (90, 0, 0)), 3.2, 0.3, n=8)
 for s in (-1, 1):
-    lamp(B, (s * 1.3, 5.6, 7.0), 0.3, rot=(-20, 0, 0))
-# Engine deck: louvres and two exhaust stacks
-vent(B, (0, -3.4, 9.05), (2.8, 0.25, 1.6), rot=(90, 0, 0), slats=6)
-for s in (-1, 1):
-    lathe(B, 'Dark', (s * 1.6, -4.0, 8.8), (0, 0, 1), [(0, 0), (0.42, 0), (0.42, 0.2), (0.34, 0.25), (0.34, 1.8), (0.42, 1.85), (0.42, 2.0), (0.3, 2.0), (0, 1.9)], segs=24, name='Stack')
-    lathe(B, 'Hot', (s * 1.6, -4.0, 10.75), (0, 0, 1), [(0, 0), (0.3, 0), (0, 0.01)], segs=20, name='StackGlow')
-    n = jet_nozzle(B, (s * 1.6, -1.0, 6.3), (0, 0, -1), 0.75)
+    lathe(B, 'Dark', (s * 1.75, -4.3, 8.4), (0, 0, 1), [(0, 0), (0.45, 0), (0.45, 0.2), (0.38, 0.28), (0.38, 1.9), (0.48, 1.95), (0.48, 2.2), (0.32, 2.2), (0.32, 2.0), (0, 2.0)], segs=8, name='Stack')
+    lathe(B, 'Hot', (s * 1.75, -4.3, 10.4), (0, 0, 1), [(0, 0), (0.32, 0), (0, 0.01)], segs=8, name='StackGlow')
+    n = jet(B, (s * 1.6, -1.0, 6.3), (0, 0, -1), 0.75)
     R.anchor('Jet' + ('L' if s < 0 else 'R'), n, 'Root', (0, 0, -1))
-plate(B, 'Primary', (0, -5.2, 7.6), (4.0, 2.0, 0.34), rot=(25, 0, 180), curve=(0.08, 0.05), taper=0.85)
-vent(B, (0, -5.5, 7.6), (2.4, 0.2, 1.0), rot=(25, 0, 180), slats=4)
-# Hip sockets
+armour(B, 'Primary', [(x, y, z) for (y, w, z) in ((-5.5, 1.9, 8.2), (-5.75, 1.7, 6.8)) for x in (-w, w)] +
+       [(x, y + 0.3, z) for (y, w, z) in ((-5.5, 1.9, 8.2), (-5.75, 1.7, 6.8)) for x in (-w, w)], bevel=0.05, seam_min=0.8, name='RearPlate')
+grille(B, Mx((0, -5.95, 7.5), (8, 0, 180)), 2.2, 0.9, slats=4, depth=0.1)
 corners = [(-1, 1), (1, -1), (1, 1), (-1, -1)]
 for sx, sy in corners:
     hp = Vector((sx * 2.55, sy * 3.4, 6.8))
-    loft(B, 'Primary', [(hp + Vector((sx * 0.2, -1.2, 1.0)), 0.8, 0.45, 2.4), (hp + Vector((sx * 0.35, 0.0, 1.25)), 1.05, 0.6, 2.5), (hp + Vector((sx * 0.2, 1.2, 1.0)), 0.8, 0.45, 2.4)],
-         axis_up=(0, 0, 1), segs=28, name='HipCowl')
-    disc_joint(B, hp + Vector((sx * 0.1, 0, 0)), (sx, 0, 0), 1.25 * K, 0.95, bolts=10)
-lathe(B, 'Dark', (0, UPPER.y, 9.0), (0, 0, 1), [(0, 0), (1.85, 0), (1.9, 0.08), (1.9, 0.38), (0, 0.38)], segs=44, name='RingBase')
-bolts_ring(B, (0, UPPER.y, 9.38), (0, 0, 1), 1.65, 18)
+    armour(B, 'Secondary', sec(-1.05, 0.45, 1.2, 0.4) + sec(1.15, 0.45, 1.3, 0.5), Mx(hp - Vector((sx * 0.95, 0, 0))), bevel=0.05, seam_min=0.6, name='HipHousing')
+    armour(B, 'Primary', sec(0, 0.95, 1.35, 0.45, sx * 0.3, 0) + sec(0.45, 0.65, 1.05, 0.35, sx * 0.2, 0), Mx(hp + Vector((0, 0, 1.1))), bevel=0.05, seam_min=0.6, name='HipCowl')
+lathe(B, 'Dark', (0, UPPER.y, 8.95), (0, 0, 1), [(0, 0), (1.85, 0), (1.9, 0.08), (1.9, 0.42), (0, 0.42)], segs=44, name='RingBase')
+gear(B, (0, UPPER.y, 9.4), (0, 0, 1), 1.55, 0.12, teeth=44)
 R.rigid('Hull', (0, 0, STAND), 'Root')
 
-# ---- Cab ------------------------------------------------------------------
+# ---- Cab ----
 T = 'Torso'
-lathe(T, 'Metal', UPPER, (0, 0, 1), [(0, 0), (1.75, 0), (1.8, 0.06), (1.8, 0.3), (0, 0.3)], segs=44, name='RingTop')
 c0 = UPPER
-loft(T, 'Secondary', [(c0 + Vector((0, -1.7, 0.95)), 1.6, 0.8, 3.4), (c0 + Vector((0, -0.4, 1.05)), 1.8, 0.95, 3.4), (c0 + Vector((0, 1.0, 0.95)), 1.6, 0.85, 3.2),
-                      (c0 + Vector((0, 1.75, 0.7)), 1.2, 0.55, 3.0)], axis_up=(0, 0, 1), segs=40, name='Cab')
-loft(T, 'Primary', [(c0 + Vector((0, -1.5, 1.85)), 1.4, 0.25, 2.8), (c0 + Vector((0, 0.3, 1.95)), 1.55, 0.3, 2.8), (c0 + Vector((0, 1.5, 1.6)), 1.15, 0.22, 2.6)],
-     axis_up=(0, 0, 1), segs=36, name='CabRoof')
-# Lit vision slit wrapping the front of the cab
-loft(T, 'Black', [(c0 + Vector((0, 0.6, 1.15)), 1.72, 0.25, 3.2), (c0 + Vector((0, 1.3, 1.0)), 1.45, 0.2, 3.0), (c0 + Vector((0, 1.82, 0.82)), 1.05, 0.14, 2.8)],
-     axis_up=(0, 0, 1), segs=36, sub=2, cap=(False, True), name='SlitFrame')
-loft(T, 'Glow', [(c0 + Vector((0, 0.7, 1.15)), 1.75, 0.1, 3.2), (c0 + Vector((0, 1.32, 1.0)), 1.48, 0.08, 3.0), (c0 + Vector((0, 1.85, 0.82)), 1.08, 0.06, 2.8)],
-     axis_up=(0, 0, 1), segs=36, sub=2, cap=(False, True), name='Slit')
+lathe(T, 'Metal', c0, (0, 0, 1), [(0, 0), (1.75, 0), (1.8, 0.06), (1.8, 0.3), (0, 0.3)], segs=44, name='RingTop')
+armour(T, 'Secondary', sec(0.25, 1.65, 1.75, 0.6, 0, -0.1) + sec(1.3, 1.8, 1.9, 0.65, 0, 0.0) + sec(1.9, 1.35, 1.45, 0.5, 0, -0.25) + [(0, 2.15, 0.9)],
+       Mx(c0), bevel=0.06, seam_min=0.8, name='Cab')
+armour(T, 'Primary', sec(1.85, 1.2, 1.35, 0.45, 0, -0.25) + sec(2.2, 0.95, 1.05, 0.35, 0, -0.4), Mx(c0), bevel=0.05, seam_min=0.6, name='CabRoof')
+armour(T, 'Black', boxpts((2.2, 0.3, 0.3), ch=0.1), Mx(c0 + Vector((0, 1.85, 1.25)), (-20, 0, 0)), bevel=0.03, seams=False, groove=None, name='SlitFrame')
+armour(T, 'Glow', boxpts((1.9, 0.1, 0.14)), Mx(c0 + Vector((0, 1.98, 1.27)), (-20, 0, 0)), bevel=0, seams=False, groove=None, name='Slit')
 for s in (-1, 1):
-    vent(T, c0 + Vector((s * 1.75, -1.0, 0.95)), (1.4, 0.25, 0.55), rot=(0, 0, s * 90), slats=3)
-block(T, 'Dark', c0 + Vector((-0.5, -1.0, 2.2)), (0.9, 0.9, 0.12), bevel=0.04, name='Hatch')
+    grille(T, Mx(c0 + Vector((s * 1.7, -0.8, 1.0)), (0, 0, -s * 90)), 1.3, 0.55, slats=3, depth=0.1)
+    armour(T, 'Dark', boxpts((0.5, 0.6, 0.6), ch=0.12), Mx(c0 + Vector((s * 1.3, -0.4, 0.6))), bevel=0.04, seams=False, groove=None, name='ShLug')
+armour(T, 'Dark', boxpts((0.9, 0.9, 0.14), ch=0.15), Mx(c0 + Vector((-0.5, -1.0, 2.25))), bevel=0.03, seams=False, groove=None, name='Hatch')
 R.rigid('Torso', UPPER, 'Upper')
 
-# ---- Weapon arms ------------------------------------------------------------
 for s in (-1, 1):
-    arm(R, s, (s * 2.2, ARMS.y, ARMS.z), (s * 2.35, ARMS.y + 0.4, ARMS.z - 0.6), (s * 2.4, 4.45, 10.2), k=0.7, shoulder_r=1.2)
+    arm(R, s, (s * 2.2, ARMS.y, ARMS.z), (s * 2.35, ARMS.y + 0.4, ARMS.z - 0.6), (s * 2.4, 4.45, 10.2), k=0.72, gauntlet=(1.05, 1.0, 1.0))
+    armour('Arms', 'Dark', boxpts((0.45, 0.55, 0.55), ch=0.1), Mx((s * 1.75, ARMS.y - 1.2, ARMS.z - 0.3)), bevel=0.04, seams=False, groove=None, name='ArmLug')
 R.rigid('Arms', ARMS, 'Arms')
+shoulder_rams(R, [(c0 + Vector((s * 1.3, -0.4, 0.6)), (s * 1.75, ARMS.y - 1.2, ARMS.z - 0.3)) for s in (-1, 1)], k=0.7)
 
-# ---- Detachable deck plates and antenna ---------------------------------------
+# ---- Detachable deck plates and antenna ----
 for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
-    c = Vector((s * 1.4, -0.4, 9.25))
-    plate(nm, 'Primary', c, (2.2, 3.6, 0.3), rot=(90, -s * 10, 0), curve=(0.1, 0.02), bevel=0.08, taper=0.9)
-    stripe(nm, c + Vector((s * 0.4, 0, 0.18)), (0.6, 2.6, 0.05), rot=(0, -s * 10, 0))
-    R.rigid(nm, c, 'Root')
-mast = Vector((-1.6, -2.4, 9.1))
-lathe('Antenna', 'Dark', mast, (0, 0, 1), [(0, 0), (0.2, 0), (0.2, 0.35), (0.07, 0.45), (0.05, 2.8), (0.0, 2.9)], segs=12, name='Mast')
+    cc = Vector((s * 1.35, -0.6, 9.1))
+    armour(nm, 'Primary', [(x, y, z) for x in (-0.95, 0.95) for y in (-1.6, 1.6) for z in (0, 0.28)] + [(s * 0.0, 0, 0.45)], Mx(cc, (0, -s * 6, 0)), bevel=0.05, seam_min=0.6, name='DeckPlate')
+    stripe(nm, Mx(cc + Vector((s * 0.55, 0, 0.36)), (90, 0, 0)), 0.3, 2.6)
+    R.rigid(nm, cc, 'Root')
+mast = Vector((-1.6, -2.6, 9.0))
+armour('Antenna', 'Dark', boxpts((0.4, 0.4, 0.5), ch=0.08), Mx(mast + Vector((0, 0, 0.25))), bevel=0.03, seams=False, groove=None, name='MastBase')
+lathe('Antenna', 'Dark', mast, (0, 0, 1), [(0.07, 0.5), (0.05, 2.8), (0.0, 2.9)], segs=8, name='Mast')
 lathe('Antenna', 'Glow', mast + Vector((0, 0, 2.8)), (0, 0, 1), [(0, 0), (0.07, 0), (0, 0.12)], segs=10, name='Tip')
 R.rigid('Antenna', mast, 'Root')
 
@@ -98,7 +100,9 @@ for sx, sy in corners:
     tag = ('F' if sy > 0 else 'B') + ('L' if sx < 0 else 'R')
     hp = Vector((sx * 2.55, sy * 3.4, 6.8))
     ank = hp + Vector((sx * 3.0, sy * 3.6, 0)); ank.z = ANKLE_Z
-    biped_leg(R, sx, hp, ank, THIGH, SHIN, ANKLE_Z, k=K, style=dict(guard='blade', toes=3, toe_len=2.2, rams=(0.19, 0.15)), tag=tag, flip=sy < 0)
+    knee, Mt, Ms = walker_leg(R, sx, hp, ank, THIGH, SHIN, ANKLE_Z, k=K, tag=tag,
+                              st=dict(shin='box' if sy > 0 else 'crest', toes=3, foot_len=1.0, foot_w=1.0, bend=(0, 1 if sy > 0 else -1, 0)))
+    hip_ram(R, sx, hp, Mt, THIGH, k=0.95, tag=tag)
 
 R.extra.update({'thigh': THIGH, 'shin': SHIN, 'ankle': ANKLE_Z, 'footOut': 0, 'upper': list(U(UPPER)), 'arms': list(U(ARMS))})
 run(R, os.path.dirname(os.path.abspath(__file__)), 6.0, 46)

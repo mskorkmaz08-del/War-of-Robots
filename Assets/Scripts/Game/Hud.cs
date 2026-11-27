@@ -127,7 +127,17 @@ namespace RobotArena
             var top = UiKit.Rect("Over", menuPanel.transform, new Vector2(0.5f, 0.86f), Vector2.zero, new Vector2(1200f, 60f));
             UiKit.Label(top, UiKit.Spaced("GIANT ROBOT BATTLES"), 34, UiKit.Orange, TextAnchor.MiddleCenter, true);
             var title = UiKit.Rect("Title", menuPanel.transform, new Vector2(0.5f, 0.73f), Vector2.zero, new Vector2(1700f, 200f));
-            UiKit.Title(title, "WAR OF ROBOTS", 160, UiKit.TextBright);
+            var titleText = UiKit.Title(title, "WAR OF ROBOTS", 160, UiKit.TextBright);
+            // The game logo sits left of the name; the pair is centred together.
+            var logo = Resources.Load<Sprite>("UI/Logo");
+            if (logo != null)
+            {
+                const float logoSize = 230f, gap = 30f;
+                float w = Mathf.Min(titleText.preferredWidth, 1500f);
+                title.anchoredPosition = new Vector2((logoSize + gap) * 0.5f, 0f);
+                var mark = UiKit.Rect("Logo", menuPanel.transform, new Vector2(0.5f, 0.73f), new Vector2(-(w + gap) * 0.5f, 0f), new Vector2(logoSize, logoSize));
+                UiKit.Image(mark, logo, Color.white).preserveAspect = true;
+            }
             var line = UiKit.Rect("Line", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(900f, 2f));
             UiKit.Image(line, null, new Color(1f, 1f, 1f, 0.25f));
             var lineMid = UiKit.Rect("LineMid", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(160f, 6f));

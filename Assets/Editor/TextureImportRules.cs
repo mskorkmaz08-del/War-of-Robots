@@ -37,6 +37,28 @@ namespace RobotArena.EditorTools
                 ti.maxTextureSize = 1024;
                 ti.textureCompression = TextureImporterCompression.Compressed;
             }
+            else if (p.StartsWith("Assets/Resources/UI/"))
+            {
+                // UI art such as the game logo: a sprite with clean transparent edges.
+                ti.textureType = TextureImporterType.Sprite;
+                ti.spriteImportMode = SpriteImportMode.Single;
+                ti.sRGBTexture = true;
+                ti.alphaIsTransparency = true;
+                ti.wrapMode = TextureWrapMode.Clamp;
+                ti.mipmapEnabled = true;
+                ti.maxTextureSize = 512;
+                ti.textureCompression = TextureImporterCompression.CompressedHQ;
+            }
+            else if (p == "Assets/Art/AppIcon.png")
+            {
+                // Home-screen icon: Unity scales it to every icon size itself.
+                ti.textureType = TextureImporterType.Default;
+                ti.sRGBTexture = true;
+                ti.mipmapEnabled = false;
+                ti.maxTextureSize = 1024;
+                ti.npotScale = TextureImporterNPOTScale.None;
+                ti.textureCompression = TextureImporterCompression.Uncompressed;
+            }
             else if (p == "Assets/Textures/Sky.jpg")
             {
                 ti.textureType = TextureImporterType.Default;

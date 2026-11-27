@@ -75,6 +75,16 @@ namespace RobotArena.EditorTools
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
 
+            // The game logo as the app icon (Unity makes every size from it).
+            try
+            {
+                AssetDatabase.ImportAsset("Assets/Art/AppIcon.png", ImportAssetOptions.ForceUpdate);
+                var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Art/AppIcon.png");
+                if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+                Debug.Log("[CIBuild] App icon: " + (icon != null ? "set" : "missing"));
+            }
+            catch (Exception e) { Debug.LogWarning("[CIBuild] App icon skipped: " + e.Message); }
+
             if (target == BuildTarget.WebGL)
             {
                 // GitHub Pages can't serve pre-compressed files with the right headers,

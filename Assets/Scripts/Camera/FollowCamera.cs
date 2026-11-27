@@ -31,7 +31,7 @@ namespace RobotArena
         [Header("Free look")]
         public float minPitch = -20f;
         public float maxPitch = 60f;
-        public float defaultPitch = 9f;
+        public float defaultPitch = 7f;
         [Tooltip("Seconds without look input before the camera drifts back behind the robot while it moves.")]
         public float recenterDelay = 2.5f;
 
@@ -84,7 +84,7 @@ namespace RobotArena
             float top = b.max.y - target.position.y;
             lookHeight = top - h * 0.16f;
             distance = Mathf.Clamp(Mathf.Max(h * 0.9f, len * 1.05f), 13f, 30f);
-            height = h * 0.22f;   // above the head, so the robot sits low and the view ahead is clear
+            height = h * 0.06f;
             shoulder = Mathf.Clamp(h * 0.3f, 3f, 8f);
         }
 

@@ -46,7 +46,12 @@ namespace RobotArena
         GameObject touchControls;
         VirtualJoystick joystick;
         TouchButton fireButton, specialButton, boostButton;
-        Image specialCharge, boostCharge;
+        Image specialCharge, boostCharge, fireCharge;
+        Damageable turretOwner;
+        Turret playerTurret;
+        Weapon primary;
+        Text ammoText;
+        int lastAmmo = -2;
         LookPad lookPad;
 
         // End
@@ -268,7 +273,9 @@ namespace RobotArena
             int level = Upgrades.Level(focus);
             hWeaponInfo.text = Loadout.Info(focus).name + ": " + Loadout.Info(focus).blurb;
             string hit = Mathf.RoundToInt(WeaponStats.Hit(focus, level)) + (focus == WeaponId.Flamethrower ? " DMG/S" : " DMG");
-            hUpgradeLevel.text = "LEVEL " + (level + 1) + " / " + (WeaponStats.MaxLevel + 1) + "\n" + hit + "  ·  " + Mathf.RoundToInt(WeaponStats.Dps(focus, level)) + " DPS";
+            var mag = Magazines.For(focus);
+            string magText = mag.rounds <= 0 ? "" : focus == WeaponId.Flamethrower ? "  ·  " + (mag.rounds / 10) + " S FUEL" : "  ·  MAG " + mag.rounds;
+            hUpgradeLevel.text = "LEVEL " + (level + 1) + " / " + (WeaponStats.MaxLevel + 1) + magText + "\n" + hit + "  ·  " + Mathf.RoundToInt(WeaponStats.Dps(focus, level)) + " DPS";
             int cost = Upgrades.NextCost(focus);
             var label = hUpgradeButton != null ? hUpgradeButton.GetComponentInChildren<Text>() : null;
             if (label != null) label.text = cost < 0 ? "MAX LEVEL" : "UPGRADE  " + cost + " CR";
@@ -341,6 +348,7 @@ namespace RobotArena
             specialLabel = UiKit.Label(Place(status, 0.14f, 0.12f, 120f, 30f), "", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
             specialLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
             specialFill = UiKit.Bar(status, new Vector2(0.6f, 0.12f), Vector2.zero, new Vector2(370f, 22f), UiKit.Orange, out _);
+            UiKit.OwnCanvas(status);
 
             // Teams, score and objective
             BuildTeamHud(status);
@@ -360,9 +368,13 @@ namespace RobotArena
             }
             var dot = UiKit.Rect("Dot", cross, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(5f, 5f));
             UiKit.Image(dot, null, UiKit.Orange);
+            // Rounds left in the main gun's magazine, under the crosshair.
+            ammoText = UiKit.Label(UiKit.Rect("Ammo", cross, new Vector2(0.5f, 0.5f), new Vector2(0f, -64f), new Vector2(260f, 32f)), "", 24, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter, true);
+            ammoText.horizontalOverflow = HorizontalWrapMode.Overflow;
 
             // Lock-on marker
             targetMarker = UiKit.Rect("Target", fightPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 150f));
+            UiKit.OwnCanvas(targetMarker);
             // Four red corner brackets around the locked target.
             for (int k = 0; k < 4; k++)
             {
@@ -388,6 +400,7 @@ namespace RobotArena
         void BuildTouchControls()
         {
             touchControls = UiKit.Fill("TouchControls", fightPanel.transform).gameObject;
+            UiKit.OwnCanvas(touchControls.transform, true);
 
             var pad = UiKit.Fill("LookPad", touchControls.transform);
             UiKit.Image(pad, null, new Color(0f, 0f, 0f, 0f), true);
@@ -409,7 +422,7 @@ namespace RobotArena
             joystick.handle = handle;
             joystick.radius = 120f;
 
-            fireButton = ActionButton("FIRE", new Vector2(-220f, 230f), 250f, UiKit.Red, out _);
+            fireButton = ActionButton("FIRE", new Vector2(-220f, 230f), 250f, UiKit.Red, out fireCharge);
             specialButton = ActionButton("SPECIAL", new Vector2(-460f, 150f), 170f, UiKit.Orange, out specialCharge);
             boostButton = ActionButton("BOOST", new Vector2(-190f, 470f), 170f, UiKit.Cyan, out boostCharge);
 
@@ -460,6 +473,8 @@ namespace RobotArena
         public void BindPlayer()
         {
             special = null;
+            primary = null;
+            lastAmmo = -2;
             playerLoco = null;
             lastSpecialText = null;
             lastHealth = -1f;
@@ -467,9 +482,43 @@ namespace RobotArena
             if (p != null)
             {
                 playerLoco = p.GetComponent<Locomotion>();
-                foreach (var w in p.GetComponents<Weapon>()) if (w.slot == Weapon.Slot.Special) special = w;
+                foreach (var w in p.GetComponents<Weapon>())
+                {
+                    if (w.slot == Weapon.Slot.Special) special = w;
+                    else if (primary == null) primary = w;
+                }
                 playerName.text = p.displayName;
             }
+        }
+
+        static readonly System.Collections.Generic.Dictionary<int, string> ammoStrings = new System.Collections.Generic.Dictionary<int, string>();
+
+        /// <summary>"48 / 80", made once per value so firing doesn't churn garbage.</summary>
+        static string AmmoString(int n, int mag)
+        {
+            int key = n * 1000 + mag;
+            if (!ammoStrings.TryGetValue(key, out var s)) ammoStrings[key] = s = n + " / " + mag;
+            return s;
+        }
+
+        /// <summary>Main gun magazine: count under the crosshair, ring around FIRE.</summary>
+        void UpdateAmmo()
+        {
+            bool mag = primary != null && primary.HasMagazine;
+            if (fireCharge != null) fireCharge.fillAmount = mag ? primary.Ammo01 : 1f;
+            int key = !mag ? -1 : primary.Reloading ? -3 : primary.Ammo;
+            if (key == lastAmmo || ammoText == null) return;
+            lastAmmo = key;
+            if (key == -1) { ammoText.text = ""; return; }
+            if (key == -3)
+            {
+                ammoText.text = UiKit.Spaced("RELOADING");
+                ammoText.color = UiKit.Orange;
+                return;
+            }
+            ammoText.text = AmmoString(key, primary.magazine);
+            bool low = key <= Mathf.Max(1, primary.magazine / 5);
+            ammoText.color = low ? UiKit.Red : new Color(1f, 1f, 1f, 0.7f);
         }
 
         void Update()
@@ -504,6 +553,8 @@ namespace RobotArena
                     SetFill(fuelFill, playerLoco.Fuel01);
                     if (boostCharge != null) boostCharge.fillAmount = playerLoco.Fuel01;
                 }
+
+                UpdateAmmo();
 
                 if (special != null)
                 {
@@ -558,7 +609,8 @@ namespace RobotArena
 
         void UpdateTargetMarker(Damageable p)
         {
-            var turret = p != null && !p.IsDead ? p.GetComponent<Turret>() : null;
+            if (p != turretOwner) { turretOwner = p; playerTurret = p != null ? p.GetComponent<Turret>() : null; }
+            var turret = p != null && !p.IsDead ? playerTurret : null;
             var cam = Camera.main;
             if (turret == null || turret.Target == null || cam == null)
             {

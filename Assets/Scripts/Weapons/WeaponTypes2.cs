@@ -26,12 +26,14 @@ namespace RobotArena
 
         protected override void Update()
         {
-            // Barrels spin up while firing and wind down after.
-            spinSpeed = Mathf.MoveTowards(spinSpeed, Triggered ? 1440f : 0f, Time.deltaTime * 1800f);
+            // Barrels spin up while firing and wind down after, and while reloading.
+            TickMagazine();
+            bool shooting = Triggered && !Reloading;
+            spinSpeed = Mathf.MoveTowards(spinSpeed, shooting ? 1440f : 0f, Time.deltaTime * 1800f);
             foreach (var s in spinners) if (s != null) s.Rotate(0f, 0f, spinSpeed * Time.deltaTime, Space.Self);
-            bool firing = Triggered && spinSpeed >= 700f;
+            bool firing = shooting && spinSpeed >= 700f;
             if (fireLoop != null) fireLoop.volume = Mathf.MoveTowards(fireLoop.volume, firing ? 0.75f : 0f, Time.deltaTime * (firing ? 12f : 6f));
-            if (Triggered && spinSpeed < 700f) return; // spinning up
+            if (shooting && spinSpeed < 700f) return; // spinning up
             base.Update();
         }
 
@@ -231,7 +233,9 @@ namespace RobotArena
         ParticleSystem[] flames;
         AudioSource roar;
         bool wasOn;
+        float fuelUsed;
         static readonly Collider[] Hits = new Collider[64];
+        static readonly System.Collections.Generic.HashSet<Damageable> Seen = new System.Collections.Generic.HashSet<Damageable>();
 
         void Start()
         {
@@ -261,7 +265,15 @@ namespace RobotArena
 
         protected override void Update()
         {
-            bool on = Triggered;
+            TickMagazine();
+            bool on = Triggered && !Reloading;
+            if (on)
+            {
+                // Burns through its fuel tank, then refills (one round = 0.1 s of flame).
+                fuelUsed += Time.deltaTime;
+                while (fuelUsed >= 0.1f && !Reloading) { fuelUsed -= 0.1f; UseRound(); }
+                if (Reloading) fuelUsed = 0f;
+            }
             if (on && !wasOn && muzzles.Length > 0) GameAudio.Play(Sfx.FlameStart, muzzles[0].position, 0.8f);
             wasOn = on;
             if (flames != null) foreach (var f in flames) Fx.SetRate(f, on ? 140f : 0f);
@@ -274,7 +286,7 @@ namespace RobotArena
             Vector3 dir = AimDirection(muzzle);
             Vector3 from = muzzle.position;
             int n = Physics.OverlapSphereNonAlloc(from + dir * range * 0.5f, range * 0.55f, Hits, ~0, QueryTriggerInteraction.Ignore);
-            var seen = new System.Collections.Generic.HashSet<Damageable>();
+            var seen = Seen; seen.Clear();
             for (int i = 0; i < n; i++)
             {
                 var d = Hits[i].GetComponentInParent<Damageable>();

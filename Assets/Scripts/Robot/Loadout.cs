@@ -87,6 +87,9 @@ namespace RobotArena
                 case RobotType.Bastion: return new Loadout(WeaponId.HeavyCannon, WeaponId.MortarBarrage);
                 case RobotType.Vanguard: return new Loadout(WeaponId.PulseLaser, WeaponId.MissileSwarm);
                 case RobotType.Mammoth: return new Loadout(WeaponId.Gatling, WeaponId.PlasmaRailgun);
+                case RobotType.Strider: return new Loadout(WeaponId.Gatling, WeaponId.MissileSwarm);
+                case RobotType.Colossus: return new Loadout(WeaponId.HeavyCannon, WeaponId.PlasmaRailgun);
+                case RobotType.Scarab: return new Loadout(WeaponId.PulseLaser, WeaponId.MortarBarrage);
                 default: return new Loadout(WeaponId.HeavyCannon, WeaponId.MissileSwarm);
             }
         }

@@ -5,7 +5,7 @@ namespace RobotArena
     /// <summary>
     /// One table for how hard every weapon hits and how fast it reloads, used for
     /// every robot on both teams. Main weapons are tuned to roughly the same damage
-    /// per second (about 150) and differ in how they deliver it; specials are big
+    /// per second (about 150, counting reload pauses) and differ in how they deliver it; specials are big
     /// bursts on a long reload. Upgrades raise damage 10% and cut reload 3% per level.
     /// </summary>
     public static class WeaponStats
@@ -23,19 +23,19 @@ namespace RobotArena
         {
             switch (id)
             {
-                case WeaponId.HeavyCannon: return new Stats { damage = 120f, cooldown = 0.8f };
+                case WeaponId.HeavyCannon: return new Stats { damage = 180f, cooldown = 0.8f };
                 case WeaponId.PulseLaser: return new Stats { damage = 18f, cooldown = 0.12f };
-                case WeaponId.Gatling: return new Stats { damage = 11f, cooldown = 0.07f };
-                case WeaponId.RocketPods: return new Stats { damage = 42f, cooldown = 0.28f };
-                case WeaponId.Flamethrower: return new Stats { damage = 190f, cooldown = 0.1f };
+                case WeaponId.Gatling: return new Stats { damage = 15f, cooldown = 0.07f };
+                case WeaponId.RocketPods: return new Stats { damage = 72f, cooldown = 0.28f };
+                case WeaponId.Flamethrower: return new Stats { damage = 240f, cooldown = 0.1f };
                 case WeaponId.RailRifle: return new Stats { damage = 300f, cooldown = 2.2f };
                 case WeaponId.MissileSwarm: return new Stats { damage = 45f, cooldown = 8f, count = 10 };
                 case WeaponId.PlasmaRailgun: return new Stats { damage = 420f, cooldown = 7f };
                 case WeaponId.MortarBarrage: return new Stats { damage = 80f, cooldown = 8f, count = 6 };
-                case WeaponId.Autocannon: return new Stats { damage = 46f, cooldown = 0.75f, count = 3 };
-                case WeaponId.ScatterCannon: return new Stats { damage = 21f, cooldown = 1.15f, count = 9 };
+                case WeaponId.Autocannon: return new Stats { damage = 70f, cooldown = 0.75f, count = 3 };
+                case WeaponId.ScatterCannon: return new Stats { damage = 29f, cooldown = 1.15f, count = 9 };
                 case WeaponId.IonBeam: return new Stats { damage = 150f, cooldown = 0.1f };
-                case WeaponId.GrenadeLauncher: return new Stats { damage = 92f, cooldown = 0.6f };
+                case WeaponId.GrenadeLauncher: return new Stats { damage = 165f, cooldown = 0.6f };
                 case WeaponId.ClusterBomb: return new Stats { damage = 55f, cooldown = 9f, count = 12 };
                 case WeaponId.EmpBlast: return new Stats { damage = 140f, cooldown = 12f };
                 case WeaponId.Hellfire: return new Stats { damage = 230f, cooldown = 9f, count = 2 };
@@ -60,17 +60,17 @@ namespace RobotArena
             var s = At(id, level);
             switch (id)
             {
-                case WeaponId.Flamethrower:
+                case WeaponId.Flamethrower: return s.damage * Magazines.Sustain(id, 0.1f);
                 case WeaponId.IonBeam: return s.damage;
-                case WeaponId.Autocannon: return s.damage * s.count / (s.cooldown + 0.18f);
-                case WeaponId.ScatterCannon: return s.damage * s.count / s.cooldown;
+                case WeaponId.Autocannon: return s.damage * s.count / (s.cooldown + 0.18f) * Magazines.Sustain(id, s.cooldown + 0.18f);
+                case WeaponId.ScatterCannon: return s.damage * s.count / s.cooldown * Magazines.Sustain(id, s.cooldown);
                 case WeaponId.ClusterBomb:
                 case WeaponId.Hellfire: return s.damage * s.count / s.cooldown;
                 case WeaponId.RailRifle: return s.damage / (s.cooldown + 0.7f);
                 case WeaponId.PlasmaRailgun: return s.damage / (s.cooldown + 1.3f);
                 case WeaponId.MissileSwarm:
                 case WeaponId.MortarBarrage: return s.damage * s.count / s.cooldown;
-                default: return s.damage / s.cooldown;
+                default: return s.damage / s.cooldown * Magazines.Sustain(id, s.cooldown);
             }
         }
 
@@ -116,14 +116,17 @@ namespace RobotArena
         {
             switch (type)
             {
-                case RobotType.Titan: return 4000f;      // the biggest walker
+                case RobotType.Colossus: return 4600f;   // the super-heavy
+                case RobotType.Titan: return 4000f;
                 case RobotType.Mammoth: return 3700f;
                 case RobotType.Juggernaut: return 3400f;
+                case RobotType.Scarab: return 3200f;
                 case RobotType.Bastion: return 3100f;
                 case RobotType.Arachne: return 2700f;
                 case RobotType.Vanguard: return 2600f;
                 case RobotType.Raptor: return 2300f;
                 case RobotType.Lancer: return 2100f;
+                case RobotType.Strider: return 1900f;
                 default: return 1800f;                   // Hornet, the smallest
             }
         }

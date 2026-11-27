@@ -19,8 +19,9 @@ import weapons as W
 
 LOAD = {'titan': ('heavy_cannon', 'swarm'), 'raptor': ('pulse_laser', 'railgun'), 'arachne': ('gatling', 'mortar'), 'hornet': ('rocket_pods', 'tesla'),
         'juggernaut': ('flamethrower', 'swarm'), 'lancer': ('rail_rifle', 'swarm'), 'bastion': ('heavy_cannon', 'mortar'), 'vanguard': ('pulse_laser', 'swarm'),
-        'mammoth': ('gatling', 'railgun')}
-SCALE = {'titan': (1, 1, 1), 'lancer': (0.85, 0.85, 0.8), 'vanguard': (0.92, 0.9, 0.85), 'arachne': (0.85, 0.8, 0.9), 'mammoth': (1, 1, 1)}
+        'mammoth': ('gatling', 'railgun'), 'strider': ('gatling', 'swarm'), 'colossus': ('heavy_cannon', 'railgun'), 'scarab': ('pulse_laser', 'mortar')}
+SCALE = {'titan': (1, 1, 1), 'lancer': (0.85, 0.85, 0.8), 'vanguard': (0.92, 0.9, 0.85), 'arachne': (0.85, 0.8, 0.9), 'mammoth': (1, 1, 1),
+         'strider': (0.72, 0.75, 0.7), 'colossus': (1.15, 1.1, 1.1), 'scarab': (0.85, 0.85, 0.95)}
 WK = {'Raptor': 0.85, 'Hornet': 0.68, 'Juggernaut': 1.05, 'Bastion': 0.95}
 if wheeled:
     kk = WK[robot]; sc = (0.82 * kk, 0.82 * kk, 0.8 * kk)

@@ -107,12 +107,36 @@ namespace RobotArena
         Vector3 prevFlatVel, smoothAccel;
         bool legPush;
         float SizeScale => Mathf.Max(0.6f, standHeight / 7f);
+
+        // Ground the hull stands on, taken from where the planted feet are rather than
+        // from what happens to be under the hull: a crate or a wreck between the legs
+        // no longer heaves the body up and makes it lurch.
+        float supportY = float.NaN;
+
+        // Knock-down: only a very heavy hit puts a giant on the ground.
+        enum Knock { None, Falling, Down, Rising }
+        Knock knock = Knock.None;
+        float knockT;
+        Vector3 knockAway = Vector3.back;
+        float lastKnock = -999f;
+        bool risePlaced;
+        public bool IsKnockedDown => knock != Knock.None;
+        bool Biped => legs.Length <= 2;
+        float FallTime => Biped ? 1.05f + 0.1f * SizeScale : 0.7f;
+        float DownTime => Biped ? 1.3f : 0.9f;
+        float RiseTime => Biped ? 2.6f + 0.3f * SizeScale : 2.0f;
+        float KnockTilt => Biped ? 64f : 9f;
+        float KnockLow => standHeight * (Biped ? 0.4f : 0.5f);
         const float SwingFraction = 0.42f;
 
         public override bool IsGrounded => grounded;
 
         void Start()
         {
+            // A 30-60 t machine on two or more planted legs: knocks against props and
+            // other robots barely tip it. (The upright and lean control below is set as
+            // an acceleration, so it is not slowed down by this.)
+            if (rb != null) rb.inertiaTensor = rb.inertiaTensor * 5f;
             AssignGaitGroups();
             foreach (var leg in legs)
             {
@@ -160,6 +184,28 @@ namespace RobotArena
             {
                 groundY = hit.point.y;
                 groundNormal = hit.normal;
+            }
+
+            if (knock != Knock.None)
+            {
+                UpdateKnock(dt, velocity, hasGround ? height : standHeight);
+                lastFallSpeed = velocity.y;
+                return;
+            }
+
+            // Stand on the feet: the hull's height is measured from the planted feet,
+            // which follow the real ground, and changes in it are eased in.
+            if (grounded)
+            {
+                float feetY = 0f; int planted = 0;
+                foreach (var leg in legs)
+                    if (leg.planted) { feetY += leg.footPos.y; planted++; }
+                float support = planted > 0 ? feetY / planted : groundY;
+                // Never stand on something far below the probe (stepping off an edge).
+                support = Mathf.Max(support, groundY - 1.5f);
+                if (!wasGrounded || float.IsNaN(supportY) || Mathf.Abs(supportY - support) > 4f) supportY = support;
+                else supportY = Mathf.Lerp(supportY, support, 1f - Mathf.Exp(-5f * dt));
+                height = probeOrigin.y - 2f - supportY;
             }
 
             if (grounded)
@@ -212,7 +258,13 @@ namespace RobotArena
             Vector3 angVel = rb.angularVelocity;
             Vector3 angNoYaw = angVel - Vector3.up * Vector3.Dot(angVel, Vector3.up);
             float uprightScale = grounded ? 1f : 0.6f;
-            rb.AddTorque((tilt * uprightStiffness * 1.3f - angNoYaw * uprightDamping * 1.5f) * uprightScale, ForceMode.Acceleration);
+            // Firm and close to critically damped: the body goes where the gait and the
+            // leans put it, without swinging back and forth as if hung from a rope.
+            float kUp = uprightStiffness * 3f;
+            float cUp = 1.9f * Mathf.Sqrt(kUp);
+            float off = Vector3.Angle(transform.up, targetUp);
+            if (off > 12f) kUp *= 1f + (off - 12f) / 6f; // something shoved it hard: plant the legs and straighten
+            rb.AddTorque((tilt * kUp - angNoYaw * cUp) * uprightScale, ForceMode.Acceleration);
 
             // Walk: push the hull toward the wanted ground speed.
             Vector3 wanted;
@@ -339,7 +391,8 @@ namespace RobotArena
             Vector3 velocity = Compat.GetVelocity(rb);
             Vector3 flatVel = new Vector3(velocity.x, 0f, velocity.z);
 
-            if (grounded) UpdateSteps(flatVel, dt);
+            if (knock != Knock.None) UpdateKnockLegs(dt);
+            else if (grounded) UpdateSteps(flatVel, dt);
             else UpdateAirPose(velocity, flatVel, dt);
 
             foreach (var leg in legs) SolveLeg(leg);
@@ -559,6 +612,185 @@ namespace RobotArena
                     float pitchDeg = st < 0.45f ? Mathf.Sin(st / 0.45f * Mathf.PI) * 22f : -Mathf.Sin((st - 0.45f) / 0.55f * Mathf.PI) * 14f;
                     if (!grounded) pitchDeg = 8f;
                     leg.foot.rotation = yaw * Quaternion.Euler(pitchDeg, 0f, 0f);
+                }
+            }
+        }
+
+        // =====================================================================
+        // Knock-down and getting up
+        // =====================================================================
+
+        /// <summary>
+        /// A very heavy hit can put the robot on the ground. Returns false when it can't
+        /// fall right now (in the air, already down, or it got up only moments ago).
+        /// </summary>
+        public bool KnockDown(Vector3 awayFromHit)
+        {
+            if (knock != Knock.None || !grounded || Time.time - lastKnock < 20f) return false;
+            awayFromHit.y = 0f;
+            if (awayFromHit.sqrMagnitude < 0.01f) awayFromHit = -transform.forward;
+            knockAway = awayFromHit.normalized;
+            if (!Biped)
+            {
+                // Legged bodies drop onto their belly and roll a little away from the hit.
+                Vector3 side = Vector3.Dot(knockAway, transform.right) >= 0f ? transform.right : -transform.right;
+                knockAway = Vector3.ProjectOnPlane(side, Vector3.up).normalized;
+            }
+            knock = Knock.Falling;
+            knockT = 0f;
+            lastKnock = Time.time;
+            jumpCrouch = 0f; legPush = false; dipTarget = 0f; jetThrottle = 0f;
+            foreach (var leg in legs) { leg.swinging = false; leg.stepT = 1f; leg.planted = true; }
+            GameAudio.Play(Sfx.Servo, transform.position + Vector3.up * standHeight, 0.8f, 0.55f);
+            GameAudio.Play(Sfx.Hiss, transform.position + Vector3.up * standHeight, 0.6f, 0.7f);
+            return true;
+        }
+
+        static float Smooth(float x) { x = Mathf.Clamp01(x); return x * x * (3f - 2f * x); }
+
+        /// <summary>
+        /// The scripted part of a fall. Physics still carries the hull (it can be pushed and
+        /// it lands on whatever is there); these springs only say where the body is heading:
+        /// gravity takes it down faster and faster, it hits the ground, lies there a moment,
+        /// then gets up the way its body allows.
+        /// Two legs: it goes over backwards or sideways onto its back and hips, rolls up onto
+        /// its knees with the feet pulled in under it, then pushes up to standing.
+        /// More legs: the legs buckle outwards and the belly drops; then the legs walk back in
+        /// under the body and lift it.
+        /// </summary>
+        void UpdateKnock(float dt, Vector3 velocity, float height)
+        {
+            knockT += dt;
+            float tilt, low;
+            switch (knock)
+            {
+                case Knock.Falling:
+                {
+                    float u = knockT / FallTime;
+                    float g = u * u; // speeds up like a fall
+                    tilt = KnockTilt * g;
+                    low = Mathf.Lerp(0f, 1f, g);
+                    if (u >= 1f)
+                    {
+                        knock = Knock.Down; knockT = 0f;
+                        Vector3 pos = rb.worldCenterOfMass;
+                        pos.y = groundY;
+                        GameAudio.Play(Sfx.Landing, pos, 1f, 0.7f);
+                        GameAudio.Play(Sfx.MetalHit, pos, 1f, 0.6f);
+                        Fx.Dust(pos, 4f * SizeScale);
+                        Fx.Dust(pos + knockAway * standHeight * 0.5f, 3f * SizeScale);
+                        FollowCamera.Shake(0.7f, pos, 140f);
+                        dipVel = 0f; bodyDip = 0f;
+                    }
+                    break;
+                }
+                case Knock.Down:
+                {
+                    // Settled on the ground; a small rebound right after the impact.
+                    float bounce = Mathf.Sin(Mathf.Clamp01(knockT / 0.35f) * Mathf.PI) * 0.06f;
+                    tilt = KnockTilt * (1f - bounce);
+                    low = 1f - bounce * 0.5f;
+                    if (knockT >= DownTime)
+                    {
+                        knock = Knock.Rising; knockT = 0f; risePlaced = false;
+                        GameAudio.Play(Sfx.Hiss, transform.position, 0.8f, 0.8f);
+                    }
+                    break;
+                }
+                default:
+                {
+                    float u = knockT / RiseTime;
+                    if (Biped)
+                    {
+                        // 0-40%: roll up onto the knees, feet drawn in. 40-100%: push up to stand.
+                        float a = Smooth(u / 0.4f), b = Smooth((u - 0.4f) / 0.6f);
+                        tilt = KnockTilt * Mathf.Lerp(1f, 0.28f, a) * (1f - b);
+                        low = Mathf.Lerp(1f, 0.82f, a) * (1f - b);
+                    }
+                    else
+                    {
+                        // 0-45%: legs walk back in under the body. 45-100%: lift.
+                        float a = Smooth(u / 0.45f), b = Smooth((u - 0.45f) / 0.55f);
+                        tilt = KnockTilt * (1f - a);
+                        low = 1f - b;
+                    }
+                    if (u >= 0.4f && !risePlaced)
+                    {
+                        risePlaced = true;
+                        GameAudio.Play(Sfx.Servo, transform.position + Vector3.up * 2f, 0.9f, 0.6f);
+                    }
+                    if (u >= 1f)
+                    {
+                        knock = Knock.None;
+                        supportY = float.NaN;
+                        foreach (var leg in legs) { leg.planted = true; leg.swinging = false; leg.stepT = 1f; }
+                        GameAudio.Play(Sfx.Footstep, transform.position, 1f, 0.8f);
+                    }
+                    break;
+                }
+            }
+
+            // Height: the hull drops from standing to resting on its hips/belly.
+            float target = Mathf.Lerp(standHeight, KnockLow, low);
+            float k = 14f, c = 2f * Mathf.Sqrt(k);
+            float acc = k * (target - height) - c * velocity.y + Physics.gravity.magnitude * (knock == Knock.Falling ? 0.75f : 1f);
+            rb.AddForce(Vector3.up * Mathf.Max(0f, acc), ForceMode.Acceleration);
+
+            // Tilt toward the way it is falling (and back up when it rises).
+            Vector3 axis = Vector3.Cross(Vector3.up, knockAway);
+            Vector3 targetUp = Quaternion.AngleAxis(tilt, axis) * Vector3.up;
+            Vector3 err = Vector3.Cross(transform.up, targetUp);
+            Vector3 av = rb.angularVelocity;
+            float kt = 30f, ct = 2f * Mathf.Sqrt(kt);
+            rb.AddTorque(err * kt - av * ct, ForceMode.Acceleration);
+
+            // No walking while down: the feet grip and the body drifts to a stop.
+            Vector3 flatVel = new Vector3(velocity.x, 0f, velocity.z);
+            Vector3 drift = knock == Knock.Falling ? knockAway * Mathf.Lerp(1.5f, 0f, knockT / FallTime) : Vector3.zero;
+            rb.AddForce((drift - flatVel) * 3f, ForceMode.Acceleration);
+            jetThrottle = 0f;
+        }
+
+        /// <summary>Where the feet go while the robot is down or getting up.</summary>
+        void UpdateKnockLegs(float dt)
+        {
+            gaitBob = 0f; weightShift = 0f;
+            float u = knock == Knock.Rising ? knockT / RiseTime : 0f;
+            foreach (var leg in legs)
+            {
+                Vector3 home = FootHome(leg, Vector3.zero);
+                Vector3 hip = leg.hip.position;
+                Vector3 outward = Vector3.ProjectOnPlane(home - new Vector3(transform.position.x, home.y, transform.position.z), Vector3.up);
+                if (Biped)
+                {
+                    if (knock == Knock.Rising)
+                    {
+                        // Draw each foot back in under the hips, one after the other, then plant it.
+                        float start = leg.side > 0f ? 0.05f : 0.18f;
+                        float s = Mathf.Clamp01((u - start) / 0.22f);
+                        if (s > 0f && s < 1f && !leg.swinging) { leg.swinging = true; leg.stepFrom = leg.footPos; }
+                        if (leg.swinging)
+                        {
+                            Vector3 to = home;
+                            Vector3 p = Vector3.Lerp(leg.stepFrom, to, Smooth(s));
+                            p.y = Mathf.Lerp(leg.stepFrom.y, to.y, s) + Mathf.Sin(s * Mathf.PI) * stepHeight * 0.4f;
+                            leg.footPos = p;
+                            leg.stepT = s;
+                            leg.planted = false;
+                            if (s >= 1f) { leg.swinging = false; leg.planted = true; leg.stepT = 1f; Footfall(leg); }
+                        }
+                    }
+                    // Falling and lying: the feet stay where they were; the knees fold as the hips come down.
+                }
+                else
+                {
+                    // Legs buckle outwards as the belly drops, and walk back in to lift it.
+                    float splay = knock == Knock.Falling ? Smooth(knockT / FallTime) : knock == Knock.Down ? 1f : 1f - Smooth(u / 0.45f);
+                    Vector3 want = home + outward.normalized * Mathf.Min(outward.magnitude, 3f * SizeScale) * 0.45f * splay;
+                    if (GroundProbe.Cast(want + Vector3.up * 6f, Vector3.down, 30f, rb, out RaycastHit h, true)) want = h.point;
+                    float rate = knock == Knock.Rising ? 4f : 6f;
+                    leg.footPos = Vector3.Lerp(leg.footPos, want, 1f - Mathf.Exp(-rate * dt));
+                    leg.planted = true;
                 }
             }
         }

@@ -161,6 +161,48 @@ namespace RobotArena
                 camDistance = 35f, camHeight = -2f, camPivot = 3.2f,
                 aiPreferredRange = 65f, aiFireRange = 180f, aiSpecialRange = 190f, aiAggression = 0.55f
             },
+            new RobotInfo
+            {
+                type = RobotType.Strider,
+                name = "STRIDER",
+                role = "SCOUT WALKER",
+                description = "A light bird-legged hunter with a spinning radar. Sprints across the field and harasses from the flanks.",
+                primary = "Twin gatling guns",
+                special = "Missile swarm",
+                mobility = "Long jump jets",
+                armour = 0.45f, speed = 0.85f, firepower = 0.6f, range = 0.65f,
+                previewDistance = 30f, previewHeight = 6f,
+                camDistance = 24f, camHeight = -1f, camPivot = 2.8f,
+                aiPreferredRange = 45f, aiFireRange = 140f, aiSpecialRange = 150f, aiAggression = 0.75f
+            },
+            new RobotInfo
+            {
+                type = RobotType.Colossus,
+                name = "COLOSSUS",
+                role = "SUPER-HEAVY WALKER",
+                description = "The largest machine in the arena. Twin reactor turbines power heavy cannons and a plasma railgun.",
+                primary = "Twin heavy cannons",
+                special = "Plasma railgun",
+                mobility = "Thruster charge (sprint)",
+                armour = 1f, speed = 0.2f, firepower = 1f, range = 0.8f,
+                previewDistance = 48f, previewHeight = 10f,
+                camDistance = 38f, camHeight = -2f, camPivot = 3.4f,
+                aiPreferredRange = 70f, aiFireRange = 200f, aiSpecialRange = 190f, aiAggression = 0.5f
+            },
+            new RobotInfo
+            {
+                type = RobotType.Scarab,
+                name = "SCARAB",
+                role = "SIX-LEG ARTILLERY",
+                description = "A six-legged armoured crawler with a turret on top. Rock steady, it shells targets from behind cover.",
+                primary = "Twin pulse lasers",
+                special = "Mortar barrage",
+                mobility = "Thruster charge (sprint)",
+                armour = 0.85f, speed = 0.4f, firepower = 0.8f, range = 0.9f,
+                previewDistance = 42f, previewHeight = 7f,
+                camDistance = 32f, camHeight = -1f, camPivot = 3f,
+                aiPreferredRange = 90f, aiFireRange = 210f, aiSpecialRange = 170f, aiAggression = 0.45f
+            },
         };
 
         public static RobotInfo Get(RobotType type)

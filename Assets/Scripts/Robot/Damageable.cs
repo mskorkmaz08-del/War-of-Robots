@@ -157,7 +157,7 @@ namespace RobotArena
             if (Health <= 0f) Die();
         }
 
-        void BlowOff(Transform part, Vector3 hitPoint)
+        void BlowOff(Transform part, Vector3 hitPoint, bool ownBlast = true)
         {
             if (part == null) return;
             part.SetParent(null, true);
@@ -184,8 +184,8 @@ namespace RobotArena
             Vector3 away = (part.position - hitPoint).normalized + Vector3.up;
             rb.AddForce(away.normalized * 14f, ForceMode.VelocityChange);
             rb.AddTorque(Random.insideUnitSphere * 6f, ForceMode.VelocityChange);
-            Fx.Sparks(part.position, away, 30, 25f, 90f);
-            Fx.Explosion(part.position, 0.6f * size);
+            Fx.Sparks(part.position, away, ownBlast ? 30 : 14, 25f, 90f);
+            if (ownBlast) Fx.Explosion(part.position, 0.6f * size);
             GameAudio.Play(Sfx.MetalHit, part.position, 1f, 0.7f);
             Destroy(part.gameObject, 12f);
         }
@@ -205,27 +205,15 @@ namespace RobotArena
             Explosions.ApplyForce(c, 25f * size, 8f, this);
 
             // Throw the remaining detachable parts.
-            for (int i = partsDetached; i < detachableParts.Count; i++) BlowOff(detachableParts[i], c);
+            for (int i = partsDetached; i < detachableParts.Count; i++) BlowOff(detachableParts[i], c, false);
             partsDetached = detachableParts.Count;
 
-            // Throw a few chunks of debris.
-            var assets = GameAssets.Get();
-            for (int i = 0; i < 6; i++)
-            {
-                var chunk = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                chunk.name = "Debris";
-                chunk.transform.position = c + Random.insideUnitSphere * 2f * size;
-                chunk.transform.rotation = Random.rotation;
-                chunk.transform.localScale = Vector3.one * Random.Range(0.6f, 1.6f) * size;
-                if (assets != null) chunk.GetComponent<Renderer>().sharedMaterial = assets.Burnt();
-                var rb = chunk.AddComponent<Rigidbody>();
-                rb.mass = 300f;
-                rb.AddForce((Random.insideUnitSphere + Vector3.up * 1.5f).normalized * Random.Range(12f, 26f), ForceMode.VelocityChange);
-                rb.AddTorque(Random.insideUnitSphere * 10f, ForceMode.VelocityChange);
-                Destroy(chunk, 10f);
-            }
+            // Break off a few of the robot's own pieces (rams, plates, gun parts, wheels):
+            // the wreckage that flies is always part of this machine, never stand-in blocks.
+            BreakApart(c);
 
             // Burn the wreck.
+            var assets = GameAssets.Get();
             if (assets != null)
             {
                 foreach (var r in GetComponentsInChildren<Renderer>())
@@ -252,6 +240,47 @@ namespace RobotArena
             }
 
             Died?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Picks real parts of this robot that could plausibly tear loose in the blast
+        /// (mid-sized pieces, not the hull itself) and throws them as burning wreckage.
+        /// </summary>
+        void BreakApart(Vector3 centre)
+        {
+            var candidates = new List<Transform>();
+            float robotSize = 1f;
+            var all = GetComponentsInChildren<MeshRenderer>();
+            if (all.Length > 0)
+            {
+                Bounds rb = all[0].bounds;
+                foreach (var r in all) rb.Encapsulate(r.bounds);
+                robotSize = rb.size.magnitude;
+            }
+            // The wreck's joints are frozen: stop the rams so a torn-off cylinder flies free.
+            foreach (var ram in GetComponentsInChildren<HydraulicRam>()) ram.enabled = false;
+            foreach (var r in all)
+            {
+                if (r.GetComponent<MeshFilter>() == null) continue;
+                float s = r.bounds.size.magnitude;
+                if (s < 0.9f || s > robotSize * 0.33f) continue;
+                candidates.Add(r.transform);
+            }
+            // Throw the pieces nearest the blast first, plus a little luck.
+            var key = new Dictionary<Transform, float>();
+            foreach (var t in candidates) key[t] = Vector3.Distance(t.position, centre) * Random.Range(0.7f, 1.3f);
+            candidates.Sort((a, b) => key[a].CompareTo(key[b]));
+            int count = Mathf.Min(candidates.Count, Mathf.RoundToInt(4f + size * 1.5f));
+            for (int i = 0; i < count; i++)
+            {
+                var part = candidates[i];
+                if (part == null) continue;
+                // A part that is still inside another thrown part goes with it.
+                bool insideThrown = false;
+                for (int j = 0; j < i; j++) if (candidates[j] != null && part.IsChildOf(candidates[j])) insideThrown = true;
+                if (insideThrown) continue;
+                BlowOff(part, centre, false);
+            }
         }
 
         void OnCollisionEnter(Collision collision)
@@ -306,15 +335,23 @@ namespace RobotArena
         /// <summary>Damages robots in range (with falloff) and pushes physics objects.</summary>
         public static void Detonate(Vector3 pos, float radius, float damage, float force, Damageable attacker, float fxSize)
         {
-            Fx.Explosion(pos, fxSize);
-            WorldDetail.Blast(pos, radius);
+            int n = Physics.OverlapSphereNonAlloc(pos, radius, DetonateBuffer, ~0, QueryTriggerInteraction.Ignore);
+            // Went off on a machine (torn armour flies) or in the dirt (earth flies)?
+            bool onMachine = false;
+            for (int i = 0; i < n && !onMachine; i++)
+            {
+                var c = DetonateBuffer[i];
+                if (c == null || c.attachedRigidbody == null) continue;
+                if ((c.ClosestPoint(pos) - pos).sqrMagnitude < 9f) onMachine = true;
+            }
+            Fx.Explosion(pos, fxSize, onMachine);
+            WorldDetail.Blast(pos, radius, damage);
             GameAudio.Play(fxSize > 1.5f ? Sfx.BigExplosion : Sfx.Explosion, pos, 1f, Random.Range(0.85f, 1.1f));
             if (fxSize >= 1f) GameAudio.Play(Sfx.Debris, pos, 0.7f, Random.Range(0.9f, 1.1f));
             FollowCamera.Shake(0.35f * fxSize, pos, 120f);
 
             var hitRobots = HitRobots;
             hitRobots.Clear();
-            int n = Physics.OverlapSphereNonAlloc(pos, radius, DetonateBuffer, ~0, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
             {
                 var d = DetonateBuffer[i].GetComponentInParent<Damageable>();

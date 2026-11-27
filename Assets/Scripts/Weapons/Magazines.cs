@@ -25,6 +25,9 @@ namespace RobotArena
                 case WeaponId.HeavyCannon: return new Mag { rounds = 6, reload = 3.2f };   // 6 shells
                 case WeaponId.RocketPods: return new Mag { rounds = 12, reload = 3.2f };   // 6 pairs
                 case WeaponId.Flamethrower: return new Mag { rounds = 50, reload = 3f };   // 5 s of fuel (0.1 s per round)
+                case WeaponId.Autocannon: return new Mag { rounds = 5, reload = 3f };      // 5 three-shell bursts
+                case WeaponId.ScatterCannon: return new Mag { rounds = 6, reload = 3.5f }; // 6 shells
+                case WeaponId.GrenadeLauncher: return new Mag { rounds = 6, reload = 3.5f }; // one drum
                 default: return new Mag();
             }
         }
@@ -37,6 +40,9 @@ namespace RobotArena
                 case HeavyCannon _: return For(WeaponId.HeavyCannon);
                 case RocketPods _: return For(WeaponId.RocketPods);
                 case Flamethrower _: return For(WeaponId.Flamethrower);
+                case Autocannon _: return For(WeaponId.Autocannon);
+                case ScatterCannon _: return For(WeaponId.ScatterCannon);
+                case GrenadeLauncher _: return For(WeaponId.GrenadeLauncher);
                 default: return new Mag();
             }
         }

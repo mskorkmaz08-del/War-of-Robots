@@ -268,10 +268,15 @@ namespace RobotArena
             {
                 case GameMode.Domination: return new DominationMode();
                 case GameMode.Survival: return new SurvivalMode(5, 2);
+                case GameMode.KingOfTheHill: return new KingOfTheHillMode();
+                case GameMode.Siege: return new SiegeMode();
+                case GameMode.Escort: return new EscortMode();
+                case GameMode.FreeForAll: return new FreeForAllMode();
                 case GameMode.Mission:
                     var m = MatchSetup.Mission;
                     int idx = Mathf.Clamp(MatchSetup.MissionIndex, 0, MatchSetup.Missions.Count - 1);
                     if (m.goal == MissionGoal.SurviveWaves) return new SurvivalMode(Mathf.RoundToInt(m.amount), m.allies, idx);
+                    if (m.goal == MissionGoal.EscortVip) return new EscortMode(idx);
                     return new ObjectiveMode(m.goal, m.allies, m.enemies, m.amount, idx);
                 default: return ObjectiveMode.TeamBattle();
             }
@@ -372,7 +377,10 @@ namespace RobotArena
         {
             var info = RobotCatalog.Get(type);
             Livery livery = team == 0 ? Livery.Ally : (altLivery || Enemies.Count % 2 == 1 ? Livery.Enemy2 : Livery.Enemy);
-            var go = RobotFactory.Build(type, pos, FacingCentre(pos, team), team, livery, false, name);
+            // Not every enemy of a type carries the same guns: some field one of the other fits.
+            var loadout = Loadout.Default(type);
+            if (Random.value < 0.45f) loadout = Loadout.RandomFor(type);
+            var go = RobotFactory.Build(type, pos, FacingCentre(pos, team), team, livery, false, name, loadout);
             var brain = go.AddComponent<AIBrain>();
             brain.preferredRange = info.aiPreferredRange;
             brain.fireRange = info.aiFireRange;
@@ -384,7 +392,7 @@ namespace RobotArena
             Shield(d);
             types[d] = type;
             (team == 0 ? Allies : Enemies).Add(d);
-            net.Register(d, NetMatch.AiOwner, type, team == 0 ? 1 : livery.Equals(Livery.Enemy2) ? 3 : 2);
+            net.Register(d, NetMatch.AiOwner, type, team == 0 ? 1 : livery.Equals(Livery.Enemy2) ? 3 : 2, loadout.Pack());
             return d;
         }
 

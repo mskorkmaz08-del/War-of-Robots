@@ -213,6 +213,7 @@ namespace RobotArena
             BreakApart(c);
 
             // Burn the wreck.
+            var assets = GameAssets.Get();
             if (assets != null)
             {
                 foreach (var r in GetComponentsInChildren<Renderer>())

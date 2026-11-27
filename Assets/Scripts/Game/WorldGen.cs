@@ -37,26 +37,36 @@ namespace RobotArena
         public readonly List<Crush> crush = new List<Crush>();
         public readonly List<Solid> solids = new List<Solid>();
 
-        public static long Key(Vector3 p)
+        /// <summary>
+        /// What a chunk holds, so the camera can stop drawing small things far away:
+        /// Main (buildings, trees, poles) always, Vehicle up to a few hundred metres,
+        /// Small (benches, hedges, fences, bushes, rocks, road paint, wires) closer in.
+        /// </summary>
+        public enum Layer { Main = 0, Small = 1, Vehicle = 2 }
+
+        public static long Key(Vector3 p, Layer layer = Layer.Main)
         {
             long ix = Mathf.FloorToInt(p.x / Cell) + 1000, iz = Mathf.FloorToInt(p.z / Cell) + 1000;
-            return ix * 4096 + iz;
+            return ix * 4096 + iz + ((long)layer << 32);
         }
 
-        public PropMesh Get(Vector3 p)
+        public static Layer LayerOf(long key) => (Layer)(key >> 32);
+
+        public PropMesh Get(Vector3 p, Layer layer = Layer.Main)
         {
-            long k = Key(p);
+            long k = Key(p, layer);
             if (!chunks.TryGetValue(k, out var pm)) { pm = new PropMesh(); chunks[k] = pm; }
             return pm;
         }
 
         /// <summary>Builds a crushable thing: call with the builder, records its vertex range.</summary>
-        public void Add(Vector3 at, Kind kind, float radius, System.Func<PropMesh, float> build, float yaw = 0f)
+        public void Add(Vector3 at, Kind kind, float radius, System.Func<PropMesh, float> build, float yaw = 0f, Layer layer = Layer.Main)
         {
-            var pm = Get(at);
+            if (layer == Layer.Main && (kind == Kind.Car || kind == Kind.Truck)) layer = Layer.Vehicle;
+            var pm = Get(at, layer);
             int start = pm.Count, tStart = pm.t.Count;
             float h = build(pm);
-            crush.Add(new Crush { chunk = Key(at), start = start, end = pm.Count, tStart = tStart, tEnd = pm.t.Count, pivot = at, radius = radius, height = h, kind = kind, yaw = yaw });
+            crush.Add(new Crush { chunk = Key(at, layer), start = start, end = pm.Count, tStart = tStart, tEnd = pm.t.Count, pivot = at, radius = radius, height = h, kind = kind, yaw = yaw });
         }
 
         /// <summary>
@@ -342,7 +352,7 @@ namespace RobotArena
                 Vector3 tp = hp + q * new Vector3(Range(rnd, -4f, 4f), 0f, plot * 0.34f);
                 if (p.biome != Biome.Ruined || R(rnd) < 0.5f)
                     w.Add(tp, PropWorld.Kind.Tree, 1.2f, pm => PropKit.Tree(pm, tp, p.biome, rnd, 0.85f));
-                var fpm = w.Get(hp);
+                var fpm = w.Get(hp, PropWorld.Layer.Small);
                 Vector3 f0 = hp + q * new Vector3(-plot * 0.46f, -0.2f, -plot * 0.46f), f1 = hp + q * new Vector3(-plot * 0.46f, -0.2f, plot * 0.46f);
                 if (p.biome != Biome.Desert) PropKit.Fence(fpm, f0, f1, p.biome);
                 if (!ruined && p.biome != Biome.Desert && R(rnd) < 0.5f)
@@ -420,7 +430,7 @@ namespace RobotArena
             }
             for (int k = 0; k < 4; k++)
             {
-                var bpm = w.Get(c);
+                var bpm = w.Get(c, PropWorld.Layer.Small);
                 PropKit.Bush(bpm, c + new Vector3(Range(rnd, -lot * 0.4f, lot * 0.4f), 0.2f, Range(rnd, -lot * 0.4f, lot * 0.4f)), p.biome, rnd);
             }
         }
@@ -539,10 +549,10 @@ namespace RobotArena
                         {
                             if (pick < 0.12f && Mathf.Abs(Mathf.Repeat(s, 120f) - 60f) < 31f)
                                 w.Add(q, PropWorld.Kind.Car, 2.2f, pm => { PropKit.BusStop(pm, q, face + 180f); return 2.6f; }, face);
-                            else if (pick < 0.45f) w.Add(q, PropWorld.Kind.Car, 1f, pm => { PropKit.Bench(pm, q, face + 180f); return 0.9f; }, face);
-                            else if (pick < 0.68f) w.Add(q, PropWorld.Kind.Car, 0.5f, pm => { PropKit.Bin(pm, q); return 1f; });
-                            else if (pick < 0.84f) w.Add(q, PropWorld.Kind.Car, 0.4f, pm => { PropKit.FireHydrant(pm, q); return 0.8f; });
-                            else w.Add(q, PropWorld.Kind.Pole, 0.3f, pm => { PropKit.StreetSign(pm, q, yawAlong, p.biome == Biome.Snow); return 3f; }, yawAlong);
+                            else if (pick < 0.45f) w.Add(q, PropWorld.Kind.Car, 1f, pm => { PropKit.Bench(pm, q, face + 180f); return 0.9f; }, face, PropWorld.Layer.Small);
+                            else if (pick < 0.68f) w.Add(q, PropWorld.Kind.Car, 0.5f, pm => { PropKit.Bin(pm, q); return 1f; }, 0f, PropWorld.Layer.Small);
+                            else if (pick < 0.84f) w.Add(q, PropWorld.Kind.Car, 0.4f, pm => { PropKit.FireHydrant(pm, q); return 0.8f; }, 0f, PropWorld.Layer.Small);
+                            else w.Add(q, PropWorld.Kind.Pole, 0.3f, pm => { PropKit.StreetSign(pm, q, yawAlong, p.biome == Biome.Snow); return 3f; }, yawAlong, PropWorld.Layer.Small);
                         }
                     }
 
@@ -568,7 +578,7 @@ namespace RobotArena
                     Vector2 c2 = x2 + d * off;
                     if (Mathf.Abs(c2.x - t.centre.x) > t.Half - 4f || Mathf.Abs(c2.y - t.centre.y) > t.Half - 4f) continue;
                     Vector3 c = G(c2.x, c2.y);
-                    PropKit.Crossing(w.Get(c), c, new Vector3(d.y, 0f, d.x), t.street);
+                    PropKit.Crossing(w.Get(c, PropWorld.Layer.Small), c, new Vector3(d.y, 0f, d.x), t.street);
                 }
             }
 
@@ -609,7 +619,7 @@ namespace RobotArena
                     if (!Free(q, 2f)) { prev = null; continue; }
                     float py = yaw + 90f;
                     w.Add(q, PropWorld.Kind.Pole, 0.6f, pm => { PropKit.PowerPole(pm, q, py, snowy); return 10.5f; }, py);
-                    if (prev.HasValue) PropKit.Wires(w.Get((prev.Value + q) * 0.5f), prev.Value, q, py);
+                    if (prev.HasValue) PropKit.Wires(w.Get((prev.Value + q) * 0.5f, PropWorld.Layer.Small), prev.Value, q, py);
                     prev = q;
                 }
 
@@ -688,8 +698,8 @@ namespace RobotArena
                 if (!Free(q, 2f)) continue;
                 float roll = R(rnd);
                 if (roll < 0.35f) w.Add(q, PropWorld.Kind.Tree, 1.3f, pm => PropKit.Tree(pm, q, p.biome, rnd, 1f, true));
-                else if (roll < 0.7f) PropKit.Bush(w.Get(q), q, p.biome, rnd);
-                else PropKit.Rock(w.Get(q), q, Range(rnd, 1.2f, 3.5f), p.biome, rnd);
+                else if (roll < 0.7f) PropKit.Bush(w.Get(q, PropWorld.Layer.Small), q, p.biome, rnd);
+                else PropKit.Rock(w.Get(q, PropWorld.Layer.Small), q, Range(rnd, 1.2f, 3.5f), p.biome, rnd);
             }
 
             // Farms: a house, a barn, a fenced paddock, a vehicle.
@@ -713,7 +723,7 @@ namespace RobotArena
                 w.Add(hp, PropWorld.Kind.House, 6f, pm => PropKit.House(pm, hp, yaw, p.biome, rnd), yaw);
                 Vector3 bp = q + qr * new Vector3(16f, 0f, 4f);
                 w.AddBuilding(bp, 14f, 10f, yaw + 90f, pm => PropKit.Warehouse(pm, bp, yaw + 90f, 14f, 10f, 6f, rnd));
-                var fpm = w.Get(q);
+                var fpm = w.Get(q, PropWorld.Layer.Small);
                 Vector3 a0 = q + qr * new Vector3(-12f, 0f, 10f), a1 = q + qr * new Vector3(12f, 0f, 10f), a2 = q + qr * new Vector3(12f, 0f, 34f), a3 = q + qr * new Vector3(-12f, 0f, 34f);
                 PropKit.Fence(fpm, a0, a1, p.biome); PropKit.Fence(fpm, a1, a2, p.biome); PropKit.Fence(fpm, a2, a3, p.biome); PropKit.Fence(fpm, a3, a0, p.biome);
                 Vector3 cp = q + qr * new Vector3(-6f, 0f, -9f);

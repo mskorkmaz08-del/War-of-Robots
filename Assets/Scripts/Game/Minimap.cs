@@ -18,12 +18,14 @@ namespace RobotArena
         RectTransform playerArrow;
         float mapRadius;
         readonly Dictionary<Damageable, RectTransform> dots = new Dictionary<Damageable, RectTransform>();
+        readonly Dictionary<Damageable, (Image img, bool building)> dotInfo = new Dictionary<Damageable, (Image, bool)>();
         readonly List<Damageable> stale = new List<Damageable>();
         readonly Dictionary<CaptureZone, (RectTransform rt, Image img, Text label)> zones = new Dictionary<CaptureZone, (RectTransform, Image, Text)>();
 
         public static Minimap Create(Transform parent, Vector2 anchor, Vector2 pos, float size)
         {
             var rt = UiKit.Rect("Minimap", parent, anchor, pos, new Vector2(size, size));
+            UiKit.OwnCanvas(rt);
             var map = rt.gameObject.AddComponent<Minimap>();
             map.Build(rt, size);
             return map;
@@ -115,13 +117,17 @@ namespace RobotArena
             {
                 if (d == null || d == match.Player) continue;
                 bool ally = d.team == match.Player.team;
-                bool building = d.GetComponent<Locomotion>() == null;
+                bool building;
+                if (dotInfo.TryGetValue(d, out var info)) building = info.building;
+                else building = d.GetComponent<Locomotion>() == null;
                 if (!dots.TryGetValue(d, out var dot))
                 {
                     dot = UiKit.Rect(ally ? "Ally" : "Enemy", rotor, new Vector2(0.5f, 0.5f), Vector2.zero, building ? new Vector2(30f, 30f) : new Vector2(ally ? 20f : 26f, ally ? 20f : 26f));
                     UiKit.Image(dot, building ? UiKit.Chamfer : UiKit.Circle, ally ? UiKit.Cyan : UiKit.Red);
                     if (!ally && !building) UiKit.Child(dot, "Ring", UiKit.Ring, new Color(1f, 0.8f, 0.7f, 0.9f));
                     dots[d] = dot;
+                    info = (dot.GetComponent<Image>(), building);
+                    dotInfo[d] = info;
                 }
                 Vector3 off = d.transform.position - center;
                 Vector2 p = new Vector2(off.x, off.z) * scale;
@@ -130,7 +136,7 @@ namespace RobotArena
                 dot.anchoredPosition = p;
                 float pulse = ally || building ? 1f : 1f + Mathf.Sin(Time.unscaledTime * 6f) * 0.12f;
                 dot.localScale = Vector3.one * (outside ? 0.7f : pulse) * (d.IsDead ? 0.6f : 1f);
-                dot.GetComponent<Image>().color = d.IsDead ? new Color(0.4f, 0.4f, 0.4f, 0.8f) : ally ? UiKit.Cyan : UiKit.Red;
+                info.img.color = d.IsDead ? new Color(0.4f, 0.4f, 0.4f, 0.8f) : ally ? UiKit.Cyan : UiKit.Red;
             }
 
             // Remove dots for robots that no longer exist.
@@ -140,6 +146,7 @@ namespace RobotArena
             {
                 if (dots[k] != null) Destroy(dots[k].gameObject);
                 dots.Remove(k);
+                dotInfo.Remove(k);
             }
         }
     }

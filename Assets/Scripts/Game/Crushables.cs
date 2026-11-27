@@ -77,10 +77,23 @@ namespace RobotArena
 
         void OnDestroy() { if (Instance == this) Instance = null; }
 
+        readonly Dictionary<Damageable, bool> robots = new Dictionary<Damageable, bool>();
+
+        bool IsRobot(Damageable d)
+        {
+            if (!robots.TryGetValue(d, out bool r)) robots[d] = r = d.GetComponent<Locomotion>() != null;
+            return r;
+        }
+
         static long Cell(float x, float z) => (long)(Mathf.FloorToInt(x / GridCell) + 10000) * 100000 + (Mathf.FloorToInt(z / GridCell) + 10000);
+
+        Camera tunedCam;
 
         void Update()
         {
+            // The game camera can be swapped (hangar, respawn), so check it each frame.
+            var cam = Camera.main;
+            if (cam != tunedCam) { tunedCam = cam; WorldDetail.TuneCamera(cam); }
             if (items == null) return;
             if (Time.time >= nextTick)
             {
@@ -88,22 +101,25 @@ namespace RobotArena
                 foreach (var d in Damageable.All)
                 {
                     if (d == null || d.IsDead || d.Body == null || d.Body.isKinematic) continue;
-                    if (d.GetComponent<Locomotion>() == null) continue; // robots only, not depots
+                    if (!IsRobot(d)) continue; // robots only, not depots
                     Vector3 p = d.transform.position;
                     float radius = Mathf.Max(3f, d.size * 1.9f);
                     // Walkers are tall: only what's under their feet, not what they jump over.
                     float ground = BattleGround.HeightAt(p.x, p.z);
                     if (p.y - ground > d.size * 9f) continue;
-                    Visit(p, radius, (i) => { if (items[i].kind != PropWorld.Kind.Building) Break(i, p, false); });
+                    Visit(p, radius, Step, p, 0f);
                 }
             }
             Animate(Time.deltaTime);
             Flush();
         }
 
-        void Visit(Vector3 p, float radius, System.Action<int> act)
+        // What a visit does to each thing in reach (no delegates: nothing allocated per tick).
+        const int Step = 0, SmallBlast = 1, BuildingHit = 2;
+
+        void Visit(Vector3 p, float radius, int mode, Vector3 from, float damage)
         {
-            float reach = radius + 30f;
+            float reach = radius + (mode == Step ? 8f : 30f);   // big buildings reach further from their centre
             int x0 = Mathf.FloorToInt((p.x - reach) / GridCell), x1 = Mathf.FloorToInt((p.x + reach) / GridCell);
             int z0 = Mathf.FloorToInt((p.z - reach) / GridCell), z1 = Mathf.FloorToInt((p.z + reach) / GridCell);
             for (int x = x0; x <= x1; x++)
@@ -117,7 +133,20 @@ namespace RobotArena
                     var it = items[i];
                     float dx = it.pivot.x - p.x, dz = it.pivot.z - p.z;
                     float rr = radius + it.radius;
-                    if (dx * dx + dz * dz < rr * rr) act(i);
+                    if (dx * dx + dz * dz >= rr * rr) continue;
+                    bool building = it.kind == PropWorld.Kind.Building;
+                    if (mode == Step || mode == SmallBlast)
+                    {
+                        if (!building) Break(i, from, mode == SmallBlast);
+                    }
+                    else if (building)
+                    {
+                        // Only blasts that actually reach the walls (not one far above the roof).
+                        if (from.y - it.pivot.y > it.height + radius) continue;
+                        hp[i] -= damage;
+                        Chip(i, from, radius);
+                        if (hp[i] <= 0f) Break(i, from, true);
+                    }
                 }
             }
         }
@@ -129,21 +158,8 @@ namespace RobotArena
         public void Blast(Vector3 pos, float radius, float damage)
         {
             if (items == null) return;
-            Visit(pos, radius * 0.65f, (i) =>
-            {
-                if (items[i].kind != PropWorld.Kind.Building) Break(i, pos, true);
-            });
-            if (damage <= 0f) return;
-            Visit(pos, radius, (i) =>
-            {
-                var it = items[i];
-                if (it.kind != PropWorld.Kind.Building) return;
-                // Only blasts that actually reach the walls (not one far above the roof).
-                if (pos.y - it.pivot.y > it.height + radius) return;
-                hp[i] -= damage;
-                Chip(i, pos, radius);
-                if (hp[i] <= 0f) Break(i, pos, true);
-            });
+            Visit(pos, radius * 0.65f, SmallBlast, pos, 0f);
+            if (damage > 0f) Visit(pos, radius, BuildingHit, pos, damage);
         }
 
         void Flush()

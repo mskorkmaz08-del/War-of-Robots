@@ -47,6 +47,8 @@ namespace RobotArena
         VirtualJoystick joystick;
         TouchButton fireButton, specialButton, boostButton;
         Image specialCharge, boostCharge, fireCharge;
+        Damageable turretOwner;
+        Turret playerTurret;
         Weapon primary;
         Text ammoText;
         int lastAmmo = -2;
@@ -346,6 +348,7 @@ namespace RobotArena
             specialLabel = UiKit.Label(Place(status, 0.14f, 0.12f, 120f, 30f), "", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
             specialLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
             specialFill = UiKit.Bar(status, new Vector2(0.6f, 0.12f), Vector2.zero, new Vector2(370f, 22f), UiKit.Orange, out _);
+            UiKit.OwnCanvas(status);
 
             // Teams, score and objective
             BuildTeamHud(status);
@@ -371,6 +374,7 @@ namespace RobotArena
 
             // Lock-on marker
             targetMarker = UiKit.Rect("Target", fightPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 150f));
+            UiKit.OwnCanvas(targetMarker);
             // Four red corner brackets around the locked target.
             for (int k = 0; k < 4; k++)
             {
@@ -396,6 +400,7 @@ namespace RobotArena
         void BuildTouchControls()
         {
             touchControls = UiKit.Fill("TouchControls", fightPanel.transform).gameObject;
+            UiKit.OwnCanvas(touchControls.transform, true);
 
             var pad = UiKit.Fill("LookPad", touchControls.transform);
             UiKit.Image(pad, null, new Color(0f, 0f, 0f, 0f), true);
@@ -486,6 +491,16 @@ namespace RobotArena
             }
         }
 
+        static readonly System.Collections.Generic.Dictionary<int, string> ammoStrings = new System.Collections.Generic.Dictionary<int, string>();
+
+        /// <summary>"48 / 80", made once per value so firing doesn't churn garbage.</summary>
+        static string AmmoString(int n, int mag)
+        {
+            int key = n * 1000 + mag;
+            if (!ammoStrings.TryGetValue(key, out var s)) ammoStrings[key] = s = n + " / " + mag;
+            return s;
+        }
+
         /// <summary>Main gun magazine: count under the crosshair, ring around FIRE.</summary>
         void UpdateAmmo()
         {
@@ -501,7 +516,7 @@ namespace RobotArena
                 ammoText.color = UiKit.Orange;
                 return;
             }
-            ammoText.text = key + " / " + primary.magazine;
+            ammoText.text = AmmoString(key, primary.magazine);
             bool low = key <= Mathf.Max(1, primary.magazine / 5);
             ammoText.color = low ? UiKit.Red : new Color(1f, 1f, 1f, 0.7f);
         }
@@ -594,7 +609,8 @@ namespace RobotArena
 
         void UpdateTargetMarker(Damageable p)
         {
-            var turret = p != null && !p.IsDead ? p.GetComponent<Turret>() : null;
+            if (p != turretOwner) { turretOwner = p; playerTurret = p != null ? p.GetComponent<Turret>() : null; }
+            var turret = p != null && !p.IsDead ? playerTurret : null;
             var cam = Camera.main;
             if (turret == null || turret.Target == null || cam == null)
             {

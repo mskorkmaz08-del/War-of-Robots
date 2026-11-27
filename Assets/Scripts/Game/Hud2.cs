@@ -298,8 +298,10 @@ namespace RobotArena
         {
             // World markers and robot name tags sit under everything else.
             markerRoot = UiKit.Fill("Markers", fightPanel.transform);
+            UiKit.OwnCanvas(markerRoot);
             markerRoot.SetAsFirstSibling();
             tagRoot = UiKit.Fill("Tags", fightPanel.transform);
+            UiKit.OwnCanvas(tagRoot);
             tagRoot.SetAsFirstSibling();
 
             var top = UiKit.Panel("Teams", fightPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(620f, 132f));
@@ -343,6 +345,9 @@ namespace RobotArena
             GameAudio.Play2D(Sfx.Confirm, 0.6f);
         }
 
+        int lastRespawn = -1;
+        readonly List<int> markerDist = new List<int>();
+
         void UpdateTeamHud()
         {
             var rules = match.Rules;
@@ -350,8 +355,12 @@ namespace RobotArena
             {
                 if (statusText.text != rules.Status) statusText.text = rules.Status;
                 if (objectiveText.text != rules.Objective) objectiveText.text = rules.Objective;
-                string rs = rules.RespawnIn > 0f ? "RESPAWN IN " + Mathf.CeilToInt(rules.RespawnIn) : "";
-                if (respawnText.text != rs) respawnText.text = rs;
+                int rsec = rules.RespawnIn > 0f ? Mathf.CeilToInt(rules.RespawnIn) : 0;
+                if (rsec != lastRespawn)
+                {
+                    lastRespawn = rsec;
+                    respawnText.text = rsec > 0 ? "RESPAWN IN " + rsec : "";
+                }
             }
 
             // Announcement fade
@@ -436,10 +445,18 @@ namespace RobotArena
                 v.diamond.color = mk.color;
                 if (v.label.text != mk.label) v.label.text = mk.label;
                 v.label.color = mk.color;
-                string dt = Mathf.RoundToInt(Vector3.Distance(from, mk.WorldPos)) + " m";
-                if (mk.target != null && mk.target.GetComponent<Locomotion>() == null)
-                    dt = Mathf.CeilToInt(mk.target.HealthFraction * 100f) + "%  " + dt;
-                if (v.dist.text != dt) v.dist.text = dt;
+                // Rebuild the text only when the numbers change (no garbage every frame).
+                int metres = Mathf.RoundToInt(Vector3.Distance(from, mk.WorldPos));
+                int hpPct = mk.target != null && mk.target.GetComponent<Locomotion>() == null ? Mathf.CeilToInt(mk.target.HealthFraction * 100f) : -1;
+                int key = metres * 1000 + hpPct + 1;
+                while (markerDist.Count <= i) markerDist.Add(-1);
+                if (markerDist[i] != key)
+                {
+                    markerDist[i] = key;
+                    string dt = metres + " m";
+                    if (hpPct >= 0) dt = hpPct + "%  " + dt;
+                    v.dist.text = dt;
+                }
             }
         }
 
@@ -447,8 +464,9 @@ namespace RobotArena
         {
             int used = 0;
             Vector3 from = cam.transform.position;
-            foreach (var list in new[] { match.Allies, match.Enemies })
+            for (int side = 0; side < 2; side++)
             {
+                var list = side == 0 ? match.Allies : match.Enemies;
                 foreach (var d in list)
                 {
                     if (d == null || d.IsDead) continue;

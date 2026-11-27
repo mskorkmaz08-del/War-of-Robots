@@ -30,6 +30,7 @@ namespace RobotArena
             public int item;
             public float t, duration;
             public Vector3[] from;      // original vertex positions
+            public Vector3[] fromN;     // and normals (rigid falls just turn them)
             public Vector3 away;        // direction it falls / spreads
             public float seed;
             public int stage;           // effects already fired
@@ -181,6 +182,11 @@ namespace RobotArena
             var a = new Anim { item = i, away = away, seed = Random.value * 100f };
             a.from = new Vector3[it.end - it.start];
             System.Array.Copy(ch.verts, it.start, a.from, 0, a.from.Length);
+            if (it.kind == PropWorld.Kind.Tree || it.kind == PropWorld.Kind.Pole)
+            {
+                a.fromN = new Vector3[a.from.Length];
+                System.Array.Copy(ch.norms, it.start, a.fromN, 0, a.fromN.Length);
+            }
             switch (it.kind)
             {
                 case PropWorld.Kind.Car: a.duration = blast ? 0.35f : 0.22f; break;
@@ -309,7 +315,7 @@ namespace RobotArena
                     case PropWorld.Kind.House: Collapse(ch, it, a, s); break;
                     case PropWorld.Kind.Building: Implode(ch, it, a, s); break;
                 }
-                Normals(ch, it);
+                if (a.fromN == null) Normals(ch, it);
                 ch.dirty = true;
                 if (a.t >= a.duration + (it.kind == PropWorld.Kind.Tree || it.kind == PropWorld.Kind.Pole ? 0.5f : 0f))
                 {
@@ -362,11 +368,13 @@ namespace RobotArena
             var rot = Quaternion.AngleAxis(angle, axis);
             Vector3 hinge = it.pivot + Vector3.up * 0.4f;
             var v = ch.verts;
+            var nn = ch.norms;
             for (int k = it.start; k < it.end; k++)
             {
                 Vector3 q = a.from[k - it.start] - hinge;
                 if (q.y < 0f) { v[k] = a.from[k - it.start]; continue; }
                 v[k] = hinge + rot * q;
+                nn[k] = rot * a.fromN[k - it.start];
             }
             if (s >= 1f && a.stage == 0)
             {

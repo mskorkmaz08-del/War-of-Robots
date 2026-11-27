@@ -203,6 +203,8 @@ namespace RobotArena
             {
                 if (d == null || d == self || d.IsDead || (self != null && d.team == self.team)) continue;
                 float dist = Vector3.Distance(d.Center, pos);
+                // A robot still under its spawn shield can't be hurt: leave it for later.
+                if (d.Shielded) dist += 400f;
                 float distLeader = follow != null ? Vector3.Distance(d.Center, leader) : dist;
                 if (Mathf.Min(dist, distLeader) > reach) continue;
                 if (dist < bestDist)

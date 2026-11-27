@@ -246,7 +246,7 @@ namespace RobotArena
         {
             info = robot;
             if (preview != null) Destroy(preview);
-            preview = RobotFactory.Build(robot.type, Spot + Vector3.up * 0.7f, Quaternion.Euler(0f, spin, 0f), 0, Livery.Player, true, robot.name, Loadout.ForPlayer(robot.type));
+            preview = RobotFactory.Build(robot.type, Spot + Vector3.up * 0.7f, Quaternion.Euler(0f, spin, 0f), 0, Livery.Player, true, robot.name, Loadout.ForPlayer(robot.type), 1f);
             Freeze(preview);
             Fx.Dust(Spot + Vector3.up * 0.8f, 3f);
             GameAudio.Play2D(Sfx.Landing, 0.4f);

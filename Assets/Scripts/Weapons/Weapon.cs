@@ -45,6 +45,7 @@ namespace RobotArena
             if (Triggered && IsReady && !TurretStillSwinging())
             {
                 lastFire = Time.time;
+                if (owner != null) owner.DropShield();
                 Fire();
             }
         }

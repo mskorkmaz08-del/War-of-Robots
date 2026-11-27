@@ -76,9 +76,20 @@ namespace RobotArena
         public static Vector3 V(float[] a) => a == null || a.Length < 3 ? Vector3.zero : new Vector3(a[0], a[1], a[2]);
 
         /// <summary>The model for this robot, or null if the build has none (the old builders are used then).</summary>
-        public static RobotModel Load(string name)
+        public static RobotModel Load(string name) => Load(name, 1f);
+
+        /// <summary>The model scaled up by k (battle robots are bigger than the hangar ones).</summary>
+        public static RobotModel Load(string name, float k)
         {
-            if (cache.TryGetValue(name, out var m)) return m;
+            string key = k == 1f ? name : name + "@" + k.ToString("0.000");
+            if (cache.TryGetValue(key, out var m)) return m;
+            if (k != 1f)
+            {
+                var src = Load(name, 1f);
+                m = src != null ? src.ScaledCopy(k) : null;
+                cache[key] = m;
+                return m;
+            }
             m = null;
             try
             {
@@ -144,6 +155,46 @@ namespace RobotArena
             if (m.info.frames != null) foreach (var f in m.info.frames) m.frameByName[f.name] = f;
             if (m.info.anchors != null) foreach (var a in m.info.anchors) m.anchorByName[a.name] = a;
             return m;
+        }
+
+        /// <summary>
+        /// A copy with every length multiplied by k: meshes, part and anchor positions,
+        /// ram ends, leg lengths, stand height. Rotations stay as they are.
+        /// </summary>
+        RobotModel ScaledCopy(float k)
+        {
+            var c = new RobotModel();
+            foreach (var kv in parts)
+            {
+                var src = kv.Value.mesh;
+                var mesh = Object.Instantiate(src);
+                mesh.name = src.name + "_x" + k.ToString("0.00");
+                var v = mesh.vertices;
+                for (int i = 0; i < v.Length; i++) v[i] *= k;
+                mesh.vertices = v;
+                mesh.RecalculateBounds();
+                c.parts[kv.Key] = new Part { mesh = mesh, materials = kv.Value.materials };
+            }
+            // Deep copy of the info block through JSON, then scale the lengths.
+            var info2 = JsonUtility.FromJson<Info>(JsonUtility.ToJson(info));
+            float[] S(float[] a)
+            {
+                if (a == null) return null;
+                var r = (float[])a.Clone();
+                for (int i = 0; i < r.Length; i++) r[i] *= k;
+                return r;
+            }
+            info2.stand *= k; info2.thigh *= k; info2.shin *= k; info2.ankle *= k; info2.footOut *= k; info2.wheelRadius *= k;
+            info2.upper = S(info2.upper);
+            info2.arms = S(info2.arms);
+            if (info2.frames != null) foreach (var f in info2.frames) f.o = S(f.o);
+            if (info2.anchors != null) foreach (var a in info2.anchors) a.p = S(a.p);
+            if (info2.rams != null) foreach (var r in info2.rams) { r.pa = S(r.pa); r.pb = S(r.pb); }
+            if (info2.legs != null) foreach (var l in info2.legs) l.footOffset = S(l.footOffset);
+            c.info = info2;
+            if (c.info.frames != null) foreach (var f in c.info.frames) c.frameByName[f.name] = f;
+            if (c.info.anchors != null) foreach (var a in c.info.anchors) c.anchorByName[a.name] = a;
+            return c;
         }
 
         public Frame GetFrame(string n) => frameByName.TryGetValue(n, out var f) ? f : null;

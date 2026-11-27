@@ -21,6 +21,9 @@ namespace RobotArena
         int hangarIndex;
         Text hName, hRole, hDesc, hPrimary, hSpecial, hMobility, hCount, hMode, hWeaponInfo;
         Loadout hLoadout;
+        WeaponId hFocus;
+        Text hUpgradeLevel, hCredits;
+        Button hUpgradeButton;
         Image[] sArmour, sSpeed, sFire, sRange;
 
         // Fight
@@ -186,13 +189,20 @@ namespace RobotArena
             sFire = StatRow(card, "FIREPOWER", y - 0.11f, UiKit.Orange);
             sRange = StatRow(card, "RANGE", y - 0.165f, UiKit.Yellow);
 
-            hPrimary = WeaponPicker(card, "MAIN", 0.35f, false);
-            hSpecial = WeaponPicker(card, "SPECIAL", 0.285f, true);
-            hMobility = WeaponRow(card, "MOVE", 0.225f);
-            hWeaponInfo = UiKit.Label(Place(card, 0.5f, 0.172f, 620f, 44f), "", 24, UiKit.TextDim, TextAnchor.MiddleCenter);
+            hPrimary = WeaponPicker(card, "MAIN", 0.37f, false);
+            hSpecial = WeaponPicker(card, "SPECIAL", 0.31f, true);
+            hMobility = WeaponRow(card, "MOVE", 0.255f);
+            hWeaponInfo = UiKit.Label(Place(card, 0.5f, 0.207f, 640f, 40f), "", 22, UiKit.TextDim, TextAnchor.MiddleCenter);
 
-            UiKit.Button(card, "DEPLOY", new Vector2(0.5f, 0.09f), Vector2.zero, new Vector2(560f, 120f), UiKit.ButtonStyle.Primary,
-                () => match.StartMatch(RobotCatalog.All[hangarIndex].type), 60);
+            // Upgrade the weapon shown above with credits earned in battle.
+            hUpgradeLevel = UiKit.Label(Place(card, 0.27f, 0.155f, 330f, 62f), "", 22, UiKit.Yellow, TextAnchor.MiddleCenter, true);
+            hUpgradeButton = UiKit.Button(card, "UPGRADE", new Vector2(0.73f, 0.155f), Vector2.zero, new Vector2(330f, 54f), UiKit.ButtonStyle.Secondary, BuyUpgrade, 24);
+
+            UiKit.Button(card, "DEPLOY", new Vector2(0.5f, 0.068f), Vector2.zero, new Vector2(560f, 100f), UiKit.ButtonStyle.Primary,
+                () => match.StartMatch(RobotCatalog.All[hangarIndex].type), 54);
+
+            var creditsRt = UiKit.Rect("Credits", hangarPanel.transform, new Vector2(1f, 1f), new Vector2(-230f, -70f), new Vector2(420f, 70f));
+            hCredits = UiKit.Label(creditsRt, "", 34, UiKit.Yellow, TextAnchor.MiddleRight, true);
         }
 
         static RectTransform Place(Transform parent, float ax, float ay, float w, float h)
@@ -217,7 +227,9 @@ namespace RobotArena
         {
             UiKit.Label(Place(card, 0.15f, y, 160f, 40f), label, 26, UiKit.TextDim, TextAnchor.MiddleLeft, true);
             var slot = Place(card, 0.615f, y, 470f, 52f);
-            UiKit.Image(slot, UiKit.Chamfer, new Color(1f, 1f, 1f, 0.06f));
+            UiKit.Image(slot, UiKit.Chamfer, new Color(1f, 1f, 1f, 0.06f), true);
+            // Tap the weapon to see its stats and upgrade it.
+            slot.gameObject.AddComponent<Button>().onClick.AddListener(() => ShowLoadout(special ? hLoadout.special : hLoadout.primary));
             var text = UiKit.Label(slot, "", 28, Color.white, TextAnchor.MiddleCenter, true);
             UiKit.Button(card, "<", new Vector2(0.38f, y), Vector2.zero, new Vector2(70f, 52f), UiKit.ButtonStyle.Secondary, () => StepWeapon(special, -1), 30);
             UiKit.Button(card, ">", new Vector2(0.85f, y), Vector2.zero, new Vector2(70f, 52f), UiKit.ButtonStyle.Secondary, () => StepWeapon(special, 1), 30);
@@ -240,9 +252,28 @@ namespace RobotArena
 
         void ShowLoadout(WeaponId focus)
         {
+            hFocus = focus;
             hPrimary.text = Loadout.Info(hLoadout.primary).name;
             hSpecial.text = Loadout.Info(hLoadout.special).name;
-            hWeaponInfo.text = Loadout.Info(focus).blurb;
+            int level = Upgrades.Level(focus);
+            hWeaponInfo.text = Loadout.Info(focus).name + ": " + Loadout.Info(focus).blurb;
+            string hit = Mathf.RoundToInt(WeaponStats.Hit(focus, level)) + (focus == WeaponId.Flamethrower ? " DMG/S" : " DMG");
+            hUpgradeLevel.text = "LEVEL " + (level + 1) + " / " + (WeaponStats.MaxLevel + 1) + "\n" + hit + "  ·  " + Mathf.RoundToInt(WeaponStats.Dps(focus, level)) + " DPS";
+            int cost = Upgrades.NextCost(focus);
+            var label = hUpgradeButton != null ? hUpgradeButton.GetComponentInChildren<Text>() : null;
+            if (label != null) label.text = cost < 0 ? "MAX LEVEL" : "UPGRADE  " + cost + " CR";
+            if (hUpgradeButton != null) hUpgradeButton.interactable = cost >= 0 && Upgrades.Credits >= cost;
+            if (hCredits != null) hCredits.text = Upgrades.Credits + " CREDITS";
+        }
+
+        void BuyUpgrade()
+        {
+            if (Upgrades.TryBuy(hFocus))
+            {
+                GameAudio.Play2D(Sfx.Servo, 0.8f);
+                Announce("UPGRADED " + Loadout.Info(hFocus).name, UiKit.Yellow);
+            }
+            ShowLoadout(hFocus);
         }
 
         void StepRobot(int dir)
@@ -265,7 +296,7 @@ namespace RobotArena
             ShowLoadout(hLoadout.primary);
             hMobility.text = info.mobility;
             hCount.text = (hangarIndex + 1) + " / " + RobotCatalog.All.Count;
-            UiKit.SetSegments(sArmour, info.armour, UiKit.Green);
+            UiKit.SetSegments(sArmour, Balance.Health(info.type) / 4000f, UiKit.Green);
             UiKit.SetSegments(sSpeed, info.speed, UiKit.Cyan);
             UiKit.SetSegments(sFire, info.firepower, UiKit.Orange);
             UiKit.SetSegments(sRange, info.range, UiKit.Yellow);

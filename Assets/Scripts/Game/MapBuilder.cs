@@ -3,17 +3,6 @@ using UnityEngine;
 
 namespace RobotArena
 {
-    /// <summary>Where things go on a map: team bases, capture points, depots, reactor.</summary>
-    public class MapLayout
-    {
-        public Vector3[] allySpawns;
-        public Vector3[] enemySpawns;
-        public Vector3[] zones;
-        public float zoneRadius = 20f;
-        public Vector3[] depots;
-        public Vector3 reactor;
-    }
-
     /// <summary>
     /// Builds the battle maps. The Foundry is built in the editor (ArenaBuilder) and baked
     /// into the scene; the Dockyard and Canyon Outpost are built here at deploy time from
@@ -24,41 +13,7 @@ namespace RobotArena
         public const float ArenaSize = 280f;
         static GameAssets A => GameAssets.Get();
 
-        public static MapLayout Layout(MapId map)
-        {
-            var l = new MapLayout
-            {
-                allySpawns = new[] { new Vector3(0f, 0f, -105f), new Vector3(-40f, 0f, -105f), new Vector3(40f, 0f, -105f), new Vector3(-68f, 0f, -112f), new Vector3(68f, 0f, -112f) },
-                enemySpawns = new[] { new Vector3(0f, 0f, 100f), new Vector3(-40f, 0f, 100f), new Vector3(40f, 0f, 100f), new Vector3(-68f, 0f, 110f), new Vector3(68f, 0f, 110f) },
-            };
-            switch (map)
-            {
-                case MapId.Foundry:
-                    l.zones = new[] { new Vector3(-75f, 0f, -35f), new Vector3(0f, 0f, 0f), new Vector3(78f, 0f, 15f) };
-                    l.zoneRadius = 22f;
-                    l.depots = new[] { new Vector3(-92f, 0f, 42f), new Vector3(0f, 0f, 82f), new Vector3(86f, 0f, 52f) };
-                    l.reactor = new Vector3(0f, 0f, -80f);
-                    break;
-                case MapId.Dockyard:
-                    l.zones = new[] { new Vector3(-80f, 0f, 0f), new Vector3(0f, 0f, 0f), new Vector3(80f, 0f, 0f) };
-                    l.depots = new[] { new Vector3(-90f, 0f, 64f), new Vector3(0f, 0f, 82f), new Vector3(90f, 0f, 60f) };
-                    l.reactor = new Vector3(0f, 0f, -82f);
-                    break;
-                default:
-                    l.zones = new[] { new Vector3(-80f, 0f, 5f), new Vector3(0f, 0f, 0f), new Vector3(80f, 0f, -5f) };
-                    l.depots = new[] { new Vector3(-84f, 0f, 56f), new Vector3(0f, 0f, 80f), new Vector3(84f, 0f, 56f) };
-                    l.reactor = new Vector3(0f, 0f, -78f);
-                    break;
-            }
-            // The battlefield is bigger than the original yard: spread everything out.
-            // Bases sit near the edges, objectives across the wider middle.
-            for (int i = 0; i < l.allySpawns.Length; i++) l.allySpawns[i] = new Vector3(l.allySpawns[i].x * 1.3f, 0f, -175f - (Mathf.Abs(l.allySpawns[i].x) > 60f ? 8f : 0f));
-            for (int i = 0; i < l.enemySpawns.Length; i++) l.enemySpawns[i] = new Vector3(l.enemySpawns[i].x * 1.3f, 0f, 172f + (Mathf.Abs(l.enemySpawns[i].x) > 60f ? 8f : 0f));
-            for (int i = 0; i < l.zones.Length; i++) l.zones[i] *= 1.35f;
-            for (int i = 0; i < l.depots.Length; i++) l.depots[i] *= 1.35f;
-            l.reactor *= 1.35f;
-            return l;
-        }
+        public static MapLayout Layout(MapId map) => MapLayout.For(map);
 
         /// <summary>Replaces the Foundry with another map (no-op for the Foundry).</summary>
         public static void Build(MapId map)

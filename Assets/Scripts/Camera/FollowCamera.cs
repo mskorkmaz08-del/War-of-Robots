@@ -18,7 +18,9 @@ namespace RobotArena
         public float lookAhead = 8f;
         public float followSharpness = 5f;
         public float rotateSharpness = 2.5f;
-        public float baseFov = 60f;
+        public float baseFov = 55f;
+        [Tooltip("Sideways offset: the camera looks over the robot's right shoulder.")]
+        public float shoulder = 6f;
         public float speedFovBoost = 14f;
 
         [Header("Shake")]
@@ -27,9 +29,9 @@ namespace RobotArena
         public float traumaDecay = 1.4f;
 
         [Header("Free look")]
-        public float minPitch = -12f;
+        public float minPitch = -20f;
         public float maxPitch = 60f;
-        public float defaultPitch = 12f;
+        public float defaultPitch = 7f;
         [Tooltip("Seconds without look input before the camera drifts back behind the robot while it moves.")]
         public float recenterDelay = 2.5f;
 
@@ -56,12 +58,34 @@ namespace RobotArena
             height = newHeight;
             lookHeight = newLookHeight;
             targetBody = target != null ? target.GetComponent<Rigidbody>() : null;
+            if (target != null) FrameRobot();
             if (target != null)
             {
                 yaw = target.eulerAngles.y;
                 pitch = defaultPitch;
-                transform.position = target.position + Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, height, -distance);
+                transform.position = target.position + Quaternion.Euler(0f, yaw, 0f) * new Vector3(shoulder, lookHeight + height, -distance);
             }
+        }
+
+        /// <summary>
+        /// Cinematic framing worked out from the robot's real size: the camera sits a
+        /// little above shoulder height, about one robot-height behind and off to the
+        /// right, so the machine fills the left of the screen and towers over the
+        /// street, while the crosshair in the middle stays clear.
+        /// </summary>
+        void FrameRobot()
+        {
+            var rs = target.GetComponentsInChildren<Renderer>();
+            if (rs.Length == 0) return;
+            Bounds b = rs[0].bounds;
+            foreach (var r in rs) b.Encapsulate(r.bounds);
+            float h = Mathf.Max(4f, b.size.y);
+            float len = Mathf.Max(b.size.x, b.size.z);
+            float top = b.max.y - target.position.y;
+            lookHeight = top - h * 0.16f;
+            distance = Mathf.Clamp(Mathf.Max(h * 0.9f, len * 1.05f), 13f, 30f);
+            height = h * 0.06f;
+            shoulder = Mathf.Clamp(h * 0.3f, 3f, 8f);
         }
 
         /// <summary>Rotates the view (degrees). Called by mouse, touch drag and gamepad.</summary>
@@ -135,17 +159,17 @@ namespace RobotArena
             Vector3 pivot = new Vector3(target.position.x, smoothY, target.position.z) + Vector3.up * lookHeight;
             // Camera sits behind and above the pivot, so the robot stays in the lower
             // part of the screen and the crosshair in the middle is free to aim.
-            Vector3 desired = pivot + rotation * new Vector3(0f, 0f, -distance) + Vector3.up * (height + distance * 0.45f);
+            Vector3 desired = pivot + rotation * new Vector3(shoulder, 0f, -distance) + Vector3.up * height;
 
             // Pull in if a wall or building is between the robot and the camera.
             Vector3 toCam = desired - pivot;
             if (Physics.SphereCast(pivot, 1.5f, toCam.normalized, out RaycastHit hit, toCam.magnitude, ~0, QueryTriggerInteraction.Ignore)
                 && hit.rigidbody == null)
             {
-                desired = pivot + toCam.normalized * Mathf.Max(6f, hit.distance - 1f);
+                desired = pivot + toCam.normalized * Mathf.Max(5f, hit.distance - 1f);
             }
-            // Never go under the floor.
-            desired.y = Mathf.Max(desired.y, 2f);
+            // Never go under the ground (hills included).
+            desired.y = Mathf.Max(desired.y, BattleGround.HeightAt(desired.x, desired.z) + 2.5f);
 
             transform.position = Vector3.Lerp(transform.position, desired, 1f - Mathf.Exp(-followSharpness * 2f * dt));
             transform.rotation = rotation;

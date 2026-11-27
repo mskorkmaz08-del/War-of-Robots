@@ -13,10 +13,57 @@ namespace RobotArena
     public static class BattleGround
     {
         const float Half = Frontier.Half;
-        const float Fine = 2.5f;      // metres between vertices inside the battlefield
-        const float Coarse = 16f;     // ... and in the ring outside it
+        const float Fine = 4f;        // metres between vertices inside the battlefield
+        const float Coarse = 20f;     // ... and in the ring outside it
         const float Ring = 160f;      // how far the mesh reaches past the battlefield edge
-        const float GridCell = 4f;    // clearance grid
+        const float GridCell = 5f;    // clearance grid
+
+        // Height lookup for placing things on the ground after it is built.
+        static float[] hxs;
+        static float[] hgrid;
+
+        public static List<GroundShape.FlatRect> FlatRects => GroundShape.FlatRects;
+        public static List<GroundShape.Road> Roads => GroundShape.Roads;
+        public static float FlatMask(float x, float z, float ramp = 45f) => GroundShape.FlatMask(x, z, ramp);
+        static float Hills(MapId map, MapLayout l, float x, float z, float s) => GroundShape.Hills(map, l, x, z, s);
+        static float LayoutClear(MapLayout l, float x, float z, float ramp = 20f) => GroundShape.LayoutClear(l, x, z, ramp);
+
+        /// <summary>Forget the last map's roads, towns and heights (statics outlive scene reloads).</summary>
+        public static void Reset()
+        {
+            FlatRects.Clear();
+            Roads.Clear();
+            hxs = null;
+            hgrid = null;
+        }
+
+        /// <summary>Ground height at a point (0 before the ground is built or off the map).</summary>
+        public static float HeightAt(float x, float z)
+        {
+            if (hxs == null || hgrid == null) return 0f;
+            int n = hxs.Length;
+            int i = Lower(hxs, x), j = Lower(hxs, z);
+            if (i < 0 || j < 0 || i >= n - 1 || j >= n - 1) return 0f;
+            float u = (x - hxs[i]) / (hxs[i + 1] - hxs[i]);
+            float w = (z - hxs[j]) / (hxs[j + 1] - hxs[j]);
+            float h00 = hgrid[j * n + i], h10 = hgrid[j * n + i + 1], h01 = hgrid[(j + 1) * n + i], h11 = hgrid[(j + 1) * n + i + 1];
+            // Same diagonal split as the mesh triangles (a, c, b / b, c, d).
+            if (u + w <= 1f) return h00 + (h10 - h00) * u + (h01 - h00) * w;
+            return h11 + (h01 - h11) * (1f - u) + (h10 - h11) * (1f - w);
+        }
+
+        static int Lower(float[] a, float v)
+        {
+            int lo = 0, hi = a.Length - 1;
+            if (v < a[0] || v > a[hi]) return -1;
+            while (hi - lo > 1)
+            {
+                int mid = (lo + hi) >> 1;
+                if (a[mid] <= v) lo = mid; else hi = mid;
+            }
+            return lo;
+        }
+
         const float GridHalf = Half + 40f;
 
         static readonly Dictionary<int, Material> farCache = new Dictionary<int, Material>();
@@ -94,9 +141,16 @@ namespace RobotArena
                     ? Mathf.Pow(1f - Mathf.Abs(n1 * 2f - 1f), 2f) * Mathf.PerlinNoise(x * 0.006f + s, z * 0.006f) * 1.6f
                     : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.42f, 0.85f, n1));
                 relief += (Mathf.PerlinNoise(x * 0.07f + s, z * 0.07f + 5f) - 0.3f) * 0.12f;
-                float h = Mathf.Max(0f, amp * relief) * flat * edge;
+                float flatTowns = FlatMask(x, z);
+                float hills = Hills(map, layout, x, z, s) * Mathf.Min(flatTowns, LayoutClear(layout, x, z, 45f))
+                    * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(3f, 40f, dBlock));
+                float h = (Mathf.Max(0f, amp * relief) * flat * flatTowns + hills) * edge;
                 verts[j * n + i] = new Vector3(x, h, z);
             }
+
+            hxs = xs.ToArray();
+            hgrid = new float[verts.Length];
+            for (int k = 0; k < verts.Length; k++) hgrid[k] = verts[k].y;
 
             var tris = new int[(n - 1) * (n - 1) * 6];
             int t = 0;
@@ -220,22 +274,5 @@ namespace RobotArena
             return Mathf.Lerp(Mathf.Lerp(f[i, j], f[i + 1, j], u), Mathf.Lerp(f[i, j + 1], f[i + 1, j + 1], u), w);
         }
 
-        /// <summary>0 at spawns and objectives (kept flat), rising to 1 well away from them.</summary>
-        static float LayoutClear(MapLayout l, float x, float z)
-        {
-            if (l == null) return 1f;
-            float m = 1f;
-            void Point(Vector3 p, float r)
-            {
-                float d = Mathf.Sqrt((p.x - x) * (p.x - x) + (p.z - z) * (p.z - z));
-                m = Mathf.Min(m, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(r, r + 20f, d)));
-            }
-            if (l.allySpawns != null) foreach (var p in l.allySpawns) Point(p, 12f);
-            if (l.enemySpawns != null) foreach (var p in l.enemySpawns) Point(p, 12f);
-            if (l.zones != null) foreach (var p in l.zones) Point(p, l.zoneRadius + 4f);
-            if (l.depots != null) foreach (var p in l.depots) Point(p, 10f);
-            if (l.reactor != Vector3.zero) Point(l.reactor, 14f);
-            return m;
-        }
     }
 }

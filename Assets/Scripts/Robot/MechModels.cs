@@ -25,12 +25,52 @@ namespace RobotArena
             public string[] detach;
         }
 
-        static Chassis TryModel(RobotType type, Vector3 groundPos, Quaternion rotation, int team, bool player, string name)
+        static Chassis TryModel(RobotType type, Vector3 groundPos, Quaternion rotation, int team, bool player, string name, float k)
         {
-            var m = RobotModel.Load(type.ToString());
+            var m = RobotModel.Load(type.ToString(), k);
             if (m == null) return null;
             var spec = Spec(type);
-            return spec == null ? null : BuildFromModel(m, spec, groundPos, rotation, team, player, name);
+            if (spec == null) return null;
+            spec.health = Balance.Health(type);
+            if (k != 1f) ScaleSpec(spec, k);
+            return BuildFromModel(m, spec, groundPos, rotation, team, player, name);
+        }
+
+        /// <summary>
+        /// Everything in metres grows with the robot: collision boxes, stride, step
+        /// height, wheels and suspension, weapon size. Speeds grow with the stride so
+        /// the gait keeps the same slow, heavy rhythm while covering more ground.
+        /// </summary>
+        static void ScaleSpec(ModelSpec spec, float k)
+        {
+            var boxes = new Vector3[spec.boxes.Length];
+            for (int i = 0; i < boxes.Length; i++) boxes[i] = spec.boxes[i] * k;
+            spec.boxes = boxes;
+            spec.size *= k;
+            spec.centerOfMass *= k;
+            spec.armScale *= k;
+            spec.shoulderScale *= k;
+            spec.backScale *= k;
+            var walker = spec.walker;
+            if (walker != null)
+                spec.walker = w =>
+                {
+                    walker(w);
+                    w.strideLength *= k;
+                    w.stepHeight *= k;
+                    w.walkSpeed *= k;
+                    w.jetAccel *= Mathf.Sqrt(k);
+                };
+            var wheeled = spec.wheeled;
+            spec.wheeled = d =>
+            {
+                wheeled?.Invoke(d);
+                d.wheelRadius *= k;
+                d.suspensionTravel *= k;
+                d.springStiffness /= k;
+                d.maxSpeed *= Mathf.Sqrt(k);
+                d.boostMaxSpeed *= Mathf.Sqrt(k);
+            };
         }
 
         static ModelSpec Spec(RobotType type)

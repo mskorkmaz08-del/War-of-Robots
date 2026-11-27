@@ -208,9 +208,10 @@ namespace RobotArena
             int packed = -1;
             var np = NetSession.I != null ? NetSession.I.Players.Find(p => p.id == owner) : null;
             if (np != null && np.type == type) packed = np.loadout;
-            var go = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, name, LoadoutFrom(type, packed));
+            var go = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, name, LoadoutFrom(type, packed), RobotFactory.BattleScale, 0);
             go.AddComponent<NetProxy>();
             var d = go.GetComponent<Damageable>();
+            Shield(d);
             d.Died += OnRobotDied;
             types[d] = type;
             remoteHumans[d] = owner;
@@ -346,6 +347,7 @@ namespace RobotArena
             if (playerTurret != null) playerTurret.aimCamera = FollowCamera.Main;
             Player = playerGo.GetComponent<Damageable>();
             Player.Died += OnRobotDied;
+            Shield(Player);
             types[Player] = type;
             net.Register(Player, NetSession.LocalId, type, 0, loadout.Pack());
 
@@ -379,11 +381,25 @@ namespace RobotArena
             brain.usesBoostToCharge = info.aiBoostCharge;
             var d = go.GetComponent<Damageable>();
             d.Died += OnRobotDied;
+            Shield(d);
             types[d] = type;
             (team == 0 ? Allies : Enemies).Add(d);
             net.Register(d, NetMatch.AiOwner, type, team == 0 ? 1 : livery.Equals(Livery.Enemy2) ? 3 : 2);
             return d;
         }
+
+        /// <summary>A few seconds of protection after (re)spawning, shown as a shimmer.</summary>
+        static void Shield(Damageable d)
+        {
+            if (d == null) return;
+            d.StartSpawnShield(Balance.SpawnShield);
+            if (d.GetComponent<SpawnShieldFx>() == null) d.gameObject.AddComponent<SpawnShieldFx>();
+        }
+
+        /// <summary>Kills by the player's own robot this match (for credits).</summary>
+        public int PlayerKills { get; private set; }
+        /// <summary>Credits paid out at the end of the last match.</summary>
+        public int LastEarned { get; private set; }
 
         public RobotType TypeOf(Damageable d) => d != null && types.TryGetValue(d, out var t) ? t : RobotType.Titan;
 
@@ -457,6 +473,11 @@ namespace RobotArena
                 // No slow motion on kills: the fight keeps its pace.
             }
             if (d.team == 0) Announce(d.displayName + " DOWN", UiKit.Red);
+            if (d.team != 0 && Player != null && d.LastAttacker == Player)
+            {
+                PlayerKills++;
+                ShowAnnouncement("+" + Upgrades.PerKill + " CREDITS", UiKit.Yellow);
+            }
             Rules?.RobotDied(d);
             // Old enemy wrecks are cleared away so long fights don't fill up with scrap.
             if (d.team == 1) StartCoroutine(ClearWreck(d, 25f));
@@ -473,6 +494,9 @@ namespace RobotArena
         {
             if (Current != State.Fighting) return;
             Current = won ? State.Won : State.Lost;
+            LastEarned = PlayerKills * Upgrades.PerKill + (won ? Upgrades.PerWin : Upgrades.PerLoss);
+            Upgrades.Credits += LastEarned;
+            sub = (string.IsNullOrEmpty(sub) ? "" : sub + "\n") + "+" + LastEarned + " CREDITS  (" + PlayerKills + " KILLS)   BALANCE " + Upgrades.Credits;
             net.End(won, title, sub);
             StartCoroutine(ShowEndAfter(won ? 2.2f : 2.5f, won, title, sub));
         }

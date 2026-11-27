@@ -14,7 +14,7 @@ namespace RobotArena
     public static class Frontier
     {
         /// <summary>Half the size of the playable area, in metres.</summary>
-        public const float Half = 240f;
+        public const float Half = 520f;
 
         static GameAssets A => GameAssets.Get();
 
@@ -26,6 +26,7 @@ namespace RobotArena
 
             var root = new GameObject("Frontier").transform;
             var rnd = new System.Random(11 + (int)map * 13);
+            BattleGround.Reset();
 
             Material ground = GroundMat(map);
             // Plain ground far out; the sculpted BattleGround mesh sits just above it near the fight.
@@ -47,20 +48,26 @@ namespace RobotArena
                 // Distant range behind the city, grey-blue in the haze.
                 Mountains(root, map, RockMat(new Color(0.48f, 0.47f, 0.46f)), Half + 95f, 260f, 150f, 280f, 0.5f, 9);
             }
+            // Roads, towns and base defences are planned first: the ground stays flat under them.
+            var detail = WorldDetail.Plan(map, layout);
+            WorldDetail.BuildBases(root, map, layout);
             Outskirts(root, map, layout, rnd);
             Blockers(root);
 
             StaticBatchingUtility.Combine(root.gameObject);
 
-            // Sculpted, photo-textured ground. Built last so it can stay flat under everything placed above.
+            // Sculpted, photo-textured ground. Built after everything with a collider so it can stay flat under them.
             var groundRoot = new GameObject("Ground").transform;
             if (!BattleGround.Build(groundRoot, map, layout)) Object.Destroy(groundRoot.gameObject);
 
+            // Real-size towns, roads, cars, trees and power lines, set on the finished ground.
+            WorldDetail.Build(detail);
+
             // See the horizon: haze starts further out so the mountains read as far away and huge.
-            RenderSettings.fogStartDistance = 160f;
-            RenderSettings.fogEndDistance = 1250f;
+            RenderSettings.fogStartDistance = 220f;
+            RenderSettings.fogEndDistance = 1700f;
             var cam = Camera.main;
-            if (cam != null) cam.farClipPlane = Mathf.Max(cam.farClipPlane, 1600f);
+            if (cam != null) cam.farClipPlane = Mathf.Max(cam.farClipPlane, 2400f);
         }
 
         /// <summary>The Foundry's old concrete walls and small floor (baked in the scene).</summary>
@@ -119,8 +126,8 @@ namespace RobotArena
         /// </summary>
         static void Mountains(Transform root, MapId map, Material mat, float start, float rise, float minH, float maxH, float steep, int seed)
         {
-            const float L = 1000f;
-            const int N = 100;
+            const float L = 1400f;
+            const int N = 140;
             float cell = L * 2f / N;
             var verts = new Vector3[(N + 1) * (N + 1)];
             var heights = new float[verts.Length];
@@ -226,9 +233,9 @@ namespace RobotArena
             }
 
             // A second, taller row further back gives the city depth.
-            for (int k = 0; k < 28; k++)
+            for (int k = 0; k < 40; k++)
             {
-                float ang = k * (360f / 28f) + R() * 6f;
+                float ang = k * (360f / 40f) + R() * 4f;
                 float dist = Half + 95f + R() * 60f;
                 Vector3 c = Quaternion.Euler(0f, ang, 0f) * new Vector3(0f, 0f, dist);
                 float h = 90f + R() * 120f;
@@ -276,12 +283,13 @@ namespace RobotArena
             var rock = a.Tinted(a.wallMat, new Color(0.6f, 0.44f, 0.33f));
             var rockDark = a.Tinted(a.wallMat, new Color(0.44f, 0.32f, 0.25f));
             int placed = 0, tries = 0, seed = 600;
-            while (placed < 26 && tries++ < 400)
+            while (placed < 34 && tries++ < 600)
             {
                 Vector3 p = new Vector3((R() * 2f - 1f) * (Half - 18f), 0f, (R() * 2f - 1f) * (Half - 18f));
                 // Only the new outer band: the old centre already has its cover.
                 if (Mathf.Max(Mathf.Abs(p.x), Mathf.Abs(p.z)) < 150f) continue;
                 if (!Clear(p, layout, 34f)) continue;
+                if (BattleGround.FlatMask(p.x, p.z, 1f) < 1f || BattleGround.FlatMask(p.x, p.z, 30f) < 0.5f) continue; // not on roads or in towns
                 float yaw = R() * 360f;
                 switch (map)
                 {
@@ -312,7 +320,7 @@ namespace RobotArena
         public static bool Clear(Vector3 p, MapLayout l, float radius)
         {
             if (l == null) return true;
-            foreach (var arr in new[] { l.allySpawns, l.enemySpawns, l.zones, l.depots })
+            foreach (var arr in new[] { l.allySpawns, l.enemySpawns, l.zones, l.depots, l.allyReserve, l.enemyReserve })
                 if (arr != null)
                     foreach (var q in arr)
                         if ((q - p).sqrMagnitude < radius * radius) return false;

@@ -328,6 +328,28 @@ def frame_look(origin_unity, fwd_unity, up_unity):
     return (Vector(origin_unity), x, y, z)
 
 
+def _outward(ob):
+    """Make a piece's faces point outwards. Some lathed and hand-built pieces come out
+    inside out; their faces mostly point back towards the middle of the piece. This test
+    also works on open or overlapping pieces (gears, hoses), where Blender's own
+    recalculation can guess wrong."""
+    if ob.type != 'MESH' or not ob.data.polygons:
+        return
+    me = ob.data
+    c = Vector()
+    for v in me.vertices:
+        c += v.co
+    c /= len(me.vertices)
+    score = sum(p.area * p.normal.dot(p.center - c) for p in me.polygons)
+    if score < 0:
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+        bm.to_mesh(me)
+        bm.free()
+        me.update()
+
+
 def _split_normals(verts, faces, angle=38.0):
     """Per-corner normals averaged over neighbouring faces within the smoothing angle."""
     cos_t = math.cos(math.radians(angle))
@@ -366,6 +388,10 @@ def export(path, frames, anchors=None, meta=None):
     anchors: name -> {'p': [x,y,z], 'f': [x,y,z] (optional forward)} in Unity root space.
     Writes RBM2: parts with submeshes per material, plus a JSON block of anchors/meta.
     """
+    for obs in PARTS.values():
+        for ob in obs:
+            _outward(ob)
+    bpy.context.view_layer.update()
     deps = bpy.context.evaluated_depsgraph_get()
     out = bytearray(b'RBM3')
     names = [n for n in PARTS if n in frames]
@@ -381,13 +407,18 @@ def export(path, frames, anchors=None, meta=None):
             mw = ob.matrix_world
             vs = [to_unity(mw @ v.co) for v in me.vertices]
             vs = [Vector(((p - o).dot(X), (p - o).dot(Y), (p - o).dot(Z))) for p in vs]
-            # Unity is left-handed: after the axis swap Blender's CCW triangles are already CW.
+            # The y/z swap into Unity's axes is a mirror, so it turns each triangle inside out.
+            # Unity draws a face when cross(b - a, c - a) points at the camera, so swap two
+            # corners to keep faces pointing outwards. An object Blender already mirrors
+            # (negative scale) is turned inside out twice, so it keeps its order.
+            flip = mw.determinant() > 0
             # Faces may carry their own material slot (panel grooves, painted stripes).
             by_mat = {}
             for t in me.loop_triangles:
                 mi = me.polygons[t.polygon_index].material_index
                 mat = me.materials[mi].name if mi < len(me.materials) and me.materials[mi] else (me.materials[0].name if me.materials else 'Primary')
-                by_mat.setdefault(mat, []).append(tuple(t.vertices))
+                a, b, c = t.vertices
+                by_mat.setdefault(mat, []).append((a, c, b) if flip else (a, b, c))
             for mat, fl in by_mat.items():
                 used = sorted({i for f in fl for i in f})
                 rm = {v: k for k, v in enumerate(used)}

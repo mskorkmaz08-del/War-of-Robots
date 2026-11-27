@@ -97,14 +97,17 @@ namespace RobotArena
         {
             switch (type)
             {
-                case RobotType.Titan: return 4000f;      // the biggest walker
+                case RobotType.Colossus: return 4600f;   // the super-heavy
+                case RobotType.Titan: return 4000f;
                 case RobotType.Mammoth: return 3700f;
                 case RobotType.Juggernaut: return 3400f;
+                case RobotType.Scarab: return 3200f;
                 case RobotType.Bastion: return 3100f;
                 case RobotType.Arachne: return 2700f;
                 case RobotType.Vanguard: return 2600f;
                 case RobotType.Raptor: return 2300f;
                 case RobotType.Lancer: return 2100f;
+                case RobotType.Strider: return 1900f;
                 default: return 1800f;                   // Hornet, the smallest
             }
         }

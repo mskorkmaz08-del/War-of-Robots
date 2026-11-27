@@ -125,6 +125,36 @@ namespace RobotArena
                         yawSpeed = 50f, pitchSpeed = 30f, maxYaw = 150f, cone = 75f,
                         detach = new[] { "ChestL", "Antenna", "ChestR" }
                     };
+                case RobotType.Strider:
+                    return new ModelSpec
+                    {
+                        mass = 22000f, health = 1900f, size = 1.5f,
+                        boxes = new[] { new Vector3(0f, 2.4f, -0.3f), new Vector3(3.4f, 2.6f, 7.0f), new Vector3(0f, -2.5f, 0f), new Vector3(3.0f, 4.5f, 2.5f) },
+                        walker = w => { w.strideLength = 4.6f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 12.5f; w.acceleration = 4.5f; w.turnRate = 1.2f; w.jetAccel = 28f; w.fuelDrain = 34f; },
+                        yawSpeed = 95f, pitchSpeed = 50f, maxYaw = 140f, cone = 75f,
+                        armScale = 0.72f, shoulderScale = 0.75f, backScale = 0.7f,
+                        detach = new[] { "ChestL", "Antenna", "ChestR" }
+                    };
+                case RobotType.Colossus:
+                    return new ModelSpec
+                    {
+                        mass = 68000f, health = 4600f, size = 2.9f,
+                        boxes = new[] { new Vector3(0f, 5.0f, -0.6f), new Vector3(7.4f, 6.6f, 7.0f), new Vector3(0f, -1.2f, 0f), new Vector3(6.4f, 4.0f, 3.2f) },
+                        walker = w => { w.strideLength = 5.8f; w.stepDuration = 0.55f; w.walkSpeed = 6.5f; w.acceleration = 2.4f; w.turnRate = 0.55f; w.jetAccel = 16f; w.fuelDrain = 18f; w.sprintBoost = true; },
+                        yawSpeed = 45f, pitchSpeed = 26f, maxYaw = 100f, cone = 75f,
+                        armScale = 1.15f, shoulderScale = 1.1f, backScale = 1.1f,
+                        detach = new[] { "PauldronL", "ChestL", "Antenna", "PauldronR", "ChestR" }
+                    };
+                case RobotType.Scarab:
+                    return new ModelSpec
+                    {
+                        mass = 46000f, health = 3200f, size = 2.4f,
+                        boxes = new[] { new Vector3(0f, 1.2f, -0.4f), new Vector3(6.0f, 4.6f, 12.4f) },
+                        walker = w => { w.strideLength = 4.2f; w.stepDuration = 0.42f; w.stepHeight = 1.3f; w.walkSpeed = 8.5f; w.acceleration = 3.6f; w.turnRate = 0.9f; w.jetAccel = 20f; w.fuelDrain = 22f; w.sprintBoost = true; },
+                        yawSpeed = 70f, pitchSpeed = 38f, maxYaw = 170f, maxPitch = 40f, cone = 80f,
+                        armScale = 0.85f, shoulderScale = 0.85f, backScale = 0.95f,
+                        detach = new[] { "ChestL", "Antenna", "ChestR" }
+                    };
                 case RobotType.Raptor:
                     return Wheeled(30000f, true, 2000f, 2f, 0.3f, new Vector3(0f, 2.35f, -0.6f), 0.85f, new Vector3(0f, 0.8f, 0.2f), new Vector3(5.4f, 2.0f, 10.4f),
                         new Vector3(0f, 0.3f, 0.2f), d => { d.extraAirGravity = 0.6f; d.wheelRadius = 1.4f; d.suspensionTravel = 1.1f; }, 90f, 45f, 150f);
@@ -171,7 +201,25 @@ namespace RobotArena
             float stand = m.info.stand;
             var root = NewRoot(name, groundPos + Vector3.up * stand, rotation, spec.mass, spec.fast);
             var t = root.transform;
-            for (int i = 0; i + 1 < spec.boxes.Length; i += 2) AddBox(t, spec.boxes[i], spec.boxes[i + 1]);
+            for (int i = 0; i + 1 < spec.boxes.Length; i += 2)
+            {
+                Vector3 c = spec.boxes[i], size = spec.boxes[i + 1];
+                if (spec.walker != null)
+                {
+                    // A walker's hull collider stops well above the feet. Below that the legs
+                    // step over or onto things; a box reaching the ground would snag on every
+                    // crate and kerb and shove the robot off balance.
+                    float floor = -stand * 0.55f;
+                    float top = c.y + size.y * 0.5f, bottom = c.y - size.y * 0.5f;
+                    if (bottom < floor)
+                    {
+                        if (top - floor < 0.6f) continue;
+                        size.y = top - floor;
+                        c.y = (top + floor) * 0.5f;
+                    }
+                }
+                AddBox(t, c, size);
+            }
 
             var rootOrigin = new Vector3(0f, stand, 0f);
             var upper = Group(t, "Upper", m.Upper - rootOrigin);

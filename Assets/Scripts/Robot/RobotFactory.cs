@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace RobotArena
 {
-    public enum RobotType { Titan, Raptor, Arachne, Hornet, Juggernaut, Lancer, Bastion, Vanguard, Mammoth }
+    public enum RobotType { Titan, Raptor, Arachne, Hornet, Juggernaut, Lancer, Bastion, Vanguard, Mammoth, Strider, Colossus, Scarab }
 
     /// <summary>Paint scheme for a robot.</summary>
     public struct Livery

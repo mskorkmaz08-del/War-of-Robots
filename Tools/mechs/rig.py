@@ -30,6 +30,11 @@ class Rig:
         self.frames[part] = frame_identity(U(Vector(origin)))
         self.parents[part] = parent
 
+    def spin(self, part, origin, parent, axis=(0, 0, 1), speed=90.0):
+        """A part that keeps turning in the game (radar, fan, turbine) about an axis through origin."""
+        self.rigid(part, origin, parent)
+        self.extra.setdefault('spin', []).append({'name': part, 'axis': list(U(Vector(axis).normalized())), 'speed': speed})
+
     def anchor(self, name, p, parent, f=None):
         a = {'p': list(U(Vector(p))), 'parent': parent}
         if f is not None:

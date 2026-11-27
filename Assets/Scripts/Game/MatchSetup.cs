@@ -78,9 +78,9 @@ namespace RobotArena
             new MapInfo { map = MapId.FrozenPass, name = "FROZEN PASS", description = "Snowbound research base between ice ridges and radar domes." },
             new MapInfo { map = MapId.RuinedCity, name = "RUINED CITY", description = "Bombed-out downtown. Street fights between broken towers." },
             new MapInfo { map = MapId.Refinery, name = "REFINERY", description = "Fuel tanks, pipe racks and flare stacks at dusk." },
-            new MapInfo { map = MapId.Highlands, name = "HIGHLAND DAM", description = "Green hills and farms around a hydro dam and its reservoir." },
-            new MapInfo { map = MapId.LaunchSite, name = "LAUNCH SITE", description = "Rocket gantries, fuel spheres and a crawlerway on the coast." },
-            new MapInfo { map = MapId.Airbase, name = "AIRBASE", description = "Runways, hardened hangars and a control tower. Wide open lanes." },
+            new MapInfo { map = MapId.Highlands, name = "HIGHLAND DAM", description = "A 95 m arch dam over a green valley: turbine halls, switchyards and power lines." },
+            new MapInfo { map = MapId.LaunchSite, name = "LAUNCH SITE", description = "A rocket on its launch pad, fuel spheres, tracking radars and bunkers." },
+            new MapInfo { map = MapId.Airbase, name = "AIRBASE", description = "A runway down the middle, arched hangars, parked jets and a control tower." },
         };
 
         public static readonly List<MissionInfo> Missions = new List<MissionInfo>

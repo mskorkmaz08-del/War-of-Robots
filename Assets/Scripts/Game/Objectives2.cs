@@ -26,7 +26,8 @@ namespace RobotArena
                 a.Paint(new Color(0.16f, 0.17f, 0.19f), 0.7f, 0.4f, true),
                 a.Paint(new Color(0.42f, 0.43f, 0.45f), 0.85f, 0.5f, false),
                 a.Paint(new Color(0.75f, 0.76f, 0.78f), 0.95f, 0.8f, false),
-                a.hazardMat != null ? a.hazardMat : a.Paint(UiKit.Yellow, 0.2f, 0.4f, false),
+                // Accent is safety-yellow paint: hazard stripes are modelled as geometry.
+                a.Paint(new Color(0.95f, 0.72f, 0.12f), 0.3f, 0.45f, false),
                 a.Glow(glow, 2.6f),
                 a.Paint(new Color(0.05f, 0.05f, 0.06f), 0.3f, 0.3f, false),
                 a.Paint(new Color(0.09f, 0.09f, 0.09f), 0f, 0.2f, false),
@@ -48,6 +49,10 @@ namespace RobotArena
             var root = new GameObject(name).transform;
             root.SetParent(parent, false);
             root.localScale = Vector3.one * scale;
+            // A model with "Col" parts carries its own simple physics hull; then the drawn
+            // parts get no colliders, which keeps physics cheap on phones.
+            bool hull = false;
+            foreach (var f in m.info.frames) if (f.name.StartsWith("Col")) { hull = true; break; }
             foreach (var f in m.info.frames)
             {
                 if (!m.parts.TryGetValue(f.name, out var part)) continue;
@@ -55,13 +60,18 @@ namespace RobotArena
                 go.transform.SetParent(root, false);
                 go.transform.localPosition = f.Origin;
                 go.transform.localRotation = f.Rotation;
+                if (f.name.StartsWith("Col"))
+                {
+                    if (collide) go.AddComponent<MeshCollider>().sharedMesh = part.mesh;
+                    continue;
+                }
                 go.AddComponent<MeshFilter>().sharedMesh = part.mesh;
                 var r = go.AddComponent<MeshRenderer>();
                 var list = new Material[part.materials.Length];
                 for (int i = 0; i < list.Length; i++) list[i] = mats[Mathf.Clamp(part.materials[i], 0, mats.Length - 1)];
                 r.sharedMaterials = list;
                 // Glow-only parts (lamps, screens) don't need a collider of their own.
-                if (collide && part.mesh.vertexCount > 24 && !f.name.StartsWith("NoCol"))
+                if (collide && !hull && part.mesh.vertexCount > 24 && !f.name.StartsWith("NoCol"))
                     go.AddComponent<MeshCollider>().sharedMesh = part.mesh;
             }
             return true;

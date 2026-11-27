@@ -19,6 +19,7 @@ namespace RobotArena
         public static void Build(MapId map)
         {
             if (A == null) return;
+            NavGrid.Reset();
             if (map == MapId.Foundry)
             {
                 Frontier.Build(map, Layout(map));
@@ -39,10 +40,14 @@ namespace RobotArena
                 case MapId.Canyon: BuildCanyon(root); break;
                 case MapId.FrozenPass: BuildFrozenPass(root, layout); break;
                 case MapId.RuinedCity: BuildRuinedCity(root, layout); break;
+                case MapId.Highlands: BuildHighlands(root, layout); break;
+                case MapId.LaunchSite: BuildLaunchSite(root, layout); break;
+                case MapId.Airbase: BuildAirbase(root, layout); break;
                 default: BuildRefinery(root, layout); break;
             }
             StaticBatchingUtility.Combine(root.gameObject);
             Frontier.Build(map, Layout(map));
+            if (map == MapId.Highlands) ClearDamView();
         }
 
         // ---------------------------------------------------------------------

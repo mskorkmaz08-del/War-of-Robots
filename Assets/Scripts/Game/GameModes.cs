@@ -120,6 +120,57 @@ namespace RobotArena
             return n;
         }
 
+        /// <summary>
+        /// Where a robot of this team comes back. The main base while it is safe; when
+        /// enemies are in or near it, whichever base slot or reserve base is furthest
+        /// from every enemy, so nobody gets shot the moment they appear.
+        /// </summary>
+        protected Vector3 SafeSpawn(int team)
+        {
+            var main = L.Spawns(team);
+            var reserve = L.Reserve(team);
+            const float Safe = 170f;
+            float best = -1f;
+            Vector3 bestP = main[0];
+            bool mainSafe = NearestEnemy(main[0], team) > Safe;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                var pts = pass == 0 ? main : reserve;
+                if (pts == null) continue;
+                foreach (var p in pts)
+                {
+                    if (Occupied(p)) continue;
+                    float d = NearestEnemy(p, team);
+                    // Prefer the main base when it is safe; otherwise go where enemies are furthest.
+                    float score = d + (pass == 0 && mainSafe ? 1000f : 0f);
+                    if (score > best) { best = score; bestP = p; }
+                }
+            }
+            if (best < 0f) bestP = main[Random.Range(0, main.Length)] + new Vector3(Random.Range(-25f, 25f), 0f, Random.Range(-10f, 10f));
+            return bestP;
+        }
+
+        static float NearestEnemy(Vector3 p, int team)
+        {
+            float best = float.MaxValue;
+            foreach (var d in Damageable.All)
+            {
+                if (d == null || d.IsDead || d.team == team) continue;
+                float dist = Vector3.Distance(Flat(d.transform.position), Flat(p));
+                if (dist < best) best = dist;
+            }
+            return best;
+        }
+
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        static bool Occupied(Vector3 p)
+        {
+            foreach (var d in Damageable.All)
+                if (d != null && !d.IsDead && (Flat(d.transform.position) - Flat(p)).sqrMagnitude < 22f * 22f) return true;
+            return false;
+        }
+
         /// <summary>An enemy spawn point with nobody standing on it.</summary>
         protected Vector3 FreeSpawn(Vector3[] points)
         {
@@ -278,7 +329,7 @@ namespace RobotArena
                 var dep = depots[i % depots.Count].transform.position;
                 pos = dep + (Vector3.zero - dep).normalized * 26f;
             }
-            else if (i >= L.enemySpawns.Length || M.Enemies.Count > 0) pos = FreeSpawn(L.enemySpawns);
+            else if (i >= L.enemySpawns.Length || M.Enemies.Count > 0) pos = SafeSpawn(1);
 
             var e = M.SpawnRobot(type, 1, pos, NextEnemyName());
             var b = Brain(e);
@@ -463,7 +514,7 @@ namespace RobotArena
                 spawnTimer -= dt;
                 if (queue.Count > 0 && spawnTimer <= 0f && Alive(M.Enemies) < 4)
                 {
-                    var e = M.SpawnRobot(queue[0], 1, FreeSpawn(L.enemySpawns), NextEnemyName());
+                    var e = M.SpawnRobot(queue[0], 1, SafeSpawn(1), NextEnemyName());
                     Brain(e).startDelay = 1.5f;
                     queue.RemoveAt(0);
                     spawnTimer = 2.5f;
@@ -646,8 +697,7 @@ namespace RobotArena
             if (old == null) return;
             bool wasPlayer = old == M.Player;
             int team = old.team;
-            var points = team == 0 ? L.allySpawns : L.enemySpawns;
-            Vector3 pos = FreeSpawn(points);
+            Vector3 pos = SafeSpawn(team);
             if (wasPlayer)
             {
                 M.RemoveWreck(old);

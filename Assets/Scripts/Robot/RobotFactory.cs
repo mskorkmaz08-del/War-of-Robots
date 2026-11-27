@@ -74,13 +74,21 @@ namespace RobotArena
             mChrome = A.Paint(new Color(0.78f, 0.79f, 0.8f), 1f, 0.95f, false);
         }
 
-        public static GameObject Build(RobotType type, Vector3 groundPos, Quaternion rotation, int team, Livery livery, bool player, string name, Loadout? loadout = null)
+        /// <summary>
+        /// How much bigger the robots are on the battlefield than the sculpted models
+        /// (the hangar shows them at model size). With it the Titan stands about 21 m,
+        /// three times the height of the houses and trees around it.
+        /// </summary>
+        public const float BattleScale = 1.4f;
+
+        public static GameObject Build(RobotType type, Vector3 groundPos, Quaternion rotation, int team, Livery livery, bool player, string name, Loadout? loadout = null,
+            float scale = BattleScale, int weaponLevel = -1)
         {
             PrepareMaterials(livery);
             segDims.Clear();
             footDims.Clear();
             // Sculpted models first; the procedural builders remain as a fallback.
-            Chassis c = TryModel(type, groundPos, rotation, team, player, name);
+            Chassis c = TryModel(type, groundPos, rotation, team, player, name, scale);
             if (c == null)
             switch (type)
             {
@@ -94,9 +102,19 @@ namespace RobotArena
                 case RobotType.Mammoth: c = BuildMammoth(groundPos, rotation, team, player, name); break;
                 default: c = BuildTitan(groundPos, rotation, team, player, name); break;
             }
-            FitWeapons(c, loadout ?? Loadout.Default(type), team, player);
+            var lo = loadout ?? Loadout.Default(type);
+            FitWeapons(c, lo, team, player);
             var go = c.root;
-            if (!player) MakeEnemyFair(go);
+            // Same rules for everyone: weapon damage and reload come from one table.
+            // The player's own robot uses their upgrade levels; AI robots use level 0
+            // unless the mode says otherwise.
+            foreach (var w in go.GetComponents<Weapon>())
+            {
+                var id = w.slot == Weapon.Slot.Primary ? lo.primary : lo.special;
+                int level = weaponLevel >= 0 ? weaponLevel : (player && team == 0 ? Upgrades.Level(id) : 0);
+                WeaponStats.Apply(w, id, level);
+            }
+            if (!player) AimLikeAPerson(go);
             return go;
         }
 
@@ -140,25 +158,17 @@ namespace RobotArena
             }
         }
 
-        /// <summary>Enemies are tougher-looking than they are: less armour, slower and less accurate weapons.</summary>
-        static void MakeEnemyFair(GameObject go)
+        /// <summary>
+        /// AI robots have the same armour, damage and reload as a player in the same
+        /// machine. They only aim like a person would: a little scatter, no snap aim.
+        /// </summary>
+        static void AimLikeAPerson(GameObject go)
         {
-            var d = go.GetComponent<Damageable>();
-            if (d != null)
-            {
-                d.maxHealth *= 0.7f;
-                ResetHealth(d);
-            }
             foreach (var w in go.GetComponents<Weapon>())
             {
-                w.cooldown *= 1.4f;
-                w.spread = 2.5f;
-                w.aimAssist *= 0.5f;
+                w.spread = 1.6f;
+                w.aimAssist *= 0.6f;
             }
-            var swarm = go.GetComponent<MissileSwarm>();
-            if (swarm != null) swarm.missilesPerSalvo = 6;
-            var rail = go.GetComponent<PlasmaRailgun>();
-            if (rail != null) rail.chargeTime = 1.8f;
         }
 
         // =====================================================================

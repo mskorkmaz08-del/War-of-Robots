@@ -269,6 +269,7 @@ namespace RobotArena
             if (!on || muzzles.Length == 0) return;
 
             lastFire = Time.time;
+            if (owner != null) owner.DropShield();
             var muzzle = muzzles[0];
             Vector3 dir = AimDirection(muzzle);
             Vector3 from = muzzle.position;

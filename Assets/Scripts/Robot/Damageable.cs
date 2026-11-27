@@ -30,8 +30,34 @@ namespace RobotArena
         public float impactThreshold = 9f;
         public float impactDamagePerMs = 14f;
 
-        /// <summary>Damage enemies deal to the player is multiplied by this (difficulty).</summary>
-        public static float EnemyDamageToPlayer = 0.45f;
+        /// <summary>
+        /// Damage enemies deal to the player is multiplied by this. 1: everyone plays by
+        /// the same rules (the old 0.45 made the player far tougher than the enemies).
+        /// </summary>
+        public static float EnemyDamageToPlayer = 1f;
+
+        /// <summary>Who hit this robot last (for kill credit).</summary>
+        public Damageable LastAttacker { get; private set; }
+
+        /// <summary>Can't be hurt until then: just respawned. Firing ends it early.</summary>
+        public float ShieldUntil { get; private set; } = -1f;
+        public bool Shielded => Time.time < ShieldUntil;
+        public event System.Action ShieldChanged;
+
+        /// <summary>Starts the spawn shield (a few seconds to get away from the base).</summary>
+        public void StartSpawnShield(float seconds)
+        {
+            ShieldUntil = Time.time + seconds;
+            ShieldChanged?.Invoke();
+        }
+
+        /// <summary>Opening fire drops the shield: no shooting from behind it.</summary>
+        public void DropShield()
+        {
+            if (!Shielded) return;
+            ShieldUntil = -1f;
+            ShieldChanged?.Invoke();
+        }
 
         /// <summary>Online, on a joining player's device: health comes only from the host.</summary>
         public static bool NetClient;
@@ -100,7 +126,9 @@ namespace RobotArena
         {
             if (IsDead || amount <= 0f) return;
             if (attacker != null && attacker.team == team && attacker != this) return;
+            if (!raw && Shielded) return;
             if (!raw && team == 0 && attacker != null && attacker.team != 0) amount *= EnemyDamageToPlayer;
+            if (attacker != null && attacker != this) LastAttacker = attacker;
 
             Health -= amount;
             Damaged?.Invoke(amount, point);
@@ -279,6 +307,7 @@ namespace RobotArena
         public static void Detonate(Vector3 pos, float radius, float damage, float force, Damageable attacker, float fxSize)
         {
             Fx.Explosion(pos, fxSize);
+            WorldDetail.Blast(pos, radius);
             GameAudio.Play(fxSize > 1.5f ? Sfx.BigExplosion : Sfx.Explosion, pos, 1f, Random.Range(0.85f, 1.1f));
             if (fxSize >= 1f) GameAudio.Play(Sfx.Debris, pos, 0.7f, Random.Range(0.9f, 1.1f));
             FollowCamera.Shake(0.35f * fxSize, pos, 120f);

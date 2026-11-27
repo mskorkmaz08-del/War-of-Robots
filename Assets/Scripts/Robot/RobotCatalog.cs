@@ -40,7 +40,7 @@ namespace RobotArena
                 type = RobotType.Titan,
                 name = "TITAN",
                 role = "HEAVY WALKER",
-                description = "A 15-metre walking fortress. Slow, huge and very hard to stop.",
+                description = "A 21-metre walking fortress. Slow, huge, and the toughest machine on the field.",
                 primary = "Twin heavy cannons",
                 special = "12-missile homing swarm",
                 mobility = "Thruster charge (sprint)",

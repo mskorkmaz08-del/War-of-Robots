@@ -753,11 +753,11 @@ namespace RobotArena
                 {
                     if (targetVisible && dist < fireRange && err < tol && burstOn) commands.primary = true;
                 }
-                else if (w.IsReady && dist < specialRange)
+                else if (w.IsReady && dist < (w is IAiRange sr ? sr.MaxRange : specialRange))
                 {
                     bool indirect = w is MissileSwarm || w is MortarBarrage || (w is IAiRange r && r.Indirect);
                     if (!indirect && (!targetVisible || err > 20f)) continue;
-                    if (indirect && dist < 35f) continue; // too close to lob shells
+                    if ((w is MortarBarrage || w is ClusterBomb) && dist < 35f) continue; // too close to lob shells
                     // Hold the big shot until a good moment: soon after it's ready, roll once per target.
                     if (specialRoll < 0.15f + aggression * 0.6f) commands.special = true;
                     else specialRoll = Mathf.Max(0f, specialRoll - Time.deltaTime * 0.15f);

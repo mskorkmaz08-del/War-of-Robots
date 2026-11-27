@@ -146,6 +146,45 @@ namespace RobotArena
                         }
                         muzzles.Add(Group(b, "Muzzle", new Vector3(0f, 0.1f * k, 6.8f * k)));
                         break;
+                    case WeaponId.Autocannon:
+                        if (!WeaponModel(b, "Autocannon", k, side))
+                        {
+                            Armor(vis, new Vector3(0f, 0f, 0.8f * k), Vector3.zero, new Vector3(1.3f, 1.3f, 2.6f) * k, mPrimary);
+                            P(vis, Shape.Cylinder, new Vector3(0f, 0f, 3.8f * k), new Vector3(90f, 0f, 0f), new Vector3(0.45f * k, 2.1f * k, 0.45f * k), mDark);
+                            P(vis, Shape.Box, new Vector3(-side * 0.8f * k, -0.2f * k, 0.6f * k), Vector3.zero, new Vector3(0.5f, 0.9f, 1.4f) * k, mDark);
+                        }
+                        muzzles.Add(Group(b, "Muzzle", new Vector3(0f, 0f, 6.0f * k)));
+                        break;
+                    case WeaponId.ScatterCannon:
+                        if (!WeaponModel(b, "ScatterCannon", k, side))
+                        {
+                            Armor(vis, new Vector3(0f, 0f, 0.7f * k), Vector3.zero, new Vector3(1.5f, 1.4f, 2.2f) * k, mPrimary);
+                            P(vis, Shape.Cylinder, new Vector3(0f, 0f, 3.2f * k), new Vector3(90f, 0f, 0f), new Vector3(1.0f * k, 1.4f * k, 1.0f * k), mDark);
+                        }
+                        muzzles.Add(Group(b, "Muzzle", new Vector3(0f, 0f, 4.6f * k)));
+                        break;
+                    case WeaponId.IonBeam:
+                        if (!WeaponModel(b, "IonBeam", k, side))
+                        {
+                            Armor(vis, new Vector3(0f, 0f, 0.7f * k), Vector3.zero, new Vector3(1.1f, 1.1f, 2.0f) * k, mSecondary);
+                            P(vis, Shape.Cylinder, new Vector3(0f, 0f, 3.0f * k), new Vector3(90f, 0f, 0f), new Vector3(0.5f * k, 1.6f * k, 0.5f * k), mMetal);
+                            P(vis, Shape.Sphere, new Vector3(0f, 0f, 4.6f * k), Vector3.zero, Vector3.one * 0.6f * k, mGlow);
+                        }
+                        muzzles.Add(Group(b, "Muzzle", new Vector3(0f, 0f, 4.8f * k)));
+                        break;
+                    case WeaponId.GrenadeLauncher:
+                    {
+                        var drum = Group(b, "Drum", new Vector3(0f, -0.38f * k, 1.25f * k));
+                        if (!WeaponModel(b, "GrenadeLauncher", k, side, drum))
+                        {
+                            Armor(vis, new Vector3(0f, 0f, 0.5f * k), Vector3.zero, new Vector3(1.2f, 1.2f, 1.8f) * k, mPrimary);
+                            P(drum, Shape.Cylinder, Vector3.zero, new Vector3(90f, 0f, 0f), new Vector3(1.5f * k, 0.6f * k, 1.5f * k), mDark);
+                            P(vis, Shape.Cylinder, new Vector3(0f, 0.25f * k, 2.8f * k), new Vector3(90f, 0f, 0f), new Vector3(0.7f * k, 1.1f * k, 0.7f * k), mDark);
+                        }
+                        spinners.Add(drum);
+                        muzzles.Add(Group(b, "Muzzle", new Vector3(0f, 0.25f * k, 4.0f * k)));
+                        break;
+                    }
                 }
                 MeshMerge.Merge(vis);
             }
@@ -181,6 +220,29 @@ namespace RobotArena
                     flame.cooldown = 0.1f;
                     flame.color = new Color(1f, 0.5f, 0.1f);
                     w = flame;
+                    break;
+                case WeaponId.Autocannon:
+                    var ac = c.root.AddComponent<Autocannon>();
+                    ac.color = new Color(1f, 0.75f, 0.35f);
+                    turret.projectileSpeed = ac.shellSpeed;
+                    turret.compensateGravity = true;
+                    w = ac;
+                    break;
+                case WeaponId.ScatterCannon:
+                    var sc = c.root.AddComponent<ScatterCannon>();
+                    sc.color = new Color(1f, 0.8f, 0.45f);
+                    w = sc;
+                    break;
+                case WeaponId.IonBeam:
+                    var ion = c.root.AddComponent<IonBeam>();
+                    ion.color = team == 0 ? new Color(0.55f, 0.6f, 1f) : new Color(1f, 0.35f, 0.75f);
+                    w = ion;
+                    break;
+                case WeaponId.GrenadeLauncher:
+                    var gl = c.root.AddComponent<GrenadeLauncher>();
+                    gl.color = new Color(0.95f, 0.85f, 0.4f);
+                    gl.drum = spinners.Count > 0 ? spinners[0] : null;
+                    w = gl;
                     break;
                 case WeaponId.RailRifle:
                     var rifle = c.root.AddComponent<PlasmaRailgun>();
@@ -291,6 +353,49 @@ namespace RobotArena
                             }
                             break;
                         }
+                        case WeaponId.ClusterBomb:
+                        {
+                            if (!WeaponModel(m, "ClusterRack", k, side))
+                            {
+                                P(vis, Shape.Box, Vector3.zero, Vector3.zero, new Vector3(1.6f, 0.5f, 1.9f) * k, mDark);
+                                P(vis, Shape.Cylinder, new Vector3(0f, 0.9f, 0.4f) * k, new Vector3(-40f, 0f, 0f), new Vector3(1.1f * k, 1.1f * k, 1.1f * k), mSecondary);
+                            }
+                            var mz = Group(m, "ClusterMuzzle", new Vector3(0f, 1.75f * k, 1.25f * k));
+                            mz.localRotation = Quaternion.Euler(-50f, 0f, 0f);
+                            muzzles.Add(mz);
+                            break;
+                        }
+                        case WeaponId.Hellfire:
+                        {
+                            if (!WeaponModel(m, "HellfireCells", k, side))
+                            {
+                                Armor(vis, new Vector3(0f, 0.6f * k, 0f), Vector3.zero, new Vector3(1.9f, 1.3f, 1.3f) * k, mSecondary);
+                                for (int s = -1; s <= 1; s += 2) P(vis, Shape.Box, new Vector3(s * 0.45f, 1.28f, 0f) * k, Vector3.zero, new Vector3(0.7f, 0.06f, 0.7f) * k, mBlack);
+                            }
+                            for (int s = -1; s <= 1; s += 2)
+                            {
+                                var cell = Group(m, "Cell", new Vector3(s * 0.45f * k, 1.3f * k, 0f));
+                                cell.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                                muzzles.Add(cell);
+                            }
+                            break;
+                        }
+                        case WeaponId.EmpBlast:
+                        {
+                            if (i == 0)
+                            {
+                                if (!WeaponModel(m, "EmpEmitter", k))
+                                {
+                                    P(vis, Shape.Cylinder, Vector3.zero, Vector3.zero, new Vector3(1.6f, 0.4f, 1.6f) * k, mDark);
+                                    P(vis, Shape.Cylinder, new Vector3(0f, 1.0f, 0f) * k, Vector3.zero, new Vector3(0.4f, 1.0f, 0.4f) * k, mMetal);
+                                    P(vis, Shape.Sphere, new Vector3(0f, 2.0f, 0f) * k, Vector3.zero, Vector3.one * 1.0f * k, A.Glow(new Color(0.5f, 0.8f, 1f), 3f));
+                                }
+                                muzzles.Insert(0, Group(m, "EmpTop", new Vector3(0f, 2.0f * k, 0f)));
+                            }
+                            else if (!WeaponModel(m, "TeslaBank", k, side))
+                                Armor(vis, new Vector3(0f, 0.4f * k, 0f), new Vector3(-90f, 0f, 0f), new Vector3(1.5f, 1.6f, 0.8f) * k, mSecondary);
+                            break;
+                        }
                         default: // MissileSwarm
                         {
                             int cols = mounts.Length == 1 ? 4 : 3;
@@ -320,6 +425,18 @@ namespace RobotArena
                         mortar.cooldown = 8f;
                         mortar.shells = 6;
                         w = mortar;
+                        break;
+                    case WeaponId.ClusterBomb:
+                        w = c.root.AddComponent<ClusterBomb>();
+                        w.color = new Color(1f, 0.6f, 0.25f);
+                        break;
+                    case WeaponId.Hellfire:
+                        w = c.root.AddComponent<Hellfire>();
+                        w.color = new Color(1f, 0.5f, 0.2f);
+                        break;
+                    case WeaponId.EmpBlast:
+                        w = c.root.AddComponent<EmpBlast>();
+                        w.color = new Color(0.45f, 0.75f, 1f);
                         break;
                     case WeaponId.TeslaStorm:
                         var tesla = c.root.AddComponent<TeslaStorm>();

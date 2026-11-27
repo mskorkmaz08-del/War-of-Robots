@@ -377,7 +377,10 @@ namespace RobotArena
         {
             var info = RobotCatalog.Get(type);
             Livery livery = team == 0 ? Livery.Ally : (altLivery || Enemies.Count % 2 == 1 ? Livery.Enemy2 : Livery.Enemy);
-            var go = RobotFactory.Build(type, pos, FacingCentre(pos, team), team, livery, false, name);
+            // Not every enemy of a type carries the same guns: some field one of the other fits.
+            var loadout = Loadout.Default(type);
+            if (Random.value < 0.45f) loadout = Loadout.RandomFor(type);
+            var go = RobotFactory.Build(type, pos, FacingCentre(pos, team), team, livery, false, name, loadout);
             var brain = go.AddComponent<AIBrain>();
             brain.preferredRange = info.aiPreferredRange;
             brain.fireRange = info.aiFireRange;
@@ -389,7 +392,7 @@ namespace RobotArena
             Shield(d);
             types[d] = type;
             (team == 0 ? Allies : Enemies).Add(d);
-            net.Register(d, NetMatch.AiOwner, type, team == 0 ? 1 : livery.Equals(Livery.Enemy2) ? 3 : 2);
+            net.Register(d, NetMatch.AiOwner, type, team == 0 ? 1 : livery.Equals(Livery.Enemy2) ? 3 : 2, loadout.Pack());
             return d;
         }
 

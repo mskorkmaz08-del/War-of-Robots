@@ -32,6 +32,13 @@ namespace RobotArena
                 case WeaponId.MissileSwarm: return new Stats { damage = 45f, cooldown = 8f, count = 10 };
                 case WeaponId.PlasmaRailgun: return new Stats { damage = 420f, cooldown = 7f };
                 case WeaponId.MortarBarrage: return new Stats { damage = 80f, cooldown = 8f, count = 6 };
+                case WeaponId.Autocannon: return new Stats { damage = 46f, cooldown = 0.75f, count = 3 };
+                case WeaponId.ScatterCannon: return new Stats { damage = 21f, cooldown = 1.15f, count = 9 };
+                case WeaponId.IonBeam: return new Stats { damage = 150f, cooldown = 0.1f };
+                case WeaponId.GrenadeLauncher: return new Stats { damage = 92f, cooldown = 0.6f };
+                case WeaponId.ClusterBomb: return new Stats { damage = 55f, cooldown = 9f, count = 12 };
+                case WeaponId.EmpBlast: return new Stats { damage = 140f, cooldown = 12f };
+                case WeaponId.Hellfire: return new Stats { damage = 230f, cooldown = 9f, count = 2 };
                 default: return new Stats { damage = 160f, cooldown = 8f }; // Tesla Storm, per target
             }
         }
@@ -53,7 +60,12 @@ namespace RobotArena
             var s = At(id, level);
             switch (id)
             {
-                case WeaponId.Flamethrower: return s.damage;
+                case WeaponId.Flamethrower:
+                case WeaponId.IonBeam: return s.damage;
+                case WeaponId.Autocannon: return s.damage * s.count / (s.cooldown + 0.18f);
+                case WeaponId.ScatterCannon: return s.damage * s.count / s.cooldown;
+                case WeaponId.ClusterBomb:
+                case WeaponId.Hellfire: return s.damage * s.count / s.cooldown;
                 case WeaponId.RailRifle: return s.damage / (s.cooldown + 0.7f);
                 case WeaponId.PlasmaRailgun: return s.damage / (s.cooldown + 1.3f);
                 case WeaponId.MissileSwarm:
@@ -86,6 +98,13 @@ namespace RobotArena
                 case MissileSwarm m: m.damagePerMissile = s.damage; if (s.count > 0) m.missilesPerSalvo = s.count; break;
                 case MortarBarrage b: b.damage = s.damage; if (s.count > 0) b.shells = s.count; break;
                 case TeslaStorm t: t.damage = s.damage; break;
+                case Autocannon ac: ac.damage = s.damage; if (s.count > 0) ac.burst = s.count; break;
+                case ScatterCannon sc: sc.damage = s.damage; if (s.count > 0) sc.pellets = s.count; break;
+                case IonBeam ib: ib.damagePerSecond = s.damage; ib.tick = s.cooldown; break;
+                case GrenadeLauncher gl: gl.damage = s.damage; break;
+                case ClusterBomb cb: cb.damage = s.damage; if (s.count > 0) cb.bomblets = s.count; break;
+                case EmpBlast eb: eb.damage = s.damage; break;
+                case Hellfire hf: hf.damage = s.damage; if (s.count > 0) hf.rockets = s.count; break;
             }
         }
     }

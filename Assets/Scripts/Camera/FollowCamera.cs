@@ -84,7 +84,8 @@ namespace RobotArena
             float top = b.max.y - target.position.y;
             lookHeight = top - h * 0.16f;
             distance = Mathf.Clamp(Mathf.Max(h * 0.9f, len * 1.05f), 13f, 30f);
-            height = h * 0.06f;
+            // High enough to see over the robot's shoulders instead of having it block the view.
+            height = h * 0.22f;
             shoulder = Mathf.Clamp(h * 0.3f, 3f, 8f);
         }
 

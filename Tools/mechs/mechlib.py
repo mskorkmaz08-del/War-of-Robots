@@ -381,13 +381,20 @@ def export(path, frames, anchors=None, meta=None):
             mw = ob.matrix_world
             vs = [to_unity(mw @ v.co) for v in me.vertices]
             vs = [Vector(((p - o).dot(X), (p - o).dot(Y), (p - o).dot(Z))) for p in vs]
-            mat = me.materials[0].name if me.materials else 'Primary'
             # Unity is left-handed: after the axis swap Blender's CCW triangles are already CW.
-            fl = [tuple(t.vertices) for t in me.loop_triangles]
-            lst = per_mat.setdefault(mat, ([], []))
-            base = len(lst[0])
-            lst[0].extend(vs)
-            lst[1].extend([(a + base, b + base, c + base) for a, b, c in fl])
+            # Faces may carry their own material slot (panel grooves, painted stripes).
+            by_mat = {}
+            for t in me.loop_triangles:
+                mi = me.polygons[t.polygon_index].material_index
+                mat = me.materials[mi].name if mi < len(me.materials) and me.materials[mi] else (me.materials[0].name if me.materials else 'Primary')
+                by_mat.setdefault(mat, []).append(tuple(t.vertices))
+            for mat, fl in by_mat.items():
+                used = sorted({i for f in fl for i in f})
+                rm = {v: k for k, v in enumerate(used)}
+                lst = per_mat.setdefault(mat, ([], []))
+                base = len(lst[0])
+                lst[0].extend(vs[i] for i in used)
+                lst[1].extend([(rm[a] + base, rm[b] + base, rm[c] + base) for a, b, c in fl])
             ev.to_mesh_clear()
         # One vertex buffer per part, one submesh per material
         allv, alln, subs = [], [], []

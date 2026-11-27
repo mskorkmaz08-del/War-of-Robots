@@ -25,8 +25,22 @@ namespace RobotArena
         protected float lastFire = -999f;
         int muzzleIndex;
 
+        [Tooltip("Rounds per magazine. 0 = no magazine (lasers, plasma, specials fire on their own recharge).")]
+        public int magazine;
+        [Tooltip("Seconds to reload a full magazine.")]
+        public float reloadTime = 3f;
+
+        /// <summary>Rounds left in the magazine (only meaningful when magazine > 0).</summary>
+        public int Ammo { get; protected set; }
+        public bool HasMagazine => magazine > 0;
+        public bool Reloading => HasMagazine && Time.time < reloadEnd;
+        public float Reload01 => Reloading ? 1f - (reloadEnd - Time.time) / Mathf.Max(0.01f, reloadTime) : 1f;
+        public float Ammo01 => HasMagazine ? (Reloading ? Reload01 : Ammo / (float)magazine) : 1f;
+        float reloadEnd = -1f;
+        bool reloadPending;
+
         public float Ready01 => Mathf.Clamp01((Time.time - lastFire) / Mathf.Max(0.01f, cooldown));
-        public bool IsReady => Time.time >= lastFire + cooldown;
+        public bool IsReady => Time.time >= lastFire + cooldown && !Reloading;
         bool? isPlayer;
         protected bool IsPlayer => isPlayer ??= GetComponent<RobotInput>() != null;
 
@@ -36,18 +50,61 @@ namespace RobotArena
             owner = GetComponent<Damageable>();
             commands = GetComponent<RobotCommands>();
             body = GetComponent<Rigidbody>();
+            Magazines.Configure(this);
+            Ammo = magazine;
         }
 
         protected bool Triggered => slot == Slot.Primary ? commands.primary : commands.special;
 
         protected virtual void Update()
         {
+            TickMagazine();
             if (Triggered && IsReady && !TurretStillSwinging())
             {
                 lastFire = Time.time;
                 if (owner != null) owner.DropShield();
                 Fire();
+                UseRound();
             }
+        }
+
+        protected virtual void OnEnable() { Ammo = magazine; reloadEnd = -1f; reloadPending = false; }
+
+        /// <summary>
+        /// Guns with a magazine reload on their own: when it runs dry, or quietly
+        /// topping up after a couple of seconds without firing.
+        /// </summary>
+        protected void TickMagazine()
+        {
+            if (!HasMagazine) return;
+            if (reloadPending && !Reloading)
+            {
+                reloadPending = false;
+                Ammo = magazine;
+                if (IsPlayer && muzzles.Length > 0 && muzzles[0] != null)
+                    GameAudio.Play(Sfx.MetalHit, muzzles[0].position, 0.35f, 1.35f);
+            }
+            if (!Reloading && Ammo < magazine && !Triggered && Time.time - lastFire > 2.5f)
+                StartReload();
+        }
+
+        /// <summary>Takes one round; starts the reload when the magazine is empty.</summary>
+        protected void UseRound()
+        {
+            if (!HasMagazine) return;
+            Ammo = Mathf.Max(0, Ammo - 1);
+            if (Ammo == 0) StartReload();
+        }
+
+        public void StartReload()
+        {
+            if (!HasMagazine || Reloading || Ammo >= magazine) return;
+            // A partly used magazine reloads faster than an empty one.
+            float k = Mathf.Lerp(0.5f, 1f, 1f - Ammo / (float)magazine);
+            reloadEnd = Time.time + reloadTime * k;
+            reloadPending = true;
+            if (muzzles.Length > 0 && muzzles[0] != null)
+                GameAudio.Play(Sfx.Servo, muzzles[0].position, IsPlayer ? 0.5f : 0.3f, 0.8f);
         }
 
         protected abstract void Fire();

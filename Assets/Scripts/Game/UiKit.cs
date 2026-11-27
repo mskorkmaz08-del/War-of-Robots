@@ -177,6 +177,18 @@ namespace RobotArena
             return rt;
         }
 
+        /// <summary>
+        /// Gives a part of the HUD that changes every frame (bars, radar, markers) its
+        /// own canvas, so moving it only rebuilds that part and not the whole screen.
+        /// interactive = it has buttons or touch areas (needs its own raycaster).
+        /// </summary>
+        public static void OwnCanvas(Component c, bool interactive = false)
+        {
+            if (c == null || c.GetComponent<Canvas>() != null) return;
+            c.gameObject.AddComponent<Canvas>();
+            if (interactive) c.gameObject.AddComponent<GraphicRaycaster>();
+        }
+
         public static RectTransform Fill(string name, Transform parent)
         {
             var rt = Rect(name, parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);

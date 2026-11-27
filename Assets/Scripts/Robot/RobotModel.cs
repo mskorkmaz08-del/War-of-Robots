@@ -47,6 +47,15 @@ namespace RobotArena
             public float[] footOffset, bend;
         }
 
+        /// <summary>A part that keeps turning: radar dishes, cooling fans, sensor heads.</summary>
+        [System.Serializable]
+        public class Spin
+        {
+            public string name;
+            public float[] axis;
+            public float speed;   // degrees per second
+        }
+
         [System.Serializable]
         public class Info
         {
@@ -58,6 +67,7 @@ namespace RobotArena
             public Ram[] rams;
             public LegInfo[] legs;
             public string[] detach;
+            public Spin[] spin;
         }
 
         public class Part
@@ -242,6 +252,15 @@ namespace RobotArena
                 r.sharedMaterials = list;
                 made[f.name] = t;
             }
+
+            if (m.info.spin != null)
+                foreach (var sp in m.info.spin)
+                    if (made.TryGetValue(sp.name, out var st))
+                    {
+                        var spinner = st.gameObject.AddComponent<Spinner>();
+                        spinner.axis = sp.axis != null && sp.axis.Length == 3 ? RobotModel.V(sp.axis) : Vector3.up;
+                        spinner.speed = sp.speed;
+                    }
 
             if (m.info.anchors != null)
                 foreach (var a in m.info.anchors)

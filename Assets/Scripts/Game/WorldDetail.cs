@@ -132,21 +132,33 @@ namespace RobotArena
                 r.sharedMaterial = mat;
                 r.shadowCastingMode = ShadowCastingMode.On;
                 r.receiveShadows = true;
-                meshes[kv.Key] = new Crushables.Chunk { mesh = mesh, verts = kv.Value.v.ToArray(), cols = kv.Value.c.ToArray() };
+                meshes[kv.Key] = new Crushables.Chunk
+                {
+                    mesh = mesh,
+                    verts = kv.Value.v.ToArray(),
+                    norms = kv.Value.n.ToArray(),
+                    cols = kv.Value.c.ToArray(),
+                    tris = kv.Value.t.ToArray(),
+                };
+                mesh.MarkDynamic();
             }
-            crush.Init(meshes, world.crush);
 
-            // Big buildings stop robots and shots.
+            // Big buildings stop robots and shots (until they're brought down).
             var solids = new GameObject("Buildings");
             solids.transform.SetParent(root.transform, false);
+            var colliders = new Dictionary<int, Collider>();
             foreach (var s in world.solids)
             {
                 var go = new GameObject("Building");
                 go.transform.SetParent(solids.transform, false);
                 go.transform.SetPositionAndRotation(s.centre, Quaternion.Euler(0f, s.yaw, 0f));
-                go.AddComponent<BoxCollider>().size = s.size;
-                go.isStatic = true;
+                var box = go.AddComponent<BoxCollider>();
+                box.size = s.size;
+                if (s.crush >= 0) colliders[s.crush] = box;
             }
+            crush.Init(meshes, world.crush, colliders);
+            Rubble.Create(mat);
+            Fx.DustTint = DustFor(plan.biome);
             Debug.Log("[WorldDetail] " + world.chunks.Count + " chunks, " + world.VertexCount + " vertices, " + world.crush.Count + " crushable, " + world.solids.Count + " buildings");
         }
 
@@ -177,10 +189,25 @@ namespace RobotArena
             return propMat;
         }
 
-        /// <summary>Explosions knock over trees and poles and wreck cars and houses nearby.</summary>
-        public static void Blast(Vector3 pos, float radius)
+        /// <summary>
+        /// Explosions knock over trees and poles, wreck cars and houses nearby, and
+        /// damage big buildings, which come down when they've taken enough.
+        /// </summary>
+        public static void Blast(Vector3 pos, float radius, float damage = 0f)
         {
-            if (Crushables.Instance != null) Crushables.Instance.Blast(pos, radius);
+            if (Crushables.Instance != null) Crushables.Instance.Blast(pos, radius, damage);
+        }
+
+        /// <summary>Colour of the dust kicked up on each kind of map.</summary>
+        static Color DustFor(Biome b)
+        {
+            switch (b)
+            {
+                case Biome.Desert: return new Color(0.66f, 0.55f, 0.42f);
+                case Biome.Snow: return new Color(0.78f, 0.8f, 0.83f);
+                case Biome.Ruined: return new Color(0.44f, 0.42f, 0.4f);
+                default: return new Color(0.5f, 0.46f, 0.4f);
+            }
         }
     }
 }

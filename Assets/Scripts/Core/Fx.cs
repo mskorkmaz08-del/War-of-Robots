@@ -23,7 +23,14 @@ namespace RobotArena
         /// flying embers and burning debris, a tall smoke column, a scorch mark,
         /// and for big blasts a few follow-up explosions.
         /// </summary>
-        public static void Explosion(Vector3 pos, float size)
+        /// <summary>Colour of dust on the current map (set by WorldDetail).</summary>
+        public static Color DustTint = new Color(0.5f, 0.46f, 0.4f);
+
+        /// <summary>
+        /// A fiery blast. metal = it went off on a machine, so torn armour flies out;
+        /// otherwise it hit the ground and throws clods of earth instead.
+        /// </summary>
+        public static void Explosion(Vector3 pos, float size, bool metal = true)
         {
             var assets = GameAssets.Get();
             if (assets == null) return;
@@ -104,8 +111,10 @@ namespace RobotArena
                 Play(embers, 2.2f);
             }
 
-            // 4. Real 3D wreckage: lit, tumbling metal shards that land on the ground.
-            if (FxPool.TryAcquire("Shards", out var shards, out isNew))
+            // 4. Real 3D wreckage: lit, tumbling metal shards that land on the ground
+            //    (only off machines; a shell in the dirt throws earth, below).
+            if (!metal && nearGround) GroundClods(new Vector3(pos.x, groundY, pos.z), size);
+            if (metal && FxPool.TryAcquire("Shards", out var shards, out isNew))
             {
                 Place(shards, pos, Quaternion.identity);
                 if (isNew)
@@ -420,7 +429,8 @@ namespace RobotArena
             m.startLifetime = new ParticleSystem.MinMaxCurve(1.2f, 2.4f);
             m.startSpeed = new ParticleSystem.MinMaxCurve(5f * size, 12f * size);
             m.startSize = new ParticleSystem.MinMaxCurve(1.6f * size, 3.4f * size);
-            m.startColor = new ParticleSystem.MinMaxGradient(new Color(0.55f, 0.5f, 0.44f, 0.75f), new Color(0.38f, 0.35f, 0.31f, 0.6f));
+            Color dc = DustTint;
+            m.startColor = new ParticleSystem.MinMaxGradient(new Color(dc.r * 1.1f, dc.g * 1.1f, dc.b * 1.1f, 0.75f), new Color(dc.r * 0.76f, dc.g * 0.76f, dc.b * 0.76f, 0.6f));
             m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             m.gravityModifier = 0.05f;
             var shape = ps.shape;
@@ -431,6 +441,20 @@ namespace RobotArena
             shape.radiusThickness = 0f;
             Burst(ps, 20);
             Play(ps, 3f);
+        }
+
+        static readonly Color32[] clodColours = new Color32[3];
+
+        /// <summary>Clods of the map's own earth thrown up by a blast in the ground.</summary>
+        static void GroundClods(Vector3 ground, float size)
+        {
+            Color d = DustTint;
+            clodColours[0] = new Color(d.r * 0.62f, d.g * 0.6f, d.b * 0.58f);
+            clodColours[1] = new Color(d.r * 0.8f, d.g * 0.78f, d.b * 0.74f);
+            clodColours[2] = new Color(d.r * 0.5f, d.g * 0.48f, d.b * 0.46f);
+            int n = Mathf.RoundToInt(Mathf.Clamp(5f * size, 3f, 14f));
+            Rubble.Burst(Rubble.Shape.Chunk, ground + Vector3.up * 0.6f, new Vector3(1f, 0.3f, 1f) * size, n, clodColours, 3,
+                0.2f * size + 0.15f, 0.45f * size + 0.3f, 9f * Mathf.Sqrt(size), Vector3.up * 4f, 0.85f);
         }
 
         public static void MuzzleFlash(Vector3 pos, Vector3 dir, float size)

@@ -65,11 +65,22 @@ namespace RobotArena
             }
 
             // The hull sways: a push at the hit point, so a high hit also tips it.
-            if (rb != null)
+            if (rb != null && (walker == null || !walker.IsKnockedDown))
             {
                 float dv = 0.9f * severity * massScale;
                 Vector3 at = Vector3.Lerp(centre, point, 0.6f);
                 rb.AddForceAtPosition(away * dv, at, ForceMode.VelocityChange);
+            }
+
+            if (walker != null && walker.IsKnockedDown) return;
+
+            // Only a single, very heavy hit can put a walker on the ground, and even then
+            // not every time: a heavier machine needs a bigger share of its armour blown away.
+            if (walker != null && rb != null)
+            {
+                float needed = 0.1f + 0.06f * Mathf.Clamp(rb.mass / 50000f, 0.4f, 1.3f);
+                if (amount >= dmg.maxHealth * needed && Random.value < 0.4f && walker.KnockDown(away))
+                    return;
             }
 
             if (walker != null) walker.Stagger(away, severity);

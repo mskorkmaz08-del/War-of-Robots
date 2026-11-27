@@ -171,7 +171,25 @@ namespace RobotArena
             float stand = m.info.stand;
             var root = NewRoot(name, groundPos + Vector3.up * stand, rotation, spec.mass, spec.fast);
             var t = root.transform;
-            for (int i = 0; i + 1 < spec.boxes.Length; i += 2) AddBox(t, spec.boxes[i], spec.boxes[i + 1]);
+            for (int i = 0; i + 1 < spec.boxes.Length; i += 2)
+            {
+                Vector3 c = spec.boxes[i], size = spec.boxes[i + 1];
+                if (spec.walker != null)
+                {
+                    // A walker's hull collider stops well above the feet. Below that the legs
+                    // step over or onto things; a box reaching the ground would snag on every
+                    // crate and kerb and shove the robot off balance.
+                    float floor = -stand * 0.55f;
+                    float top = c.y + size.y * 0.5f, bottom = c.y - size.y * 0.5f;
+                    if (bottom < floor)
+                    {
+                        if (top - floor < 0.6f) continue;
+                        size.y = top - floor;
+                        c.y = (top + floor) * 0.5f;
+                    }
+                }
+                AddBox(t, c, size);
+            }
 
             var rootOrigin = new Vector3(0f, stand, 0f);
             var upper = Group(t, "Upper", m.Upper - rootOrigin);

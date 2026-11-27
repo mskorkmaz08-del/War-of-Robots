@@ -334,15 +334,23 @@ namespace RobotArena
         /// <summary>Damages robots in range (with falloff) and pushes physics objects.</summary>
         public static void Detonate(Vector3 pos, float radius, float damage, float force, Damageable attacker, float fxSize)
         {
-            Fx.Explosion(pos, fxSize);
-            WorldDetail.Blast(pos, radius);
+            int n = Physics.OverlapSphereNonAlloc(pos, radius, DetonateBuffer, ~0, QueryTriggerInteraction.Ignore);
+            // Went off on a machine (torn armour flies) or in the dirt (earth flies)?
+            bool onMachine = false;
+            for (int i = 0; i < n && !onMachine; i++)
+            {
+                var c = DetonateBuffer[i];
+                if (c == null || c.attachedRigidbody == null) continue;
+                if ((c.ClosestPoint(pos) - pos).sqrMagnitude < 9f) onMachine = true;
+            }
+            Fx.Explosion(pos, fxSize, onMachine);
+            WorldDetail.Blast(pos, radius, damage);
             GameAudio.Play(fxSize > 1.5f ? Sfx.BigExplosion : Sfx.Explosion, pos, 1f, Random.Range(0.85f, 1.1f));
             if (fxSize >= 1f) GameAudio.Play(Sfx.Debris, pos, 0.7f, Random.Range(0.9f, 1.1f));
             FollowCamera.Shake(0.35f * fxSize, pos, 120f);
 
             var hitRobots = HitRobots;
             hitRobots.Clear();
-            int n = Physics.OverlapSphereNonAlloc(pos, radius, DetonateBuffer, ~0, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < n; i++)
             {
                 var d = DetonateBuffer[i].GetComponentInParent<Damageable>();

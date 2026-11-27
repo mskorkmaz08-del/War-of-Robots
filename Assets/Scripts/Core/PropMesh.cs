@@ -149,6 +149,34 @@ namespace RobotArena
             }
         }
 
+        /// <summary>
+        /// A smooth-shaded cone (shared vertices: a ring and the tip), for spruce tiers.
+        /// droop lowers the rim so a tier hangs like a branch skirt.
+        /// </summary>
+        public void ConeSmooth(Vector3 basePos, float r, float h, int sides, Color32 col, float droop = 0f, System.Random rnd = null)
+        {
+            int i0 = v.Count;
+            float slope = r / Mathf.Max(0.01f, h);
+            for (int i = 0; i < sides; i++)
+            {
+                float a = i * Mathf.PI * 2f / sides;
+                float rr = r * (rnd != null ? 0.88f + (float)rnd.NextDouble() * 0.24f : 1f);
+                Vector3 d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                v.Add(P(basePos + d * rr + Vector3.down * droop));
+                n.Add(rot * (d + Vector3.up * slope).normalized);
+                c.Add(col);
+            }
+            v.Add(P(basePos + Vector3.up * h));
+            n.Add(rot * Vector3.up);
+            c.Add(col);
+            int tip = v.Count - 1;
+            for (int i = 0; i < sides; i++)
+            {
+                int a = i0 + i, b = i0 + (i + 1) % sides;
+                t.Add(a); t.Add(tip); t.Add(b);
+            }
+        }
+
         /// <summary>Horizontal cylinder along local x (wheels, pipes, tanks on their side).</summary>
         public void CylX(Vector3 centre, float r, float len, int sides, Color32 col, bool caps = true)
         {
@@ -202,6 +230,72 @@ namespace RobotArena
             }
         }
 
+        static Vector3[] sphere;
+        static int[] sphereTris;
+
+        /// <summary>An icosphere subdivided once: 42 shared vertices, 80 faces.</summary>
+        static void BuildSphere()
+        {
+            if (sphere != null) return;
+            var verts = new List<Vector3>(ico);
+            var tris = new List<int>();
+            var mid = new Dictionary<long, int>();
+            int Mid(int a, int b)
+            {
+                long key = a < b ? ((long)a << 16) | (long)b : ((long)b << 16) | (long)a;
+                if (mid.TryGetValue(key, out int i)) return i;
+                i = verts.Count;
+                verts.Add(((verts[a] + verts[b]) * 0.5f).normalized);
+                mid[key] = i;
+                return i;
+            }
+            for (int i = 0; i < icoTris.Length; i += 3)
+            {
+                int a = icoTris[i], b = icoTris[i + 1], c = icoTris[i + 2];
+                int ab = Mid(a, b), bc = Mid(b, c), ca = Mid(c, a);
+                tris.AddRange(new[] { a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca });
+            }
+            sphere = verts.ToArray();
+            sphereTris = tris.ToArray();
+        }
+
+        /// <summary>
+        /// A soft, rounded mass of leaves: smooth-shaded so it reads as foliage rather
+        /// than a faceted rock, lumpy outline, lighter on top and darker underneath
+        /// (where the leaves shade each other), with a little colour mottling.
+        /// </summary>
+        public void Foliage(Vector3 centre, Vector3 radii, Color32 col, System.Random rnd, float lumpy = 0.16f, bool coarse = false)
+        {
+            BuildSphere();
+            // coarse: the plain icosahedron (12 vertices), for trees seen from afar.
+            var sv = coarse ? ico : sphere;
+            var st = coarse ? icoTris : sphereTris;
+            int i0 = v.Count;
+            // A few big bumps so the outline isn't a perfect ball.
+            var bumps = new Vector3[3];
+            for (int k = 0; k < 3; k++)
+                bumps[k] = new Vector3((float)rnd.NextDouble() * 2f - 1f, (float)rnd.NextDouble() * 1.2f - 0.4f, (float)rnd.NextDouble() * 2f - 1f).normalized;
+            for (int k = 0; k < sv.Length; k++)
+            {
+                Vector3 u = sv[k];
+                float j = 1f + ((float)rnd.NextDouble() * 2f - 1f) * lumpy;
+                for (int b = 0; b < 3; b++) j += Mathf.Max(0f, Vector3.Dot(u, bumps[b]) - 0.55f) * 0.5f;
+                Vector3 local = centre + Vector3.Scale(u, radii) * j;
+                v.Add(P(local));
+                Vector3 nn = new Vector3(u.x / radii.x, u.y / radii.y, u.z / radii.z).normalized;
+                n.Add(rot * nn);
+                float shade = 0.6f + 0.42f * (u.y * 0.5f + 0.5f) + ((float)rnd.NextDouble() - 0.5f) * 0.12f;
+                float warm = ((float)rnd.NextDouble() - 0.5f) * 0.08f;
+                c.Add(new Color32((byte)Mathf.Clamp(col.r * (shade + warm), 0f, 255f), (byte)Mathf.Clamp(col.g * shade, 0f, 255f), (byte)Mathf.Clamp(col.b * (shade - warm), 0f, 255f), col.a));
+            }
+            for (int k = 0; k < st.Length; k += 3)
+            {
+                t.Add(i0 + st[k]);
+                t.Add(i0 + st[k + 1]);
+                t.Add(i0 + st[k + 2]);
+            }
+        }
+
         /// <summary>A straight beam between two local points (wires, pipes, railings), square section.</summary>
         public void Beam(Vector3 a, Vector3 b, float thick, Color32 col)
         {
@@ -210,7 +304,14 @@ namespace RobotArena
             if (len < 0.01f) return;
             var saved = m;
             m = m * Matrix4x4.TRS((a + b) * 0.5f, Quaternion.LookRotation(d / len, Mathf.Abs(d.y / len) > 0.95f ? Vector3.forward : Vector3.up), Vector3.one);
-            Box(Vector3.zero, new Vector3(thick, thick, len), col, true);
+            // Four long sides only: the ends of a thin beam are never seen.
+            float h = thick * 0.5f, l = len * 0.5f;
+            Vector3 p000 = new Vector3(-h, -h, -l), p100 = new Vector3(h, -h, -l), p010 = new Vector3(-h, h, -l), p110 = new Vector3(h, h, -l);
+            Vector3 p001 = new Vector3(-h, -h, l), p101 = new Vector3(h, -h, l), p011 = new Vector3(-h, h, l), p111 = new Vector3(h, h, l);
+            Quad(p001, p011, p010, p000, col); // -x
+            Quad(p100, p110, p111, p101, col); // +x
+            Quad(p010, p011, p111, p110, col); // top
+            Quad(p001, p000, p100, p101, col); // bottom
             m = saved;
         }
 

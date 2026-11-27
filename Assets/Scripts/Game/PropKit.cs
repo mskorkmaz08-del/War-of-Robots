@@ -13,12 +13,14 @@ namespace RobotArena
     /// read as the 15 to 20 m giants they are.
     /// Pure geometry, no Unity objects: the preview tool runs it outside Unity too.
     /// </summary>
-    public static class PropKit
+    public static partial class PropKit
     {
         static Color32 C(float r, float g, float b, float gloss = 0.08f) => PropMesh.Col(new Color(r, g, b), gloss);
         static float R(System.Random r) => (float)r.NextDouble();
         static float Range(System.Random r, float a, float b) => a + (b - a) * (float)r.NextDouble();
         static T Pick<T>(System.Random r, T[] a) => a[r.Next(a.Length)];
+
+        static Color32 Shade(Color32 c, float k) => new Color32((byte)(c.r * k), (byte)(c.g * k), (byte)(c.b * k), c.a);
 
         static Color32 Vary(Color32 c, System.Random r, float amount = 0.08f)
         {
@@ -64,7 +66,7 @@ namespace RobotArena
         // ---------------------------------------------------------------------
 
         /// <summary>Windows along one wall (local frame of the building).</summary>
-        static void WindowRow(PropMesh pm, Vector3 wallCentre, Vector3 facing, float wallWidth, float y, float w, float h, float spacing, System.Random r, float litChance = 0.08f)
+        static void WindowRow(PropMesh pm, Vector3 wallCentre, Vector3 facing, float wallWidth, float y, float w, float h, float spacing, System.Random r, float litChance = 0.08f, bool sills = false)
         {
             Vector3 right = Vector3.Cross(facing, Vector3.up).normalized;
             int n = Mathf.Max(1, Mathf.FloorToInt((wallWidth - 1.2f) / spacing));
@@ -74,6 +76,11 @@ namespace RobotArena
                 Vector3 c = wallCentre + right * (start + i * spacing) + Vector3.up * y;
                 pm.Face(c, facing, w + 0.24f, h + 0.24f, Frame);
                 pm.Face(c + facing * 0.02f, facing, w, h, R(r) < litChance ? GlassLit : Glass);
+                // Sill and lintel: little ledges that catch the light and give depth.
+                if (sills)
+                {
+                    pm.Box(c + facing * 0.1f + Vector3.down * (h * 0.5f + 0.16f), new Vector3(Mathf.Abs(right.x) * (w + 0.4f) + Mathf.Abs(right.z) * 0.2f, 0.08f, Mathf.Abs(right.z) * (w + 0.4f) + Mathf.Abs(right.x) * 0.2f), Frame);
+                }
             }
         }
 
@@ -95,10 +102,10 @@ namespace RobotArena
             for (int f = 0; f < floors; f++)
             {
                 float y = 0.5f + f * fh + 1.55f;
-                WindowRow(pm, new Vector3(0f, 0f, -d * 0.5f), Vector3.back, w, y, 1.2f, 1.4f, 2.6f, r);
-                WindowRow(pm, new Vector3(0f, 0f, d * 0.5f), Vector3.forward, w, y, 1.2f, 1.4f, 2.6f, r);
-                WindowRow(pm, new Vector3(-w * 0.5f, 0f, 0f), Vector3.left, d, y, 1.1f, 1.3f, 3f, r);
-                WindowRow(pm, new Vector3(w * 0.5f, 0f, 0f), Vector3.right, d, y, 1.1f, 1.3f, 3f, r);
+                WindowRow(pm, new Vector3(0f, 0f, -d * 0.5f), Vector3.back, w, y, 1.2f, 1.4f, 2.6f, r, 0.08f, true);
+                WindowRow(pm, new Vector3(0f, 0f, d * 0.5f), Vector3.forward, w, y, 1.2f, 1.4f, 2.6f, r, 0.08f, true);
+                WindowRow(pm, new Vector3(-w * 0.5f, 0f, 0f), Vector3.left, d, y, 1.1f, 1.3f, 3f, r, 0.08f, true);
+                WindowRow(pm, new Vector3(w * 0.5f, 0f, 0f), Vector3.right, d, y, 1.1f, 1.3f, 3f, r, 0.08f, true);
             }
             // Front door with a little porch roof.
             float dx = Range(r, -w * 0.25f, w * 0.25f);
@@ -107,6 +114,7 @@ namespace RobotArena
             pm.Box(new Vector3(dx, 0.6f, -d * 0.5f - 0.8f), new Vector3(1.8f, 0.2f, 1.2f), Concrete);
 
             float top = h + 0.25f;
+            HouseExtras(pm, w, d, h, b, r);
             if (b == Biome.Desert)
             {
                 // Flat roof with a low parapet and a water tank.
@@ -368,7 +376,7 @@ namespace RobotArena
         // ---------------------------------------------------------------------
 
         /// <summary>A tree for the biome, 7 to 18 m tall. Returns the height.</summary>
-        public static float Tree(PropMesh pm, Vector3 pos, Biome b, System.Random r, float scale = 1f)
+        public static float Tree(PropMesh pm, Vector3 pos, Biome b, System.Random r, float scale = 1f, bool simple = false)
         {
             pm.At(pos, Range(r, 0f, 360f));
             var bark = Vary(C(0.3f, 0.22f, 0.16f), r);
@@ -377,15 +385,21 @@ namespace RobotArena
                 case Biome.Snow:
                 {
                     // Spruce: stacked cones, snow on the upper tiers.
+                    // Six drooping tiers, each a dark green skirt with snow lying on it.
                     float h = Range(r, 11f, 18f) * scale;
-                    pm.Cyl(Vector3.zero, 0.3f * scale, 0.1f, h * 0.35f, 5, bark, false);
-                    var green = Vary(C(0.12f, 0.22f, 0.15f), r);
-                    int tiers = 4;
+                    pm.Cyl(Vector3.zero, 0.32f * scale, 0.1f, h * 0.4f, 6, bark, false);
+                    var green = Vary(C(0.1f, 0.19f, 0.13f), r);
+                    var snow = Vary(C(0.8f, 0.84f, 0.88f, 0.2f), r, 0.04f);
+                    int tiers = 6;
                     for (int i = 0; i < tiers; i++)
                     {
-                        float t = i / (float)tiers;
-                        float rad = Mathf.Lerp(3.2f, 1.1f, t) * scale * Range(r, 0.9f, 1.1f);
-                        pm.Cyl(new Vector3(0f, h * (0.18f + t * 0.62f), 0f), rad, 0f, h * 0.34f, 7, i >= 2 ? Vary(C(0.7f, 0.76f, 0.78f), r) : green);
+                        float t = i / (float)(tiers - 1);
+                        float rad = Mathf.Lerp(3.4f, 0.9f, t) * scale * Range(r, 0.88f, 1.1f);
+                        float y = h * (0.14f + t * 0.7f);
+                        float th = h * Mathf.Lerp(0.22f, 0.26f, t);
+                        // Needles, darker on the lower tiers, then snow lying on top.
+                        pm.ConeSmooth(new Vector3(0f, y, 0f), rad, th, 9, Shade(green, 0.8f + t * 0.25f), th * 0.12f, r);
+                        if (t > 0.15f) pm.ConeSmooth(new Vector3(0f, y + th * 0.3f, 0f), rad * 0.7f, th * 0.72f, 9, snow, th * 0.06f, r);
                     }
                     return h;
                 }
@@ -417,7 +431,11 @@ namespace RobotArena
                     pm.Cyl(Vector3.zero, 0.25f, 0.15f, hh * 0.5f, 5, bark, false);
                     var dry = Vary(C(0.42f, 0.42f, 0.24f), r);
                     for (int i = 0; i < 3; i++)
-                        pm.Blob(new Vector3(Range(r, -1.5f, 1.5f), hh * Range(0.62f, 0.85f, r), Range(r, -1.5f, 1.5f)) , new Vector3(2.4f, 1.3f, 2.4f) * scale, dry, r, 0.3f);
+                    {
+                        Vector3 c = new Vector3(Range(r, -1.5f, 1.5f), hh * Range(0.62f, 0.85f, r), Range(r, -1.5f, 1.5f));
+                        if (!simple) pm.Beam(new Vector3(0f, hh * 0.4f, 0f), c, 0.12f, bark);
+                        pm.Foliage(c, new Vector3(2.4f, 1.1f, 2.4f) * scale, Vary(dry, r, 0.08f), r, 0.22f, simple);
+                    }
                     return hh;
                 }
                 case Biome.Ruined:
@@ -440,18 +458,26 @@ namespace RobotArena
                 }
                 default:
                 {
-                    // Broadleaf: trunk, a couple of branches, three to four leaf masses.
+                    // Broadleaf: a flared trunk forking into branches, each carrying a soft
+                    // mass of leaves, with a crown mass on top.
                     float h = Range(r, 8f, 14f) * scale;
-                    pm.Cyl(Vector3.zero, 0.38f * scale, 0.2f * scale, h * 0.55f, 5, bark, false);
+                    // (simple = forest trees seen from afar: no flare or branches, one mass fewer)
+                    if (!simple) pm.Cyl(Vector3.zero, 0.5f * scale, 0.36f * scale, 0.8f, 6, bark, false);   // root flare
+                    pm.Cyl(new Vector3(0f, simple ? 0f : 0.8f, 0f), 0.36f * scale, 0.2f * scale, h * 0.5f + (simple ? 0.8f : 0f), 6, bark, false);
                     var leaf = Vary(Pick(r, new[] { C(0.2f, 0.32f, 0.13f), C(0.27f, 0.38f, 0.15f), C(0.22f, 0.3f, 0.17f), C(0.33f, 0.36f, 0.14f) }), r);
-                    int blobs = 3;
+                    int blobs = simple ? 2 : 3;
+                    float fork = h * 0.42f;
                     for (int i = 0; i < blobs; i++)
                     {
                         float a = i * 2.1f + Range(r, 0f, 1f);
-                        float rad = h * Range(0.2f, 0.27f, r);
-                        Vector3 c = new Vector3(Mathf.Cos(a) * h * 0.12f, h * Range(0.6f, 0.78f, r), Mathf.Sin(a) * h * 0.12f);
-                        pm.Blob(c, new Vector3(rad, rad * 0.85f, rad), leaf, r, 0.22f);
+                        float rad = h * Range(0.19f, 0.25f, r);
+                        Vector3 c = new Vector3(Mathf.Cos(a) * h * 0.15f, h * Range(0.58f, 0.74f, r), Mathf.Sin(a) * h * 0.15f);
+                        if (!simple) pm.Beam(new Vector3(0f, fork, 0f), Vector3.Lerp(new Vector3(0f, fork, 0f), c, 0.85f), 0.16f * scale, bark);
+                        else rad *= 1.12f;
+                        pm.Foliage(c, new Vector3(rad, rad * 0.8f, rad), Vary(leaf, r, 0.07f), r, 0.16f, simple);
                     }
+                    float top = h * 0.24f;
+                    pm.Foliage(new Vector3(0f, h - top * 0.9f, 0f), new Vector3(top, top * 0.85f, top), Vary(leaf, r, 0.07f), r, 0.16f, simple);
                     return h;
                 }
             }
@@ -463,7 +489,7 @@ namespace RobotArena
         {
             pm.At(pos, 0f);
             var col = b == Biome.Desert ? C(0.45f, 0.42f, 0.26f) : b == Biome.Snow ? C(0.75f, 0.8f, 0.83f) : C(0.22f, 0.33f, 0.14f);
-            pm.Blob(new Vector3(0f, 0.6f, 0f), new Vector3(Range(r, 1.2f, 2f), Range(r, 0.8f, 1.3f), Range(r, 1.2f, 2f)), Vary(col, r, 0.12f), r, 0.3f);
+            pm.Foliage(new Vector3(0f, 0.55f, 0f), new Vector3(Range(r, 1.2f, 2f), Range(r, 0.8f, 1.3f), Range(r, 1.2f, 2f)), Vary(col, r, 0.12f), r, 0.2f);
         }
 
         public static void Rock(PropMesh pm, Vector3 pos, float size, Biome b, System.Random r)

@@ -5,7 +5,7 @@ namespace RobotArena
     /// <summary>
     /// One table for how hard every weapon hits and how fast it reloads, used for
     /// every robot on both teams. Main weapons are tuned to roughly the same damage
-    /// per second (about 150) and differ in how they deliver it; specials are big
+    /// per second (about 150, counting reload pauses) and differ in how they deliver it; specials are big
     /// bursts on a long reload. Upgrades raise damage 10% and cut reload 3% per level.
     /// </summary>
     public static class WeaponStats
@@ -23,11 +23,11 @@ namespace RobotArena
         {
             switch (id)
             {
-                case WeaponId.HeavyCannon: return new Stats { damage = 120f, cooldown = 0.8f };
+                case WeaponId.HeavyCannon: return new Stats { damage = 180f, cooldown = 0.8f };
                 case WeaponId.PulseLaser: return new Stats { damage = 18f, cooldown = 0.12f };
-                case WeaponId.Gatling: return new Stats { damage = 11f, cooldown = 0.07f };
-                case WeaponId.RocketPods: return new Stats { damage = 42f, cooldown = 0.28f };
-                case WeaponId.Flamethrower: return new Stats { damage = 190f, cooldown = 0.1f };
+                case WeaponId.Gatling: return new Stats { damage = 15f, cooldown = 0.07f };
+                case WeaponId.RocketPods: return new Stats { damage = 72f, cooldown = 0.28f };
+                case WeaponId.Flamethrower: return new Stats { damage = 240f, cooldown = 0.1f };
                 case WeaponId.RailRifle: return new Stats { damage = 300f, cooldown = 2.2f };
                 case WeaponId.MissileSwarm: return new Stats { damage = 45f, cooldown = 8f, count = 10 };
                 case WeaponId.PlasmaRailgun: return new Stats { damage = 420f, cooldown = 7f };
@@ -53,12 +53,12 @@ namespace RobotArena
             var s = At(id, level);
             switch (id)
             {
-                case WeaponId.Flamethrower: return s.damage;
+                case WeaponId.Flamethrower: return s.damage * Magazines.Sustain(id, 0.1f);
                 case WeaponId.RailRifle: return s.damage / (s.cooldown + 0.7f);
                 case WeaponId.PlasmaRailgun: return s.damage / (s.cooldown + 1.3f);
                 case WeaponId.MissileSwarm:
                 case WeaponId.MortarBarrage: return s.damage * s.count / s.cooldown;
-                default: return s.damage / s.cooldown;
+                default: return s.damage / s.cooldown * Magazines.Sustain(id, s.cooldown);
             }
         }
 

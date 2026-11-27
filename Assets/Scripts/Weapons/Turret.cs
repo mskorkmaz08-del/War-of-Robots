@@ -33,6 +33,8 @@ namespace RobotArena
         public Vector3 netAim;
 
         public Damageable Target { get; private set; }
+        /// <summary>AI robots: the enemy the pilot chose. The turret tracks it whichever way the hull faces.</summary>
+        public Damageable preferred;
         public Vector3 AimPoint { get; private set; }
 
         Damageable self;
@@ -53,6 +55,10 @@ namespace RobotArena
             {
                 Target = null;
                 retargetTimer = 1f;
+            }
+            else if (aimCamera == null && preferred != null && !preferred.IsDead)
+            {
+                Target = preferred;
             }
             else if (retargetTimer <= 0f || Target == null || Target.IsDead)
             {

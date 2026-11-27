@@ -180,7 +180,7 @@ namespace RobotArena
     }
 
     /// <summary>Mission buildings: enemy fuel depots to destroy and your reactor to defend.</summary>
-    public static class Structures
+    public static partial class Structures
     {
         static Transform Part(PrimitiveType type, Transform parent, Vector3 pos, Vector3 scale, Material mat, float yaw = 0f)
         {

@@ -268,10 +268,15 @@ namespace RobotArena
             {
                 case GameMode.Domination: return new DominationMode();
                 case GameMode.Survival: return new SurvivalMode(5, 2);
+                case GameMode.KingOfTheHill: return new KingOfTheHillMode();
+                case GameMode.Siege: return new SiegeMode();
+                case GameMode.Escort: return new EscortMode();
+                case GameMode.FreeForAll: return new FreeForAllMode();
                 case GameMode.Mission:
                     var m = MatchSetup.Mission;
                     int idx = Mathf.Clamp(MatchSetup.MissionIndex, 0, MatchSetup.Missions.Count - 1);
                     if (m.goal == MissionGoal.SurviveWaves) return new SurvivalMode(Mathf.RoundToInt(m.amount), m.allies, idx);
+                    if (m.goal == MissionGoal.EscortVip) return new EscortMode(idx);
                     return new ObjectiveMode(m.goal, m.allies, m.enemies, m.amount, idx);
                 default: return ObjectiveMode.TeamBattle();
             }

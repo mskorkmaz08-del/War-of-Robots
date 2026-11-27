@@ -106,7 +106,10 @@ namespace RobotArena
             {
                 var type = types[i] == M.PlayerType ? types[allies] : types[i];
                 var a = M.SpawnRobot(type, 0, L.allySpawns[(i + slot) % L.allySpawns.Length], AllyNames[allyNameIndex++ % AllyNames.Length]);
-                if (follow) Brain(a).follow = player.transform;
+                var ab = Brain(a);
+                if (follow) ab.Escort(player.transform, 200f);
+                else ab.Hunt();
+                ab.flankOffset = (i % 2 == 0 ? -1f : 1f) * 70f;
                 yield return null;
             }
         }
@@ -220,6 +223,9 @@ namespace RobotArena
         readonly int missionIndex;
 
         readonly List<Damageable> depots = new List<Damageable>();
+        readonly List<Damageable> cores = new List<Damageable>();
+        Vector3 extraction;
+        Damageable ace;
         Damageable reactor;
         Damageable commander;
         CaptureZone uplink;
@@ -252,7 +258,9 @@ namespace RobotArena
         public override IEnumerator Setup()
         {
             bool defend = goal == MissionGoal.DefendReactor || goal == MissionGoal.HoldUplink;
-            yield return SpawnPlayerAndAllies(allies, !defend);
+            // A duel starts close: no hour-long walk to find each other.
+            Vector3? start = goal == MissionGoal.Duel ? NavGrid.OpenSpot(L.zones[0] + new Vector3(0f, 0f, -120f), 2) : (Vector3?)null;
+            yield return SpawnPlayerAndAllies(allies, !defend, start);
 
             switch (goal)
             {
@@ -263,6 +271,8 @@ namespace RobotArena
                         depots.Add(dep);
                         // Depots aren't robots, so listen for their destruction directly.
                         dep.Died += DepotDestroyed;
+                        var depRef = dep;
+                        dep.Damaged += (amt, at) => AlertGuards(depRef);
                         Markers.Add(new WorldMarker { label = "FUEL TANK", color = UiKit.Red, target = dep, height = 19f });
                         yield return null;
                     }
@@ -272,6 +282,27 @@ namespace RobotArena
                     reactor.Died += _ => Lose("MISSION FAILED", "The reactor was destroyed.");
                     Markers.Add(new WorldMarker { label = "DEFEND", color = UiKit.Cyan, target = reactor, height = 14f });
                     timer = amount;
+                    break;
+                case MissionGoal.Sabotage:
+                {
+                    Vector3 eb = L.Base(1);
+                    Vector3 fwd = new Vector3(-eb.x, 0f, -eb.z).normalized;
+                    Vector3 side = Vector3.Cross(Vector3.up, fwd);
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        var core = Structures.PowerCore(NavGrid.OpenSpot(eb + fwd * 110f + side * s * 85f, 2), 1, Quaternion.LookRotation(fwd).eulerAngles.y);
+                        cores.Add(core);
+                        var coreRef = core;
+                        core.Died += _ => CoreDestroyed();
+                        core.Damaged += (amt, at) => AlertGuards(coreRef);
+                        Markers.Add(new WorldMarker { label = "POWER CORE", color = UiKit.Red, target = core, height = 22f });
+                        yield return null;
+                    }
+                    break;
+                }
+                case MissionGoal.Extraction:
+                    extraction = NavGrid.OpenSpot(L.enemyReserve.Length > 1 ? L.enemyReserve[1] * 0.85f : L.Base(1) * 0.7f, 2);
+                    Markers.Add(new WorldMarker { label = "EXTRACTION", color = UiKit.Green, position = extraction, height = 20f });
                     break;
                 case MissionGoal.HoldUplink:
                     uplink = CaptureZone.Create(L.zones[1], 22f, "UPLINK");
@@ -285,28 +316,38 @@ namespace RobotArena
             if (defend)
             {
                 Vector3 guard = goal == MissionGoal.DefendReactor ? L.reactor : L.zones[1];
+                Vector3 watch = (L.Base(1) - guard);
+                watch.y = 0f;
+                int k = 0;
                 foreach (var a in M.Allies)
                 {
                     var b = Brain(a);
-                    b.goal = guard + new Vector3(Random.Range(-18f, 18f), 0f, Random.Range(-14f, 10f));
-                    b.engageRange = 110f;
+                    if (b == null) continue;
+                    // Spread the guards round the front of the objective.
+                    Vector3 post = guard + Quaternion.Euler(0f, (k++ % 2 == 0 ? -35f : 35f), 0f) * watch.normalized * 30f;
+                    if (goal == MissionGoal.HoldUplink) b.Capture(L.zones[1], 30f);
+                    else b.Defend(post, 18f, 110f, watch.normalized);
                 }
             }
 
-            if (goal == MissionGoal.KillCommander)
+            if (goal == MissionGoal.KillCommander || (IsMission && MatchSetup.Missions[missionIndex].boss))
             {
                 commander = M.SpawnRobot(RobotType.Juggernaut, 1, L.enemySpawns[0], "WARLORD", true);
                 commander.maxHealth *= 2f;
                 commander.Heal(commander.maxHealth);
-                Brain(commander).goal = L.zones[1];
-                Brain(commander).engageRange = 140f;
+                var cb = Brain(commander);
+                Vector3 post = goal == MissionGoal.Sabotage && cores.Count > 0 ? (cores[0].transform.position + cores[cores.Count - 1].transform.position) * 0.5f : L.zones[1];
+                Vector3 watchC = L.Base(0) - post;
+                watchC.y = 0f;
+                cb.Defend(post, 30f, 140f, watchC.normalized);
+                cb.aggression = 0.8f;
                 Markers.Add(new WorldMarker { label = "WARLORD", color = UiKit.Red, target = commander, height = 9f });
                 yield return null;
             }
 
             // Timed missions keep the pressure on with reinforcements instead of one big wave.
-            bool timed = goal == MissionGoal.DefendReactor || goal == MissionGoal.HoldUplink;
-            maxAlive = timed ? Mathf.Min(enemyTypes.Length, 3) : enemyTypes.Length;
+            bool timed = goal == MissionGoal.DefendReactor || goal == MissionGoal.HoldUplink || goal == MissionGoal.Extraction || goal == MissionGoal.Sabotage;
+            maxAlive = timed ? Mathf.Min(enemyTypes.Length, goal == MissionGoal.Sabotage ? 4 : 3) : enemyTypes.Length;
             for (int i = 0; i < enemyTypes.Length; i++)
             {
                 if (i < maxAlive)
@@ -331,29 +372,62 @@ namespace RobotArena
             }
             else if (i >= L.enemySpawns.Length || M.Enemies.Count > 0) pos = SafeSpawn(1);
 
+            if (goal == MissionGoal.Duel) pos = NavGrid.OpenSpot(L.zones[2] + new Vector3(0f, 0f, 120f), 2);
             var e = M.SpawnRobot(type, 1, pos, NextEnemyName());
             var b = Brain(e);
+            Vector3 towardAllies = L.Base(0) - pos;
+            towardAllies.y = 0f;
             switch (goal)
             {
                 case MissionGoal.DestroyDepots:
-                    b.goal = pos;
-                    b.engageRange = 120f;
+                    // Guards walk a beat round their tank, and run to help when any tank is hit.
+                    b.Defend(pos, 26f, 150f, towardAllies.normalized);
                     break;
                 case MissionGoal.DefendReactor:
+                    // Attackers march on the reactor; every other one goes straight for it.
                     b.goal = L.reactor;
-                    b.engageRange = 75f;
+                    b.goalRadius = 45f;
+                    b.engageRange = 130f;
                     if (i % 2 == 0) b.priorityTarget = reactor;
                     break;
                 case MissionGoal.HoldUplink:
-                    b.goal = L.zones[1] + new Vector3(Random.Range(-10f, 10f), 0f, Random.Range(-10f, 10f));
-                    b.engageRange = 90f;
+                    b.Capture(L.zones[1] + new Vector3(Random.Range(-10f, 10f), 0f, Random.Range(-10f, 10f)), 30f);
                     break;
                 case MissionGoal.KillCommander:
-                    if (commander != null)
+                    if (commander != null) b.Escort(commander.transform, 140f);
+                    break;
+                case MissionGoal.Sabotage:
+                {
+                    // Half guard the cores, half go out to meet the attack.
+                    var core = cores.Count > 0 ? cores[i % cores.Count] : null;
+                    if (i % 2 == 0 && core != null && !core.IsDead)
                     {
-                        b.follow = commander.transform;
-                        b.engageRange = 130f;
+                        Vector3 w = L.Base(0) - core.transform.position;
+                        w.y = 0f;
+                        b.Defend(core.transform.position + w.normalized * 30f, 22f, 140f, w.normalized);
                     }
+                    else { b.Hunt(); b.flankOffset = (i % 3 - 1) * 80f; }
+                    break;
+                }
+                case MissionGoal.Extraction:
+                    b.Hunt();
+                    b.flankOffset = Random.Range(-90f, 90f);
+                    b.aggression = Mathf.Max(b.aggression, 0.7f);
+                    break;
+                case MissionGoal.Duel:
+                    ace = e;
+                    e.displayName = "ACE " + e.displayName;
+                    e.maxHealth *= 1.6f;
+                    e.Heal(e.maxHealth);
+                    b.aggression = 0.95f;
+                    b.Hunt();
+                    b.startDelay = 2f;
+                    Markers.Add(new WorldMarker { label = "ACE", color = UiKit.Red, target = e, height = 9f });
+                    break;
+                default:
+                    // Team battle: hunt the enemy, each coming in on its own line.
+                    b.Hunt();
+                    b.flankOffset = (i % 3 - 1) * 90f;
                     break;
             }
         }
@@ -372,6 +446,12 @@ namespace RobotArena
                 }
             }
 
+            if (goal == MissionGoal.Extraction && M.Player != null && !M.Player.IsDead)
+            {
+                Vector3 off = M.Player.transform.position - extraction;
+                off.y = 0f;
+                if (off.magnitude < 45f) { Win("MISSION COMPLETE", "Extracted. The dropship is lifting off."); return; }
+            }
             if (goal == MissionGoal.DefendReactor)
             {
                 timer -= dt;
@@ -389,9 +469,49 @@ namespace RobotArena
         void DepotDestroyed(Damageable d)
         {
             if (Over) return;
+            // The remaining guards close ranks round the tanks still standing.
+            foreach (var e in M.Enemies)
+            {
+                var b = Brain(e);
+                if (b == null || e.IsDead) continue;
+                Damageable nearest = null;
+                float best = float.MaxValue;
+                foreach (var dep in depots)
+                {
+                    if (dep == null || dep.IsDead) continue;
+                    float dd = Vector3.Distance(dep.transform.position, e.transform.position);
+                    if (dd < best) { best = dd; nearest = dep; }
+                }
+                if (nearest != null && best > 60f)
+                {
+                    Vector3 w = L.Base(0) - nearest.transform.position;
+                    w.y = 0f;
+                    b.Defend(nearest.transform.position + w.normalized * 26f, 26f, 150f, w.normalized);
+                }
+            }
             M.Announce("FUEL TANK DESTROYED", UiKit.Orange);
             if (Alive(depots) == 0) Win("MISSION COMPLETE", "The enemy fuel supply is burning.");
             UpdateText();
+        }
+
+        void CoreDestroyed()
+        {
+            if (Over) return;
+            M.Announce("POWER CORE DESTROYED", UiKit.Orange);
+            if (Alive(cores) == 0) Win("MISSION COMPLETE", "Their power is out. The base is ours.");
+            UpdateText();
+        }
+
+        /// <summary>A tank is under fire: the guards turn on whoever is shooting it.</summary>
+        void AlertGuards(Damageable dep)
+        {
+            var attacker = dep.LastAttacker;
+            if (attacker == null) return;
+            foreach (var e in M.Enemies)
+            {
+                var b = Brain(e);
+                if (b != null && !e.IsDead && Vector3.Distance(e.transform.position, dep.transform.position) < 320f) b.Alert(attacker);
+            }
         }
 
         void UpdateText()
@@ -416,6 +536,21 @@ namespace RobotArena
                     Objective = commander != null && !commander.IsDead ? "Destroy the commander WARLORD" : "WARLORD destroyed";
                     Status = "ENEMIES " + alive;
                     break;
+                case MissionGoal.Sabotage:
+                    Objective = "Destroy the power cores  " + (cores.Count - Alive(cores)) + " / " + cores.Count;
+                    Status = "ENEMIES " + alive;
+                    break;
+                case MissionGoal.Extraction:
+                {
+                    float d = M.Player != null ? Vector3.Distance(new Vector3(M.Player.transform.position.x, 0f, M.Player.transform.position.z), extraction) : 0f;
+                    Objective = "Reach the extraction point";
+                    Status = Mathf.RoundToInt(d) + " m TO EXTRACTION";
+                    break;
+                }
+                case MissionGoal.Duel:
+                    Objective = "Defeat the enemy ace";
+                    Status = ace != null ? "ACE " + Mathf.CeilToInt(ace.HealthFraction * 100f) + "%" : "";
+                    break;
                 default:
                     Objective = "Destroy the enemy team";
                     Status = "ENEMIES LEFT " + alive;
@@ -427,13 +562,16 @@ namespace RobotArena
         {
             if (Over) return;
             if (HumanDown(d)) return;
-            if (d.team == 1 && (goal == MissionGoal.DefendReactor || goal == MissionGoal.HoldUplink))
-                reinforceQueue.Add(goal == MissionGoal.DefendReactor ? 7f : 9f);
+            if (d.team == 1 && (goal == MissionGoal.DefendReactor || goal == MissionGoal.HoldUplink || goal == MissionGoal.Extraction || goal == MissionGoal.Sabotage))
+                reinforceQueue.Add(goal == MissionGoal.DefendReactor ? 7f : goal == MissionGoal.Extraction ? 6f : 9f);
 
             switch (goal)
             {
                 case MissionGoal.KillCommander:
                     if (d == commander) Win("MISSION COMPLETE", "WARLORD is scrap metal. Their army is leaderless.");
+                    break;
+                case MissionGoal.Duel:
+                    if (d == ace) Win("MISSION COMPLETE", "The ace is down. Nobody will challenge you again.");
                     break;
                 case MissionGoal.EliminateAll:
                     if (d.team == 1 && Alive(M.Enemies) == 0)
@@ -515,7 +653,10 @@ namespace RobotArena
                 if (queue.Count > 0 && spawnTimer <= 0f && Alive(M.Enemies) < 4)
                 {
                     var e = M.SpawnRobot(queue[0], 1, SafeSpawn(1), NextEnemyName());
-                    Brain(e).startDelay = 1.5f;
+                    var eb = Brain(e);
+                    eb.startDelay = 1.5f;
+                    eb.Hunt();
+                    eb.flankOffset = Random.Range(-100f, 100f);
                     queue.RemoveAt(0);
                     spawnTimer = 2.5f;
                 }
@@ -553,172 +694,6 @@ namespace RobotArena
         protected override void OnWin()
         {
             if (IsMission) MatchSetup.CompleteMission(missionIndex);
-        }
-    }
-
-    // =========================================================================
-    // Domination
-    // =========================================================================
-
-    /// <summary>Three capture points; owned points score. Robots respawn. First to 100.</summary>
-    public class DominationMode : ModeController
-    {
-        const float ScoreToWin = 100f;
-        const float PointsPerZonePerSecond = 0.6f;
-        const float RespawnDelay = 7f;
-        const float TimeLimit = 420f;
-
-        readonly List<CaptureZone> zones = new List<CaptureZone>();
-        readonly List<WorldMarker> zoneMarkers = new List<WorldMarker>();
-        readonly float[] score = new float[2];
-        float clock = TimeLimit;
-        float assignTimer;
-        readonly List<(Damageable d, float t)> respawns = new List<(Damageable, float)>();
-
-        public override string ModeName => "DOMINATION";
-
-        public override IEnumerator Setup()
-        {
-            yield return SpawnPlayerAndAllies(2, false);
-            string[] letters = { "A", "B", "C" };
-            for (int i = 0; i < L.zones.Length && i < 3; i++)
-            {
-                var z = CaptureZone.Create(L.zones[i], L.zoneRadius, letters[i]);
-                z.Captured += (zone, team) => M.Announce((team == 0 ? "POINT " : "ENEMY TOOK ") + zone.label, team == 0 ? UiKit.Cyan : UiKit.Red);
-                zones.Add(z);
-                var mk = new WorldMarker { label = letters[i], position = z.transform.position, height = 16f };
-                zoneMarkers.Add(mk);
-                Markers.Add(mk);
-            }
-            yield return null;
-            var types = RandomTeam(3);
-            for (int i = 0; i < 3; i++)
-            {
-                M.SpawnRobot(types[i], 1, L.enemySpawns[i], NextEnemyName());
-                yield return null;
-            }
-            AssignGoals();
-            UpdateText();
-        }
-
-        void AssignGoals()
-        {
-            var taken = new Dictionary<CaptureZone, int>();
-            foreach (var list in new[] { M.Allies, M.Enemies })
-            {
-                taken.Clear();
-                foreach (var d in list)
-                {
-                    var b = Brain(d);
-                    if (b == null || d.IsDead) continue;
-                    CaptureZone best = null;
-                    float bestScore = float.MaxValue;
-                    foreach (var z in zones)
-                    {
-                        float s = Vector3.Distance(d.transform.position, z.transform.position);
-                        if (z.Owner == d.team && !z.Contested) s += 160f;
-                        if (taken.TryGetValue(z, out int n)) s += 70f * n;
-                        if (s < bestScore)
-                        {
-                            bestScore = s;
-                            best = z;
-                        }
-                    }
-                    if (best == null) continue;
-                    taken[best] = taken.TryGetValue(best, out int c) ? c + 1 : 1;
-                    b.goal = best.transform.position + new Vector3(Random.Range(-8f, 8f), 0f, Random.Range(-8f, 8f));
-                    b.goalRadius = best.radius * 0.5f;
-                    b.engageRange = 85f;
-                }
-            }
-        }
-
-        public override void Tick(float dt)
-        {
-            if (Over) return;
-            foreach (var z in zones) if (z.Owner >= 0) score[z.Owner] += PointsPerZonePerSecond * dt;
-            for (int i = 0; i < zones.Count; i++) zoneMarkers[i].color = CaptureZone.TeamColor(zones[i].Owner);
-
-            assignTimer -= dt;
-            if (assignTimer <= 0f)
-            {
-                assignTimer = 4f;
-                AssignGoals();
-            }
-
-            for (int i = respawns.Count - 1; i >= 0; i--)
-            {
-                var (d, t) = respawns[i];
-                t -= dt;
-                if (t <= 0f)
-                {
-                    respawns.RemoveAt(i);
-                    Respawn(d);
-                }
-                else respawns[i] = (d, t);
-            }
-            RespawnIn = -1f;
-            foreach (var r in respawns) if (r.d == M.Player) RespawnIn = r.t;
-
-            clock -= dt;
-            if (score[0] >= ScoreToWin) Win("VICTORY", "Your team controlled the battlefield.");
-            else if (score[1] >= ScoreToWin) Lose("DEFEAT", "The enemy took the battlefield.");
-            else if (clock <= 0f)
-            {
-                if (score[0] >= score[1]) Win("VICTORY", "Time is up. Your team held more ground.");
-                else Lose("DEFEAT", "Time is up. The enemy held more ground.");
-            }
-            UpdateText();
-        }
-
-        void UpdateText()
-        {
-            Status = Mathf.FloorToInt(score[0]) + "   VS   " + Mathf.FloorToInt(score[1]) + "      " + Clock(clock);
-            int own = 0;
-            foreach (var z in zones) if (z.Owner == 0) own++;
-            Objective = RespawnIn > 0f ? "Respawning in " + Mathf.CeilToInt(RespawnIn) : "Capture and hold points  " + own + " / " + zones.Count + " held";
-        }
-
-        public override void RobotDied(Damageable d)
-        {
-            if (Over) return;
-            respawns.Add((d, RespawnDelay));
-            if (d == M.Player) RespawnIn = RespawnDelay;
-        }
-
-        public override float RespawnTimeFor(Damageable d)
-        {
-            foreach (var r in respawns) if (r.d == d) return r.t;
-            return -1f;
-        }
-
-        void Respawn(Damageable old)
-        {
-            if (old == null) return;
-            bool wasPlayer = old == M.Player;
-            int team = old.team;
-            Vector3 pos = SafeSpawn(team);
-            if (wasPlayer)
-            {
-                M.RemoveWreck(old);
-                M.SpawnPlayer(pos);
-                M.ShowAnnouncement("BACK IN THE FIGHT", UiKit.Cyan);
-                return;
-            }
-            if (M.IsRemoteHuman(old, out ulong owner))
-            {
-                var rtype = M.TypeOf(old);
-                string rname = old.displayName;
-                M.RemoveWreck(old);
-                M.SpawnRemotePlayer(owner, rtype, pos, rname);
-                return;
-            }
-            var type = M.TypeOf(old);
-            string name = old.displayName;
-            M.RemoveWreck(old);
-            var d = M.SpawnRobot(type, team, pos, name);
-            Brain(d).startDelay = 0.5f;
-            AssignGoals();
         }
     }
 }

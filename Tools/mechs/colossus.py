@@ -50,6 +50,17 @@ chest = sec(10.4, 2.4, 1.8, 0.6) + sec(11.8, 3.2, 2.25, 0.8, 0, 0.3) + sec(13.7,
 armour(T, 'Dark', chest, bevel=0.09, seams=False, groove=None, name='ChestCore')
 # Glacis: two layers of thick sloped plate with the canopy band between them
 armour(T, 'Primary', sec(10.3, 2.3, 0.3, 0.12, 0, 1.95) + sec(12.6, 2.9, 0.3, 0.15, 0, 2.75) + [(0, 3.15, 11.6)], bevel=0.07, seam_min=1.0, name='LowerGlacis')
+# Reactor core showing through the lower glacis: a ring housing, a hot core, vanes
+RC = Vector((0, 2.95, 11.45))
+lathe(T, 'Dark', RC, (0, 1, 0.25), [(0, -0.4), (1.05, -0.4), (1.15, -0.2), (1.15, 0.25), (1.0, 0.32), (0.8, 0.32), (0.78, 0.12), (0, 0.12)], segs=36, name='CoreHousing')
+lathe(T, 'Hot', RC, (0, 1, 0.25), [(0, 0.12), (0.78, 0.12), (0.6, 0.2), (0, 0.24)], segs=36, name='Core')
+lathe(T, 'Accent', RC, (0, 1, 0.25), [(1.0, 0.3), (1.08, 0.3), (1.08, 0.34), (1.0, 0.34)], segs=36, name='CoreRing')
+cax = Vector((0, 1, 0.25)).normalized(); ca = Vector((1, 0, 0)); cb = cax.cross(ca)
+for i in range(8):
+    t = 2 * math.pi * i / 8
+    d = ca * math.cos(t) + cb * math.sin(t)
+    tn = cax.cross(d)
+    armour(T, 'Metal', [tuple(RC + cax * h + d * rr + tn * w) for h in (0.22, 0.32) for rr in (0.15, 0.85) for w in (-0.05, 0.05)], bevel=0.0, seams=False, groove=None, name='CoreVane')
 armour(T, 'Black', boxpts((3.4, 0.5, 0.7), ch=0.15), Mx((0, 2.75, 13.25), (-22, 0, 0)), bevel=0.03, seams=False, groove=None, name='CanopyFrame')
 for i, x in enumerate((-1.1, 0.0, 1.1)):
     armour(T, 'Glow', boxpts((0.95, 0.1, 0.42)), Mx((x, 2.98, 13.27), (-22, 0, 0)), bevel=0.0, seams=False, groove=None, name='CanopyPane')

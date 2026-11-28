@@ -1,10 +1,9 @@
 """
 STRIDER - light reverse-jointed scout walker (about 22 t).
 
-A fast, jumpy hunter on two long digitigrade legs: the knees fold backwards like a
-bird's, so the body rides low and forward over the feet and every step is a long,
-springy stride. The body is one armoured pod: a wedge nose with a slit canopy and a
-sensor cluster, flanked by two stub weapon pylons on geared trunnions, a rotating
+A fast, jumpy hunter on two long reverse-jointed legs: the knees fold backwards, so the body rides low and forward over the feet and every step is a long,
+springy stride. The body is one armoured pod: a blunt glacis nose with a slit canopy and a
+square sensor box, flanked by two stub weapon pylons on geared trunnions, a rotating
 radar dome on the spine, and a twin-nozzle jump pack under the tail.
 Working cylinders at hips, knees, ankles and pylons; gears at every bearing.
 """
@@ -36,19 +35,20 @@ gear(T, (0, 0, ring_top + 0.42), (0, 0, 1), 0.95, 0.12, teeth=36, mat='Metal')
 # Keel frame under the pod: an exposed girder with a slung engine block
 armour(T, 'Dark', [(x, y, z) for x in (-0.7, 0.7) for (y, z) in ((-2.0, 7.95), (2.1, 8.05), (-1.6, 7.55), (1.6, 7.6))], bevel=0.05, seams=False, groove=None, name='Keel')
 # Main pod shell: wedge nose, broad mid-body, tapered tail
-pod = [(x * w, y, z) for (y, w, zb, zt) in ((3.25, 0.55, 8.35, 8.85), (2.4, 1.35, 7.95, 9.45), (0.4, 1.65, 7.85, 9.9), (-1.6, 1.5, 7.9, 9.75), (-2.65, 1.0, 8.15, 9.3))
+pod = [(x * w, y, z) for (y, w, zb, zt) in ((3.15, 1.1, 8.15, 9.0), (2.4, 1.4, 7.95, 9.45), (0.4, 1.65, 7.85, 9.9), (-1.6, 1.5, 7.9, 9.75), (-2.65, 1.0, 8.15, 9.3))
        for x in (-1, 1) for z in (zb, zt)]
 armour(T, 'Secondary', pod, bevel=0.07, seam_min=1.0, seam_w=0.2, name='Pod')
-# Nose armour: a sharp faceted beak over the front, with a centre ridge
-armour(T, 'Primary', [(x * w, y, z) for (y, w, z) in ((3.4, 0.45, 8.75), (2.3, 1.3, 9.55), (3.35, 0.4, 8.45), (2.2, 1.35, 9.25)) for x in (-1, 1)] +
-       [(0, 3.0, 9.25), (0, 2.0, 9.75)], bevel=0.05, seam_min=0.6, name='Beak')
-# Chin plate and sensor cluster under the nose
-armour(T, 'Primary', [(x * w, y, z) for (y, w, z) in ((3.3, 0.5, 8.3), (2.3, 1.25, 7.95), (3.15, 0.45, 8.55), (2.1, 1.3, 8.2)) for x in (-1, 1)],
+# Nose armour: a blunt sloped glacis plate with a centre seam
+armour(T, 'Primary', [(x * w, y, z) for (y, w, z) in ((3.3, 1.15, 8.95), (2.3, 1.4, 9.55), (3.2, 1.1, 8.75), (2.2, 1.4, 9.3)) for x in (-1, 1)],
+       bevel=0.05, seam_min=0.6, name='Glacis')
+# Lower front: a square sensor box with one wide lens and a rangefinder, and a bumper bar
+armour(T, 'Primary', [(x * w, y, z) for (y, w, z) in ((3.25, 1.1, 8.15), (2.3, 1.3, 7.95), (3.25, 1.1, 8.7), (2.2, 1.35, 8.25)) for x in (-1, 1)],
        bevel=0.04, seam_min=0.6, name='Chin')
-for i, (sx, sz, r) in enumerate(((0.0, 8.05, 0.24), (-0.42, 8.15, 0.15), (0.42, 8.15, 0.15))):
-    e = Vector((sx, 2.75, sz))
-    lathe(T, 'Black', e, (0, 1, 0), [(0, -0.12), (r * 1.25, -0.12), (r * 1.3, 0.08), (0, 0.08)], segs=20, name='EyeRing')
-    lathe(T, 'Glow', e + Vector((0, 0.06, 0)), (0, 1, 0), [(0, 0.0), (r, 0.0), (r * 0.7, 0.07), (0, 0.08)], segs=20, name='Eye')
+armour(T, 'Dark', boxpts((1.3, 0.5, 0.45), ch=0.08), Mx((0, 3.35, 8.4)), bevel=0.03, seams=False, groove=None, name='SensorBox')
+armour(T, 'Black', boxpts((1.05, 0.06, 0.25)), Mx((0, 3.6, 8.42)), bevel=0, seams=False, groove=None, name='SensorWindow')
+armour(T, 'Glow', boxpts((0.9, 0.04, 0.07)), Mx((0, 3.63, 8.42)), bevel=0, seams=False, groove=None, name='SensorSlit')
+lathe(T, 'Dark', Vector((0.85, 3.2, 8.75)), (0, 1, 0), [(0, -0.2), (0.17, -0.2), (0.19, 0.0), (0.17, 0.3), (0, 0.3)], segs=16, name='RangeHousing')
+lathe(T, 'Glow', Vector((0.85, 3.5, 8.75)), (0, 1, 0), [(0, 0), (0.12, 0), (0, 0.04)], segs=14, name='RangeLens')
 # Canopy: a dark slit band wrapping the upper nose, with glowing pane edges
 armour(T, 'Black', [(x * w, y, z) for (y, w, z) in ((2.45, 1.05, 9.4), (1.55, 1.3, 9.75), (2.55, 1.0, 9.2), (1.5, 1.32, 9.55)) for x in (-1, 1)],
        bevel=0.02, seams=False, groove=None, name='Canopy')

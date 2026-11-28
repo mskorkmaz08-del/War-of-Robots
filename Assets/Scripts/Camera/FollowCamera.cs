@@ -160,7 +160,11 @@ namespace RobotArena
             Vector3 pivot = new Vector3(target.position.x, smoothY, target.position.z) + Vector3.up * lookHeight;
             // Camera sits behind and above the pivot, so the robot stays in the lower
             // part of the screen and the crosshair in the middle is free to aim.
-            Vector3 desired = pivot + rotation * new Vector3(shoulder, 0f, -distance) + Vector3.up * height;
+            // The player's settings move it further back or closer, and higher or lower.
+            float zoom = GameSettings.CameraZoom;
+            float useDistance = distance * zoom;
+            float useHeight = height * GameSettings.CameraHeight * Mathf.Lerp(1f, zoom, 0.5f);
+            Vector3 desired = pivot + rotation * new Vector3(shoulder * Mathf.Lerp(1f, zoom, 0.5f), 0f, -useDistance) + Vector3.up * useHeight;
 
             // Pull in if a wall or building is between the robot and the camera.
             Vector3 toCam = desired - pivot;

@@ -77,7 +77,6 @@ for sy, yy in ((1, 2.6), (0, 0.0), (-1, -2.6)):
         hp = Vector((sx * 2.2, yy, 5.55))
         HIPS.append((sx, sy, hp))
         armour(B, 'Secondary', sec(-0.85, 0.5, 0.75, 0.3) + sec(0.95, 0.5, 0.85, 0.35), Mx(hp - Vector((sx * 0.6, 0, 0))), bevel=0.05, seam_min=0.6, name='HipBoss')
-        armour(B, 'Dark', boxpts((0.5, 0.55, 0.55), ch=0.1), Mx(hp + Vector((-sx * 0.55, 0, 1.4))), bevel=0.03, seams=False, groove=None, name='HipLug')
 # Slewing ring for the turret
 lathe(B, 'Dark', (0, UPPER.y, 7.0), (0, 0, 1), [(0, 0), (1.55, 0), (1.6, 0.08), (1.6, 0.35), (0, 0.35)], segs=44, name='RingBase')
 gear(B, (0, UPPER.y, 7.45), (0, 0, 1), 1.3, 0.12, teeth=40)
@@ -102,7 +101,7 @@ armour(T, 'Black', boxpts((1.6, 0.25, 0.25), ch=0.08), Mx(c0 + Vector((0, 1.85, 
 armour(T, 'Glow', boxpts((1.35, 0.08, 0.1)), Mx(c0 + Vector((0, 1.95, 1.16)), (-25, 0, 0)), bevel=0, seams=False, groove=None, name='Slit')
 for s in (-1, 1):
     armour(T, 'Dark', boxpts((0.5, 1.0, 0.9), ch=0.2), Mx(c0 + Vector((s * 1.6, 0.5, 0.9))), bevel=0.04, seams=False, groove=None, name='Trunnion')
-    armour(T, 'Dark', boxpts((0.4, 0.5, 0.5), ch=0.1), Mx(c0 + Vector((s * 1.35, -0.9, 0.45))), bevel=0.03, seams=False, groove=None, name='ShLug')
+    armour(T, 'Dark', boxpts((0.4, 0.5, 0.5), ch=0.1), Mx(c0 + Vector((s * 1.72, -0.9, 0.45))), bevel=0.03, seams=False, groove=None, name='ShLug')
     grille(T, Mx(c0 + Vector((s * 1.62, -0.7, 1.0)), (0, 0, -s * 90)), 0.9, 0.5, slats=3, depth=0.08)
 armour(T, 'Dark', boxpts((0.8, 0.8, 0.14), ch=0.14), Mx(c0 + Vector((0.4, -0.5, 1.95))), bevel=0.03, seams=False, groove=None, name='Hatch')
 R.rigid('Torso', UPPER, 'Upper')
@@ -121,7 +120,7 @@ for s in (-1, 1):
     armour(A, 'Dark', boxpts((0.4, 0.5, 0.5), ch=0.1), Mx((s * 2.0, ARMS.y - 1.0, ARMS.z - 0.6)), bevel=0.03, seams=False, groove=None, name='ArmLug')
     R.anchor('Mount' + ('L' if s < 0 else 'R'), m, 'Arms')
 R.rigid('Arms', ARMS, 'Arms')
-shoulder_rams(R, [(c0 + Vector((s * 1.35, -0.9, 0.45)), (s * 2.0, ARMS.y - 1.0, ARMS.z - 0.6)) for s in (-1, 1)], k=0.55)
+shoulder_rams(R, [(c0 + Vector((s * 1.72, -0.9, 0.45)), (s * 2.0, ARMS.y - 1.0, ARMS.z - 0.6)) for s in (-1, 1)], k=0.55)
 
 # ---------------------------------------------------------------- detachable armour
 for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
@@ -145,7 +144,13 @@ for sx, sy, hp in HIPS:
     tag = {1: 'F', 0: 'M', -1: 'B'}[sy] + ('L' if sx < 0 else 'R')
     ank = hp + Vector((sx * 3.7, sy * 2.2, 0)); ank.z = ANKLE_Z
     knee, Mt2, Ms2 = spider_leg(R, tag, hp, ank, THIGH, SHIN, ANKLE_Z, (sx * 0.45, sy * 0.25, 1), k=1.3, claws=3)
-    live_ram(R, 'RamHip' + tag, Matrix.Identity(4), hp + Vector((-sx * 0.55, 0, 1.4)), 'Hull', Mt2, (0, 0.75, THIGH / 2 - 1.3), 'Thigh' + tag, 0.14)
+    # Hip cylinder under the leg: from a hanger below the hip boss to a hanger under the thigh
+    pa = hp + Vector((-sx * 0.45, 0, -1.1))
+    pb = Mt2 @ Vector((0, -1.2, THIGH / 2 - 1.05))
+    ax = (pb - pa).normalized()
+    hanger('Hull', pa + Vector((0, 0, 0.5)), pa, ax, 0.8)
+    hanger('Thigh' + tag, Mt2 @ Vector((0, -0.55, THIGH / 2 - 1.05)), pb, ax, 0.8)
+    live_ram(R, 'RamHip' + tag, Matrix.Identity(4), pa, 'Hull', Matrix.Identity(4), pb, 'Thigh' + tag, 0.14)
 
 R.extra.update({'thigh': THIGH, 'shin': SHIN, 'ankle': ANKLE_Z, 'footOut': 0, 'upper': list(U(UPPER)), 'arms': list(U(ARMS)),
                 'detach': ['ChestL', 'Antenna', 'ChestR']})

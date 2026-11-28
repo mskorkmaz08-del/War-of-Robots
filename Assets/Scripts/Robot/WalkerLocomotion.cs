@@ -70,6 +70,10 @@ namespace RobotArena
         [Tooltip("Height of the ankle pivot above the sole.")]
         public float ankleHeight = 0.35f;
 
+        [Header("Gait feel")]
+        [Tooltip("0 = a heavy plodding walk; 1 = a light machine that bounds from step to step, still heavy on landing.")]
+        public float bounce = 0.3f;
+
         [Header("Weight")]
         [Tooltip("Degrees of lean per m/s² of acceleration.")]
         public float leanPerAccel = 1.1f;
@@ -107,6 +111,34 @@ namespace RobotArena
         Vector3 prevFlatVel, smoothAccel;
         bool legPush;
         float SizeScale => Mathf.Max(0.6f, standHeight / 7f);
+        float gaitBobVel;    // how fast the walk cycle is moving the hull up or down (fed to the stance spring)
+        float gaitSurge;     // -1..1: braking on the heel strike, driving on the push-off
+        float gaitPitch;     // degrees the hull nods forward with each push-off
+
+        // ---- The walk cycle, authored as keyframe curves (time, value pairs) over one leg's swing ----
+        // Foot height: peels off the ground, knee lifts high early, then comes down hard on the heel.
+        static readonly float[] SwingLift = { 0f, 0f, 0.1f, 0.18f, 0.38f, 1f, 0.6f, 0.92f, 0.8f, 0.42f, 0.93f, 0.1f, 1f, 0f };
+        // Foot travel: hangs back while it lifts, swings through fast, then reaches and plants.
+        static readonly float[] SwingTravel = { 0f, 0f, 0.12f, 0.03f, 0.35f, 0.28f, 0.62f, 0.74f, 0.84f, 0.96f, 1f, 1f };
+        // Hull height: vaults up over the standing leg, drops as the swinging foot lands.
+        static readonly float[] BodyRise = { 0f, 0.15f, 0.25f, 0.75f, 0.5f, 1f, 0.72f, 0.6f, 0.9f, 0.05f, 1f, -0.15f };
+        // Drive along the ground: a shove from the push-off, a check as the heel strikes.
+        static readonly float[] Surge = { 0f, 0.7f, 0.2f, 1f, 0.45f, 0.35f, 0.7f, -0.25f, 0.9f, -0.7f, 1f, -0.5f };
+
+        static float Key(float[] k, float t)
+        {
+            t = Mathf.Clamp01(t);
+            for (int i = 0; i + 3 < k.Length; i += 2)
+            {
+                if (t <= k[i + 2])
+                {
+                    float u = (t - k[i]) / Mathf.Max(1e-4f, k[i + 2] - k[i]);
+                    u = u * u * (3f - 2f * u);
+                    return Mathf.Lerp(k[i + 1], k[i + 3], u);
+                }
+            }
+            return k[k.Length - 1];
+        }
 
         // Ground the hull stands on, taken from where the planted feet are rather than
         // from what happens to be under the hull: a crate or a wreck between the legs
@@ -125,9 +157,17 @@ namespace RobotArena
         float FallTime => Biped ? 1.05f + 0.1f * SizeScale : 0.7f;
         float DownTime => Biped ? 1.3f : 0.9f;
         float RiseTime => Biped ? 2.6f + 0.3f * SizeScale : 2.0f;
-        float KnockTilt => Biped ? 64f : 9f;
-        float KnockLow => standHeight * (Biped ? 0.4f : 0.5f);
-        const float SwingFraction = 0.42f;
+        float KnockTilt => Biped ? 64f : (dead ? 14f : 9f);
+        float KnockLow => standHeight * (Biped ? 0.4f : (dead ? 0.42f : 0.5f));
+
+        // Destroyed: the last fall, with no getting up.
+        bool dead;
+        float deadDownTime;
+        /// <summary>Destroyed and finished falling: the wreck can be frozen where it lies.</summary>
+        public override bool Settled => dead && grounded && knock == Knock.Down && deadDownTime > 0.8f;
+        // Share of the cycle a foot spends in the air. Bouncy robots go over a half on two legs,
+        // so both feet are briefly off the ground between steps.
+        float SwingFraction => Biped ? Mathf.Lerp(0.42f, 0.56f, bounce) : Mathf.Lerp(0.40f, 0.48f, bounce);
 
         public override bool IsGrounded => grounded;
 
@@ -213,7 +253,7 @@ namespace RobotArena
                 // Stance: holds the hull at stand height, well damped so a giant never bounces.
                 float targetHeight = standHeight - bodyDip + gaitBob;
                 float error = targetHeight - height;
-                float accel = heightStiffness * error - heightDamping * velocity.y + Physics.gravity.magnitude;
+                float accel = heightStiffness * error + heightDamping * (gaitBobVel - velocity.y) + Physics.gravity.magnitude;
                 rb.AddForce(Vector3.up * Mathf.Max(0f, accel), ForceMode.Acceleration);
             }
 
@@ -240,6 +280,9 @@ namespace RobotArena
             // Heavy side-to-side weight shift onto the standing foot.
             if (grounded)
                 targetUp = Quaternion.AngleAxis(-weightShift * (legs.Length <= 2 ? 1.3f : 0.4f), flatForward) * targetUp;
+            // The walk cycle nods the hull forward on each push-off and back as the heel strikes.
+            if (grounded && Mathf.Abs(gaitPitch) > 0.01f)
+                targetUp = Quaternion.AngleAxis(gaitPitch, Vector3.Cross(Vector3.up, flatForward)) * targetUp;
             // Lean into acceleration: forward when setting off, back when braking, inward on turns.
             if (smoothAccel.sqrMagnitude > 0.04f)
             {
@@ -281,6 +324,8 @@ namespace RobotArena
                 wanted = flatForward * commands.throttle * speedLimit;
             }
             if (jumpCrouch > 0f) wanted *= 0.3f;
+            // Momentum from the gait: each push-off drives the hull on, each heel strike checks it.
+            if (grounded) wanted *= 1f + gaitSurge * (0.14f + 0.12f * bounce);
             if (sprintBoost && jetThrottle > 0.01f && grounded)
             {
                 // Charge: a longer, faster stride driven by the back thrusters as they spool up.
@@ -355,15 +400,17 @@ namespace RobotArena
         {
             if (fallSpeed < 3f) return;
             Vector3 pos = new Vector3(rb.position.x, groundY, rb.position.z);
-            float strength = Mathf.Clamp01(fallSpeed / 20f);
+            float strength = Mathf.Clamp01((fallSpeed - 3f) / 22f);   // a hop ~0, a fall off a cliff 1
             // The legs take the impact: the hull keeps sinking on bending knees, then recovers.
             dipVel += fallSpeed * 0.85f;
             dipTarget = 0f;
             landStun = Mathf.Lerp(0.15f, 0.9f, strength) * Mathf.Sqrt(SizeScale);
-            GameAudio.Play(Sfx.Landing, pos, Mathf.Lerp(0.6f, 1f, strength), 0.9f);
+            // The higher the fall, the bigger the boom, the shake, the dust and the broken ground.
+            GameAudio.Play(Sfx.Landing, pos, Mathf.Lerp(0.55f, 1f, strength), Mathf.Lerp(1.05f, 0.75f, strength) * Random.Range(0.95f, 1.05f));
+            if (strength > 0.45f) GameAudio.Play(Sfx.Debris, pos, 0.6f * strength, 0.8f);
             GameAudio.Play(Sfx.Hiss, pos + Vector3.up * 6f, 0.35f);
-            Fx.Dust(pos, Mathf.Lerp(2f, 5f, strength));
-            FollowCamera.Shake(Mathf.Lerp(0.3f, 0.9f, strength), pos, 160f);
+            Fx.ImpactDust(pos, 1.4f * Mathf.Sqrt(SizeScale), strength);
+            FollowCamera.Shake(Mathf.Lerp(0.3f, 1.4f, strength), pos, 160f + 80f * strength);
 
             foreach (var leg in legs)
             {
@@ -372,7 +419,10 @@ namespace RobotArena
                 leg.stepT = 1f;
                 leg.planted = true;
                 leg.swinging = false;
+                // Each foot breaks the ground it slams into.
+                if (strength > 0.12f) Fx.GroundCrack(leg.footPos, Mathf.Lerp(1.1f, 2.8f, strength) * SizeScale);
             }
+            if (strength > 0.6f) Fx.GroundCrack(pos, Mathf.Lerp(2.5f, 4.5f, strength) * SizeScale);
 
             if (fallSpeed > landingShockSpeed)
             {
@@ -393,6 +443,7 @@ namespace RobotArena
             Vector3 velocity = Compat.GetVelocity(rb);
             Vector3 flatVel = new Vector3(velocity.x, 0f, velocity.z);
 
+            if (dead && humAudio != null) humAudio.volume = Mathf.MoveTowards(humAudio.volume, 0f, dt * 0.3f);
             if (knock != Knock.None) UpdateKnockLegs(dt);
             else if (grounded) UpdateSteps(flatVel, dt);
             else UpdateAirPose(velocity, flatVel, dt);
@@ -444,9 +495,10 @@ namespace RobotArena
             // with the body without having to reach across each other.
             Vector3 lv = transform.InverseTransformDirection(flatVel);
             float forwardness = speed > 0.5f ? Mathf.Clamp01(lv.z / speed) : 1f;
-            float cycle = strideLength * 2.4f * Mathf.Lerp(0.55f, 1f, forwardness);
-            float minRate = 0.22f;
-            float maxRate = 1f / (Mathf.Max(stepDuration, 0.4f) * 1.8f);
+            // Slow and long: fewer, bigger steps that let the weight land on each one.
+            float cycle = strideLength * 2.9f * Mathf.Lerp(0.55f, 1f, forwardness);
+            float minRate = 0.2f;
+            float maxRate = 1f / (Mathf.Max(stepDuration, 0.4f) * 2.1f);
             if (sprintBoost && IsBoosting) maxRate *= 1.45f;
             float rate = 0f;
             if (drive > 0.4f) rate = Mathf.Clamp(drive / cycle, minRate, maxRate);
@@ -457,10 +509,11 @@ namespace RobotArena
             float stanceTime = rate > 0.01f ? (1f - SwingFraction) / rate : 0f;
             // Where the feet reach to, in the hull's frame: full stride forward, shorter
             // backward, and short side-steps that never cross one leg over the other.
-            Vector3 leadLocal = transform.InverseTransformDirection(flatVel * stanceTime * 0.5f);
+            Vector3 leadLocal = transform.InverseTransformDirection(flatVel * stanceTime * 0.5f * (1f + 0.25f * bounce));
             leadLocal.y = 0f;
             if (leadLocal.z < 0f) leadLocal.z *= 0.75f;
-            float bob = 0f;
+            float rise = -0.15f;   // no foot in the air: the hull sits down on both legs
+            float surge = 0f; int swingers = 0;
             float shift = 0f;
             float moving01 = Mathf.Clamp01(speed / 2.5f);
 
@@ -483,16 +536,15 @@ namespace RobotArena
                     // Stepping toward the other leg: small step. Stepping outward: moderate.
                     legLead.x *= leg.side * legLead.x < 0f ? 0.3f : 0.55f;
                     leg.stepTo = FootHome(leg, transform.TransformDirection(legLead));
-                    // Heavy step: the foot lifts first, swings through high, then drops
-                    // down hard at the end instead of hopping in a quick arc.
-                    float hs = Mathf.Clamp01((s - 0.12f) / 0.76f);
-                    float e = hs * hs * (3f - 2f * hs);
-                    Vector3 pos = Vector3.Lerp(leg.stepFrom, leg.stepTo, e);
-                    float arc = Mathf.Sin(Mathf.Pow(s, 0.7f) * Mathf.PI);
-                    pos.y += arc * lift * Mathf.Clamp(drive / 3f, 0.45f, 1f);
+                    // The authored step: the foot peels off and hangs back, swings through
+                    // high, then reaches and comes down hard on the heel.
+                    Vector3 pos = Vector3.LerpUnclamped(leg.stepFrom, leg.stepTo, Key(SwingTravel, s));
+                    pos.y += Key(SwingLift, s) * lift * Mathf.Clamp(drive / 3f, 0.45f, 1f) * (1f + 0.35f * bounce);
                     leg.footPos = pos;
-                    // The hull rises over the standing leg and sinks as the foot comes down.
-                    bob = Mathf.Max(bob, Mathf.Sin(s * Mathf.PI) * 0.16f * SizeScale * moving01);
+                    // The hull vaults over the standing leg and sinks as the foot comes down.
+                    if (swingers == 0) rise = -1f;
+                    rise = Mathf.Max(rise, Key(BodyRise, s));
+                    surge += Key(Surge, s); swingers++;
                     shift += -leg.side * Mathf.Sin(s * Mathf.PI) * moving01;
                 }
                 else if (leg.swinging)
@@ -503,7 +555,13 @@ namespace RobotArena
                     Footfall(leg);
                 }
             }
-            gaitBob = Mathf.Lerp(gaitBob, bob, 1f - Mathf.Exp(-4f * dt));
+            float amp = (0.16f + 0.26f * bounce) * SizeScale * moving01;
+            float newBob = Mathf.Lerp(gaitBob, rise * amp, 1f - Mathf.Exp(-14f * dt));
+            gaitBobVel = dt > 0f ? (newBob - gaitBob) / dt : 0f;
+            gaitBob = newBob;
+            float wantSurge = swingers > 0 ? surge / swingers * moving01 : 0f;
+            gaitSurge = Mathf.Lerp(gaitSurge, wantSurge, 1f - Mathf.Exp(-12f * dt));
+            gaitPitch = gaitSurge * (1.2f + 1.5f * bounce);
             float swingCount = Mathf.Max(1f, legs.Length * 0.5f);
             weightShift = Mathf.Lerp(weightShift, Mathf.Clamp(shift / swingCount, -1f, 1f), 1f - Mathf.Exp(-3f * dt));
         }
@@ -511,7 +569,7 @@ namespace RobotArena
         /// <summary>Still leg poses in the air, held relative to the hull and blended smoothly.</summary>
         void UpdateAirPose(Vector3 velocity, Vector3 flatVel, float dt)
         {
-            gaitBob = 0f;
+            gaitBob = 0f; gaitBobVel = 0f; gaitSurge = 0f; gaitPitch = 0f;
             weightShift = 0f;
             float reach = thighLength + shinLength;
             Vector3 localVel = transform.InverseTransformDirection(flatVel);
@@ -549,12 +607,15 @@ namespace RobotArena
         {
             leg.planted = true;
             Vector3 p = leg.footPos;
-            GameAudio.Play(Sfx.Footstep, p, 1f, Random.Range(0.85f, 1f));
-            Fx.Dust(p, 1.2f);
-            FollowCamera.Shake(0.06f + 0.04f * SizeScale, p, 90f);
-            // The hull settles under its weight on every footfall (heavier robots, harder steps).
+            // A low boom with every footfall: bigger machines sound deeper.
+            float heavy = Mathf.Clamp01((SizeScale - 0.6f) / 0.9f);
             float pace = Mathf.Clamp01(new Vector3(Compat.GetVelocity(rb).x, 0f, Compat.GetVelocity(rb).z).magnitude / Mathf.Max(1f, walkSpeed));
-            dipVel += (0.6f + 0.9f * pace) * SizeScale;
+            GameAudio.Play(Sfx.Footstep, p, Mathf.Lerp(0.8f, 1f, heavy), Random.Range(0.93f, 1.03f) * Mathf.Lerp(1.08f, 0.82f, heavy));
+            Fx.Dust(p, 1.0f + 0.6f * heavy + 0.4f * bounce * pace);
+            FollowCamera.Shake((0.06f + 0.05f * SizeScale) * (1f + 0.5f * bounce * pace), p, 100f);
+            // The hull settles under its weight on every footfall (heavier robots, harder steps;
+            // bouncy ones come down from higher and sink deeper).
+            dipVel += (0.6f + 0.9f * pace) * SizeScale * (1f + 0.8f * bounce);
             Explosions.ApplyForce(p, 5f, 3f, GetComponent<Damageable>());
         }
 
@@ -629,6 +690,21 @@ namespace RobotArena
         public bool KnockDown(Vector3 awayFromHit)
         {
             if (knock != Knock.None || !grounded || Time.time - lastKnock < 20f) return false;
+            StartFall(awayFromHit);
+            return true;
+        }
+
+        /// <summary>The robot is destroyed: it falls the way a knock-down does and never gets up.</summary>
+        public override void Collapse(Vector3 awayFromHit)
+        {
+            dead = true;
+            deadDownTime = 0f;
+            if (knock == Knock.Down || knock == Knock.Falling) return;
+            StartFall(awayFromHit);
+        }
+
+        void StartFall(Vector3 awayFromHit)
+        {
             awayFromHit.y = 0f;
             if (awayFromHit.sqrMagnitude < 0.01f) awayFromHit = -transform.forward;
             knockAway = awayFromHit.normalized;
@@ -645,7 +721,6 @@ namespace RobotArena
             foreach (var leg in legs) { leg.swinging = false; leg.stepT = 1f; leg.planted = true; }
             GameAudio.Play(Sfx.Servo, transform.position + Vector3.up * standHeight, 0.8f, 0.55f);
             GameAudio.Play(Sfx.Hiss, transform.position + Vector3.up * standHeight, 0.6f, 0.7f);
-            return true;
         }
 
         static float Smooth(float x) { x = Mathf.Clamp01(x); return x * x * (3f - 2f * x); }
@@ -692,6 +767,7 @@ namespace RobotArena
                     float bounce = Mathf.Sin(Mathf.Clamp01(knockT / 0.35f) * Mathf.PI) * 0.06f;
                     tilt = KnockTilt * (1f - bounce);
                     low = 1f - bounce * 0.5f;
+                    if (dead) { deadDownTime += dt; break; }
                     if (knockT >= DownTime)
                     {
                         knock = Knock.Rising; knockT = 0f; risePlaced = false;
@@ -788,7 +864,7 @@ namespace RobotArena
                 {
                     // Legs buckle outwards as the belly drops, and walk back in to lift it.
                     float splay = knock == Knock.Falling ? Smooth(knockT / FallTime) : knock == Knock.Down ? 1f : 1f - Smooth(u / 0.45f);
-                    Vector3 want = home + outward.normalized * Mathf.Min(outward.magnitude, 3f * SizeScale) * 0.45f * splay;
+                    Vector3 want = home + outward.normalized * Mathf.Min(outward.magnitude, 3f * SizeScale) * (dead ? 0.75f : 0.45f) * splay;
                     if (GroundProbe.Cast(want + Vector3.up * 6f, Vector3.down, 30f, rb, out RaycastHit h, true)) want = h.point;
                     float rate = knock == Knock.Rising ? 4f : 6f;
                     leg.footPos = Vector3.Lerp(leg.footPos, want, 1f - Mathf.Exp(-rate * dt));

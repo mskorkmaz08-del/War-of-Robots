@@ -711,39 +711,56 @@ namespace RobotArena
         {
             settingsPanel = Screen("Settings", false);
             UiKit.Image(settingsPanel.transform, null, new Color(0.01f, 0.012f, 0.018f, 0.75f), true);
-            var card = UiKit.Panel("Card", settingsPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100f, 900f));
-            UiKit.Title(Place(card, 0.5f, 0.91f, 900f, 110f), "SETTINGS", 76, UiKit.TextBright);
+            var card = UiKit.Panel("Card", settingsPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100f, 1010f));
+            UiKit.Title(Place(card, 0.5f, 0.925f, 900f, 100f), "SETTINGS", 72, UiKit.TextBright);
 
-            SettingLabel(card, "SOUND", 0.79f);
-            UiSlider.Create(card, new Vector2(0.64f, 0.79f), Vector2.zero, 620f, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v);
+            // Rows from the top, evenly spaced.
+            float row = 0.82f;
+            const float step = 0.083f;
+            SettingLabel(card, "SOUND", row);
+            UiSlider.Create(card, new Vector2(0.64f, row), Vector2.zero, 620f, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v);
+            row -= step;
 
-            SettingLabel(card, "MUSIC", 0.68f);
-            UiSlider.Create(card, new Vector2(0.64f, 0.68f), Vector2.zero, 620f, 0f, 1f, GameSettings.MusicVolume, v => GameSettings.MusicVolume = v);
+            SettingLabel(card, "MUSIC", row);
+            UiSlider.Create(card, new Vector2(0.64f, row), Vector2.zero, 620f, 0f, 1f, GameSettings.MusicVolume, v => GameSettings.MusicVolume = v);
+            row -= step;
 
-            SettingLabel(card, "LOOK SPEED", 0.57f);
-            UiSlider.Create(card, new Vector2(0.64f, 0.57f), Vector2.zero, 620f, 0.3f, 2.5f, GameSettings.LookSensitivity, v => GameSettings.LookSensitivity = v);
+            SettingLabel(card, "LOOK SPEED", row);
+            UiSlider.Create(card, new Vector2(0.64f, row), Vector2.zero, 620f, 0.3f, 2.5f, GameSettings.LookSensitivity, v => GameSettings.LookSensitivity = v);
+            row -= step;
 
-            SettingLabel(card, "GRAPHICS", 0.46f);
+            // Camera: how far back and how high the view sits behind the robot (applies live).
+            SettingLabel(card, "CAMERA ZOOM", row);
+            UiSlider.Create(card, new Vector2(0.64f, row), Vector2.zero, 620f, 0.6f, 1.7f, GameSettings.CameraZoom, v => GameSettings.CameraZoom = v);
+            row -= step;
+
+            SettingLabel(card, "CAMERA HEIGHT", row);
+            UiSlider.Create(card, new Vector2(0.64f, row), Vector2.zero, 620f, 0.3f, 3f, GameSettings.CameraHeight, v => GameSettings.CameraHeight = v);
+            row -= step;
+
+            SettingLabel(card, "GRAPHICS", row);
             qualityButtons = new Button[3];
             string[] names = { "LOW", "MEDIUM", "HIGH" };
             for (int i = 0; i < 3; i++)
             {
                 int q = i;
-                qualityButtons[i] = UiKit.Button(card, names[i], new Vector2(0.64f, 0.46f), new Vector2((i - 1) * 210f, 0f), new Vector2(195f, 90f),
-                    UiKit.ButtonStyle.Secondary, () => { GameSettings.GraphicsQuality = (GameSettings.Quality)q; RefreshSettings(); }, 32);
+                qualityButtons[i] = UiKit.Button(card, names[i], new Vector2(0.64f, row), new Vector2((i - 1) * 210f, 0f), new Vector2(195f, 72f),
+                    UiKit.ButtonStyle.Secondary, () => { GameSettings.GraphicsQuality = (GameSettings.Quality)q; RefreshSettings(); }, 30);
             }
+            row -= step;
 
-            SettingLabel(card, "CAMERA SHAKE", 0.35f);
-            var shakeBtn = UiKit.Button(card, "ON", new Vector2(0.64f, 0.35f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
-                () => { GameSettings.CameraShake = !GameSettings.CameraShake; RefreshSettings(); }, 34);
+            SettingLabel(card, "CAMERA SHAKE", row);
+            var shakeBtn = UiKit.Button(card, "ON", new Vector2(0.64f, row), Vector2.zero, new Vector2(300f, 72f), UiKit.ButtonStyle.Secondary,
+                () => { GameSettings.CameraShake = !GameSettings.CameraShake; RefreshSettings(); }, 32);
             shakeText = shakeBtn.GetComponentInChildren<Text>();
+            row -= step;
 
-            SettingLabel(card, "SHOW FPS", 0.24f);
-            var fpsBtn = UiKit.Button(card, "OFF", new Vector2(0.64f, 0.24f), Vector2.zero, new Vector2(300f, 90f), UiKit.ButtonStyle.Secondary,
-                () => { GameSettings.ShowFps = !GameSettings.ShowFps; RefreshSettings(); }, 34);
+            SettingLabel(card, "SHOW FPS", row);
+            var fpsBtn = UiKit.Button(card, "OFF", new Vector2(0.64f, row), Vector2.zero, new Vector2(300f, 72f), UiKit.ButtonStyle.Secondary,
+                () => { GameSettings.ShowFps = !GameSettings.ShowFps; RefreshSettings(); }, 32);
             fpsToggleText = fpsBtn.GetComponentInChildren<Text>();
 
-            UiKit.Button(card, "DONE", new Vector2(0.5f, 0.07f), Vector2.zero, new Vector2(420f, 100f), UiKit.ButtonStyle.Primary, CloseSettings, 46);
+            UiKit.Button(card, "DONE", new Vector2(0.5f, 0.065f), Vector2.zero, new Vector2(420f, 90f), UiKit.ButtonStyle.Primary, CloseSettings, 44);
         }
 
         static void SettingLabel(Transform card, string text, float y)

@@ -63,4 +63,5 @@ else:
 stand = R.stand if not wheeled else ns['STAND']
 tz = {'arachne': 5.0, 'mammoth': 6.5}.get(robot.lower(), stand + (1.8 if wheeled else 0.3))
 dist = float(os.environ.get('DIST', '40' if not wheeled else '32'))
-ml.render(out, hdri=os.environ.get('HDRI'), views=views, target=(0, 0, tz), dist=dist, res=(1280, 900), samples=int(os.environ.get('SAMPLES', '24')), lens=45)
+tgt = tuple(float(v) for v in os.environ['TARGET'].split(',')) if os.environ.get('TARGET') else (0, 0, tz)
+ml.render(out, hdri=os.environ.get('HDRI'), views=views, target=tgt, dist=dist, res=(1280, 900), samples=int(os.environ.get('SAMPLES', '24')), lens=45)

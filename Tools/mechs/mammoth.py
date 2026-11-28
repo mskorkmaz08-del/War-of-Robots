@@ -17,7 +17,7 @@ reset()
 STAND = 7.2
 THIGH, SHIN, ANKLE_Z = 4.4, 4.6, 1.1
 UPPER = Vector((0, 2.6, 9.4))
-ARMS = Vector((0, 3.0, 10.3))
+ARMS = Vector((0, 3.0, 10.65))
 K = 1.0
 R = Rig('Mammoth', STAND)
 
@@ -69,15 +69,15 @@ armour(T, 'Black', boxpts((2.2, 0.3, 0.3), ch=0.1), Mx(c0 + Vector((0, 1.85, 1.2
 armour(T, 'Glow', boxpts((1.9, 0.1, 0.14)), Mx(c0 + Vector((0, 1.98, 1.27)), (-20, 0, 0)), bevel=0, seams=False, groove=None, name='Slit')
 for s in (-1, 1):
     grille(T, Mx(c0 + Vector((s * 1.7, -0.8, 1.0)), (0, 0, -s * 90)), 1.3, 0.55, slats=3, depth=0.1)
-    armour(T, 'Dark', boxpts((0.5, 0.6, 0.6), ch=0.12), Mx(c0 + Vector((s * 1.3, -0.4, 0.6))), bevel=0.04, seams=False, groove=None, name='ShLug')
+    armour(T, 'Dark', boxpts((0.5, 0.6, 0.6), ch=0.12), Mx(c0 + Vector((s * 1.95, -0.4, 0.6))), bevel=0.04, seams=False, groove=None, name='ShLug')
 armour(T, 'Dark', boxpts((0.9, 0.9, 0.14), ch=0.15), Mx(c0 + Vector((-0.5, -1.0, 2.25))), bevel=0.03, seams=False, groove=None, name='Hatch')
 R.rigid('Torso', UPPER, 'Upper')
 
 for s in (-1, 1):
-    arm(R, s, (s * 2.2, ARMS.y, ARMS.z), (s * 2.35, ARMS.y + 0.4, ARMS.z - 0.6), (s * 2.4, 4.45, 10.2), k=0.72, gauntlet=(1.05, 1.0, 1.0))
-    armour('Arms', 'Dark', boxpts((0.45, 0.55, 0.55), ch=0.1), Mx((s * 1.75, ARMS.y - 1.2, ARMS.z - 0.3)), bevel=0.04, seams=False, groove=None, name='ArmLug')
+    arm(R, s, (s * 2.2, ARMS.y, ARMS.z), (s * 2.35, ARMS.y + 0.4, ARMS.z - 0.6), (s * 2.4, 4.45, ARMS.z - 0.1), k=0.72, gauntlet=(1.05, 1.0, 1.0))
+    armour('Arms', 'Dark', boxpts((0.45, 0.55, 0.55), ch=0.1), Mx((s * 2.05, ARMS.y - 1.2, ARMS.z - 0.3)), bevel=0.04, seams=False, groove=None, name='ArmLug')
 R.rigid('Arms', ARMS, 'Arms')
-shoulder_rams(R, [(c0 + Vector((s * 1.3, -0.4, 0.6)), (s * 1.75, ARMS.y - 1.2, ARMS.z - 0.3)) for s in (-1, 1)], k=0.7)
+shoulder_rams(R, [(c0 + Vector((s * 1.95, -0.4, 0.6)), (s * 2.05, ARMS.y - 1.2, ARMS.z - 0.3)) for s in (-1, 1)], k=0.7)
 
 # ---- Detachable deck plates and antenna ----
 for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
@@ -93,7 +93,7 @@ R.rigid('Antenna', mast, 'Root')
 
 R.anchor('BackL', (-1.3, -2.2, 9.5), 'Root')
 R.anchor('BackR', (1.3, -2.2, 9.5), 'Root')
-R.anchor('Shoulder', (0, 2.4, 11.85), 'Arms')
+R.anchor('Shoulder', (0, 2.4, ARMS.z + 1.55), 'Arms')
 R.anchor('Smoke', (0, -2.8, 9.6), 'Root')
 
 for sx, sy in corners:
@@ -102,7 +102,14 @@ for sx, sy in corners:
     ank = hp + Vector((sx * 3.0, sy * 3.6, 0)); ank.z = ANKLE_Z
     knee, Mt, Ms = walker_leg(R, sx, hp, ank, THIGH, SHIN, ANKLE_Z, k=K, tag=tag,
                               st=dict(shin='box' if sy > 0 else 'crest', toes=3, foot_len=1.0, foot_w=1.0, bend=(0, 1 if sy > 0 else -1, 0)))
-    hip_ram(R, sx, hp, Mt, THIGH, k=0.95, tag=tag)
+    # Hip cylinder under the hull: from a hanger on the belly, behind the hip, to a hanger
+    # under the thigh. The thighs run nearly level, so the cylinder works below them.
+    pa = hp + Vector((sx * 0.35, -sy * 1.7, -0.95))
+    pb = Mt @ Vector((0, -1.25, 0.3))
+    ax = (pb - pa).normalized()
+    hanger('Hull', pa + Vector((0, 0, 0.45)), pa, ax, 1.0)
+    hanger('Thigh' + tag, Mt @ Vector((0, -0.6, 0.3)), pb, ax, 1.0)
+    live_ram(R, 'RamHip' + tag, Matrix.Identity(4), pa, 'Hull', Matrix.Identity(4), pb, 'Thigh' + tag, 0.17)
 
 R.extra.update({'thigh': THIGH, 'shin': SHIN, 'ankle': ANKLE_Z, 'footOut': 0, 'upper': list(U(UPPER)), 'arms': list(U(ARMS))})
 run(R, os.path.dirname(os.path.abspath(__file__)), 6.0, 46)

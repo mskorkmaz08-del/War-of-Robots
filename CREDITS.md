@@ -6,13 +6,13 @@ All sound effects come from [Freesound](https://freesound.org) and are released 
 
 | File | Original | Author |
 |---|---|---|
-| footstep_0.ogg | [Big robot footstep](https://freesound.org/s/813056/) | AudioPapkin |
-| footstep_1.ogg | [Big robot footstep 002](https://freesound.org/s/813053/) | AudioPapkin |
-| footstep_2.ogg | [Big robot footstep 003](https://freesound.org/s/813054/) | AudioPapkin |
-| footstep_3.ogg | [Big robot footstep 004](https://freesound.org/s/813055/) | AudioPapkin |
-| footstep_4.ogg | [Big robot footstep 005](https://freesound.org/s/815039/) | AudioPapkin |
-| landing_0.ogg | [BIG_STRUCTURE_FALLING_IMPACT_STOMP.wav](https://freesound.org/s/372517/) | magejim |
-| landing_1.ogg | [Heavy Metal Thud on Ground](https://freesound.org/s/640204/) | 7of9Designs |
+| footstep_0.ogg | [Big robot footstep](https://freesound.org/s/813056/), layered with [Heavy Robot Footsteps](https://freesound.org/s/837389/) | AudioPapkin |
+| footstep_1.ogg | [Big robot footstep 002](https://freesound.org/s/813053/), layered with [Heavy Robot Footsteps](https://freesound.org/s/837389/) | AudioPapkin |
+| footstep_2.ogg | [Big robot footstep 003](https://freesound.org/s/813054/), layered with [Heavy Robot Footsteps](https://freesound.org/s/837389/) | AudioPapkin |
+| footstep_3.ogg | [Big robot footstep 004](https://freesound.org/s/813055/), layered with [Heavy Robot Footsteps](https://freesound.org/s/837389/) | AudioPapkin |
+| footstep_4.ogg | [Big robot footstep 005](https://freesound.org/s/815039/), layered with [Heavy Robot Footsteps](https://freesound.org/s/837389/) | AudioPapkin |
+| landing_0.ogg | [BIG_STRUCTURE_FALLING_IMPACT_STOMP.wav](https://freesound.org/s/372517/), layered with [Sound Design Elements Impact SFX PS 101](https://freesound.org/s/822731/) and a footstep boom | magejim |
+| landing_1.ogg | [Heavy Metal Thud on Ground](https://freesound.org/s/640204/), layered with [Sound Design Elements Impact SFX PS 095](https://freesound.org/s/816011/) and a footstep boom | 7of9Designs |
 | metalhit_0.ogg | [ANI Big Pipe Hit](https://freesound.org/s/244983/) | ani_music |
 | metalhit_1.ogg | [Heavy Metal Thud on Ground](https://freesound.org/s/640204/) | 7of9Designs |
 | metalhit_2.ogg | [Metal Canister Impact Hard](https://freesound.org/s/650573/) | h2p34 |

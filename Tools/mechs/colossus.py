@@ -24,7 +24,7 @@ ANKLE_Z = 1.4
 FOOT_OUT = 0.9
 UPPER = Vector((0, 0, 9.5))
 ARMS = Vector((0, 0.3, 14.0))
-MOUNT = lambda s: Vector((s * 4.95, 2.6, 10.35))
+MOUNT = lambda s: Vector((s * 4.95, 2.6, 10.7))
 R = Rig('Colossus', STAND)
 
 # ---------------------------------------------------------------- pelvis
@@ -149,7 +149,7 @@ for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
 
 # ---------------------------------------------------------------- arms
 for s in (-1, 1):
-    arm(R, s, (s * 4.6, 0.3, 14.0), (s * 4.8, 0.7, 11.1), MOUNT(s), k=1.25, gauntlet=(1.2, 1.05, 1.15))
+    arm(R, s, (s * 4.6, 0.3, 14.0), (s * 4.8, 0.7, 11.4), MOUNT(s), k=1.25, gauntlet=(1.2, 1.05, 1.15))
     armour('Arms', 'Dark', boxpts((0.6, 0.8, 0.8), ch=0.15), Mx((s * 4.0, -1.75, 13.3)), bevel=0.04, seams=False, groove=None, name='ArmLug')
     # elbow guard: a big faceted cop over the elbow drum
     armour('Arms', 'Primary', sec(-0.6, 0.7, 0.9, 0.3, 0, -0.2) + sec(0.5, 0.55, 0.75, 0.25, 0, -0.35) + [(0, -1.35, -0.1)],

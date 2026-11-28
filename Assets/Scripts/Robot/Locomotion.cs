@@ -32,6 +32,13 @@ namespace RobotArena
 
         public float Fuel01 => power != null ? power.Ready01 : Mathf.Clamp01(fuel / maxFuel);
         public bool IsBoosting { get; protected set; }
+
+        /// <summary>The robot is destroyed: slump down where it stands (see DeathSequence).</summary>
+        public virtual void Collapse(Vector3 awayFromHit) { collapsing = true; collapseTime = Time.time; }
+        protected bool collapsing;
+        protected float collapseTime;
+        /// <summary>Destroyed and come to rest, so the wreck can be frozen in place.</summary>
+        public virtual bool Settled => collapsing && Time.time - collapseTime > 1.6f && Compat.GetVelocity(rb).sqrMagnitude < 0.5f;
         public abstract bool IsGrounded { get; }
 
         protected virtual void Awake()

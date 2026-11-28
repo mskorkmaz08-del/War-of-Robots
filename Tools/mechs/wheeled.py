@@ -31,11 +31,11 @@ NAME = [a for a in sys.argv[1:] if a in ('Raptor', 'Hornet', 'Juggernaut', 'Bast
 
 # Unity-space numbers shared with MechModels.Spec (waist, hull box, wheel radius).
 SPECS = {
-    'Raptor': dict(stand=2.6, k=0.85, waist=(0, 2.35, -0.6), hull=(5.4, 2.0, 10.4), hull_c=(0, 0.8, 0.2), wx=3.3, wz=(3.2, 0, -3.2), r=1.4, w=1.15,
+    'Raptor': dict(stand=2.6, k=0.85, waist=(0, 2.85, -0.6), hull=(5.4, 2.0, 10.4), hull_c=(0, 0.8, 0.2), wx=3.3, wz=(3.2, 0, -3.2), r=1.4, w=1.15,
                    deck=1.55, wheel='offroad'),
     'Hornet': dict(stand=2.2, k=0.68, waist=(0, 2.05, -0.5), hull=(4.4, 1.6, 8.4), hull_c=(0, 0.7, 0), wx=3.35, wz=(2.7, -2.5), r=1.2, w=0.9,
                    deck=1.3, wheel='fan'),
-    'Juggernaut': dict(stand=3.0, k=1.05, waist=(0, 2.85, -0.9), hull=(6.4, 2.6, 13.4), hull_c=(0, 1.0, 0.4), wx=3.4, wz=(4.6, 1.6, -1.4, -4.4), r=1.5, w=1.35,
+    'Juggernaut': dict(stand=3.0, k=1.05, waist=(0, 3.75, -0.9), hull=(6.4, 2.6, 13.4), hull_c=(0, 1.0, 0.4), wx=3.4, wz=(4.6, 1.6, -1.4, -4.4), r=1.5, w=1.35,
                        deck=2.05, wheel='disc'),
     'Bastion': dict(stand=2.8, k=0.95, waist=(0, 2.7, -1.0), hull=(6.0, 2.4, 11.6), hull_c=(0, 1.0, 0), wx=2.9, wz=(3.6, 0, -3.6), r=1.35, w=1.2,
                     deck=1.92, wheel='star'),
@@ -293,7 +293,7 @@ def hull_raptor():
     armour(H, 'Secondary', eng, MH, bevel=0.06, seam_min=1.0, name='EngineDeck')
     for s in (-1, 1):
         grille(H, Mx(hc + Vector((s * hw * 0.36, -hl * 0.68, hh * 1.42)), (90, 0, 0)), hw * 0.55, hl * 0.42, slats=5, depth=0.08)
-        stack(H, hc + Vector((s * hw * 0.82, -hl * 0.5, hh * 0.9)), 2.1, 0.2)
+        stack(H, hc + Vector((s * hw * 0.8, -hl * 0.93, hh * 1.2)), 1.9, 0.2)  # at the back corners, clear of the turret
     grille(H, Mx(hc + Vector((0, -hl * 1.03, hh * 0.95)), (0, 0, 180)), hw * 0.9, hh * 0.55, slats=4, depth=0.1)
     hazard(H, Mx(hc + Vector((0, hl * 0.75, hh * 0.55)), (-60, 0, 0)), inner * 1.1, 0.26, n=6)
     for i, x in enumerate((-1.2, 1.2)):
@@ -380,8 +380,9 @@ def hull_juggernaut():
     armour(H, 'Secondary', eng, MH, bevel=0.07, seam_min=1.2, name='EngineBlock')
     for s in (-1, 1):
         grille(H, Mx(hc + Vector((s * hw * 0.38, -hl * 0.6, hh * 1.55)), (90, 0, 0)), hw * 0.6, hl * 0.5, slats=6, depth=0.1)
-        for yy in (-0.42, -0.72):
-            stack(H, hc + Vector((s * hw * 0.88, hl * yy, hh * 1.2)), 2.4, 0.26)
+        # Stacks right at the back corners, clear of the turret's sweep
+        for yy in (-0.84, -0.95):
+            stack(H, hc + Vector((s * hw * 0.88, hl * yy, hh * 1.2)), 2.0, 0.26)
         # Fuel tanks with straps along the flanks
         tc = hc + Vector((s * hw * 0.8, hl * 0.02, hh * 1.0))
         lathe(H, 'Secondary', tc, (0, 1, 0), [(0, -1.6), (0.3, -1.6), (0.5, -1.45), (0.5, 1.45), (0.3, 1.6), (0, 1.6)], segs=20, name='FuelTank')

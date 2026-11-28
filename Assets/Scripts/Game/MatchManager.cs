@@ -208,6 +208,7 @@ namespace RobotArena
             int packed = -1;
             var np = NetSession.I != null ? NetSession.I.Players.Find(p => p.id == owner) : null;
             if (np != null && np.type == type) packed = np.loadout;
+            pos = ClearSpot(pos);
             var go = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, name, LoadoutFrom(type, packed), RobotFactory.BattleScale, 0);
             go.AddComponent<NetProxy>();
             var d = go.GetComponent<Damageable>();
@@ -341,8 +342,49 @@ namespace RobotArena
         }
 
         /// <summary>Builds the player's robot (also used to respawn it).</summary>
+        /// <summary>
+        /// Never put a robot on top of another one: if anything stands at pos (a robot,
+        /// a wreck, a base structure), the nearest open ground around it with room to stand.
+        /// </summary>
+        public static Vector3 ClearSpot(Vector3 pos)
+        {
+            if (SpotFree(pos)) return pos;
+            float a0 = Random.value * 360f;
+            for (int ring = 1; ring <= 10; ring++)
+            {
+                float r = ring * 12f;
+                int n = 8 + ring * 3;
+                for (int k = 0; k < n; k++)
+                {
+                    float a = (a0 + k * 360f / n) * Mathf.Deg2Rad;
+                    var c = new Vector3(pos.x + Mathf.Sin(a) * r, pos.y, pos.z + Mathf.Cos(a) * r);
+                    if (!NavGrid.Walkable(c, 2)) continue;
+                    if (SpotFree(c)) return c;
+                }
+            }
+            return pos;
+        }
+
+        static bool SpotFree(Vector3 p)
+        {
+            foreach (var d in Damageable.All)
+            {
+                if (d == null) continue;
+                bool robot = d.GetComponent<Locomotion>() != null;
+                // Living robots need the most room (a titan is ~20 m across), wrecks and
+                // base structures a bit less.
+                float need = robot ? (d.IsDead ? 16f : 26f) : 20f;
+                if (!robot && d.IsDead) continue;
+                Vector3 q = d.transform.position;
+                float dx = q.x - p.x, dz = q.z - p.z;
+                if (dx * dx + dz * dz < need * need) return false;
+            }
+            return true;
+        }
+
         public Damageable SpawnPlayer(Vector3 pos)
         {
+            pos = ClearSpot(pos);
             var type = PlayerType;
             var loadout = Loadout.ForPlayer(type);
             var playerGo = RobotFactory.Build(type, pos, FacingCentre(pos, 0), 0, Livery.Player, true, RobotCatalog.Get(type).name, loadout);
@@ -375,6 +417,7 @@ namespace RobotArena
         /// <summary>Builds an AI robot for either team.</summary>
         public Damageable SpawnRobot(RobotType type, int team, Vector3 pos, string name, bool altLivery = false)
         {
+            pos = ClearSpot(pos);
             var info = RobotCatalog.Get(type);
             Livery livery = team == 0 ? Livery.Ally : (altLivery || Enemies.Count % 2 == 1 ? Livery.Enemy2 : Livery.Enemy);
             // Not every enemy of a type carries the same guns: some field one of the other fits.

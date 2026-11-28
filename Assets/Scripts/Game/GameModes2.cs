@@ -664,7 +664,8 @@ namespace RobotArena
             for (int i = 0; i < 5; i++)
             {
                 // Every robot is its own team.
-                var e = M.SpawnRobot(types[i] == M.PlayerType ? RandomType(M.PlayerType) : types[i], nextTeam++, spots[(i + 1) * 2 % spots.Count], NextEnemyName());
+                // Six robots spread round the ring of ten spots: 0, 1, 3, 5, 6, 8 (each its own spot).
+                var e = M.SpawnRobot(types[i] == M.PlayerType ? RandomType(M.PlayerType) : types[i], nextTeam++, spots[(i + 1) * spots.Count / 6], NextEnemyName());
                 Orders(e);
                 score[e.displayName] = 0;
                 yield return null;

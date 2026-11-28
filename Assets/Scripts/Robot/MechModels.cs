@@ -21,6 +21,7 @@ namespace RobotArena
             public Vector3 centerOfMass;
             public bool setCenterOfMass;
             public float yawSpeed, pitchSpeed, maxYaw, maxPitch = -1f, cone = 75f;
+            public float maxDown = 25f;          // how far the arms may aim down before they hit the hull or legs
             public float armScale = 1f, shoulderScale = 1f, backScale = 1f;
             public string[] detach;
         }
@@ -82,8 +83,8 @@ namespace RobotArena
                     {
                         mass = 50000f, health = 2600f, size = 2.5f,
                         boxes = new[] { new Vector3(0f, 3.6f, 0f), new Vector3(7f, 7.6f, 5.4f), new Vector3(0f, -3.8f, 0f), new Vector3(5.2f, 5.4f, 3.6f) },
-                        walker = w => { w.strideLength = 5.5f; w.fuelDrain = 20f; w.sprintBoost = true; },
-                        yawSpeed = 55f, pitchSpeed = 30f, maxYaw = 110f, cone = 75f,
+                        walker = w => { w.strideLength = 5.5f; w.bounce = 0.2f; w.fuelDrain = 20f; w.sprintBoost = true; },
+                        yawSpeed = 55f, pitchSpeed = 30f, maxYaw = 110f, maxDown = 20f, cone = 75f,
                         detach = new[] { "PauldronL", "ChestL", "PauldronR", "ChestR" }
                     };
                 case RobotType.Lancer:
@@ -91,8 +92,8 @@ namespace RobotArena
                     {
                         mass = 32000f, health = 1700f, size = 1.8f,
                         boxes = new[] { new Vector3(0f, 2.6f, 0.1f), new Vector3(5.0f, 5.0f, 4.0f), new Vector3(0f, -3.4f, 0f), new Vector3(3.6f, 5f, 3f) },
-                        walker = w => { w.strideLength = 5f; w.stepDuration = 0.42f; w.walkSpeed = 11f; w.turnRate = 1.0f; w.fuelDrain = 35f; },
-                        yawSpeed = 70f, pitchSpeed = 40f, maxYaw = 120f, cone = 70f,
+                        walker = w => { w.strideLength = 5f; w.bounce = 0.85f; w.stepDuration = 0.42f; w.walkSpeed = 11f; w.turnRate = 1.0f; w.fuelDrain = 35f; },
+                        yawSpeed = 70f, pitchSpeed = 40f, maxYaw = 120f, maxDown = 20f, cone = 70f,
                         armScale = 0.85f, shoulderScale = 0.85f, backScale = 0.8f,
                         detach = new[] { "ChestL", "Antenna", "ChestR", "PauldronL", "PauldronR" }
                     };
@@ -101,8 +102,8 @@ namespace RobotArena
                     {
                         mass = 38000f, health = 2000f, size = 2.0f,
                         boxes = new[] { new Vector3(0f, 2.9f, 0f), new Vector3(6.0f, 5.6f, 4.4f), new Vector3(0f, -3.4f, 0f), new Vector3(4.0f, 5f, 3f) },
-                        walker = w => { w.strideLength = 5f; w.stepDuration = 0.45f; w.walkSpeed = 9.5f; w.turnRate = 0.95f; w.jetAccel = 26f; w.fuelDrain = 32f; },
-                        yawSpeed = 65f, pitchSpeed = 36f, maxYaw = 115f, cone = 75f,
+                        walker = w => { w.strideLength = 5f; w.bounce = 0.5f; w.stepDuration = 0.45f; w.walkSpeed = 9.5f; w.turnRate = 0.95f; w.jetAccel = 26f; w.fuelDrain = 32f; },
+                        yawSpeed = 65f, pitchSpeed = 36f, maxYaw = 115f, maxDown = 20f, cone = 75f,
                         armScale = 0.92f, shoulderScale = 0.9f, backScale = 0.85f,
                         detach = new[] { "ChestL", "ChestR", "PauldronL", "PauldronR" }
                     };
@@ -111,8 +112,8 @@ namespace RobotArena
                     {
                         mass = 36000f, health = 2100f, size = 2.2f,
                         boxes = new[] { new Vector3(0f, 0.6f, -0.6f), new Vector3(6f, 3.2f, 8f) },
-                        walker = w => { w.strideLength = 4.6f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 10f; w.acceleration = 4.5f; w.turnRate = 1.15f; w.fuelDrain = 40f; },
-                        yawSpeed = 85f, pitchSpeed = 45f, maxYaw = 160f, maxPitch = 35f, cone = 80f,
+                        walker = w => { w.strideLength = 4.6f; w.bounce = 0.55f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 10f; w.acceleration = 4.5f; w.turnRate = 1.15f; w.fuelDrain = 40f; },
+                        yawSpeed = 85f, pitchSpeed = 45f, maxYaw = 125f, maxPitch = 25f, maxDown = 8f, cone = 80f,
                         armScale = 0.85f, shoulderScale = 0.8f, backScale = 0.9f,
                         detach = new[] { "ChestL", "Antenna", "ChestR" }
                     };
@@ -121,8 +122,8 @@ namespace RobotArena
                     {
                         mass = 58000f, health = 3300f, size = 2.7f,
                         boxes = new[] { new Vector3(0f, 0.9f, 0f), new Vector3(5.6f, 3.4f, 10.4f), new Vector3(0f, 3.2f, 2.6f), new Vector3(4.0f, 2.0f, 3.6f) },
-                        walker = w => { w.strideLength = 5.2f; w.stepDuration = 0.5f; w.stepHeight = 1.5f; w.walkSpeed = 7f; w.acceleration = 2.8f; w.turnRate = 0.65f; w.jetAccel = 18f; w.fuelDrain = 20f; w.sprintBoost = true; },
-                        yawSpeed = 50f, pitchSpeed = 30f, maxYaw = 150f, cone = 75f,
+                        walker = w => { w.strideLength = 5.2f; w.bounce = 0.15f; w.stepDuration = 0.5f; w.stepHeight = 1.5f; w.walkSpeed = 7f; w.acceleration = 2.8f; w.turnRate = 0.65f; w.jetAccel = 18f; w.fuelDrain = 20f; w.sprintBoost = true; },
+                        yawSpeed = 50f, pitchSpeed = 30f, maxYaw = 150f, maxDown = 12f, cone = 75f,
                         detach = new[] { "ChestL", "Antenna", "ChestR" }
                     };
                 case RobotType.Strider:
@@ -130,8 +131,8 @@ namespace RobotArena
                     {
                         mass = 22000f, health = 1900f, size = 1.5f,
                         boxes = new[] { new Vector3(0f, 2.4f, -0.3f), new Vector3(3.4f, 2.6f, 7.0f), new Vector3(0f, -2.5f, 0f), new Vector3(3.0f, 4.5f, 2.5f) },
-                        walker = w => { w.strideLength = 4.6f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 12.5f; w.acceleration = 4.5f; w.turnRate = 1.2f; w.jetAccel = 28f; w.fuelDrain = 34f; w.sprintBoost = true; w.sprintMultiplier = 1.9f; },
-                        yawSpeed = 95f, pitchSpeed = 50f, maxYaw = 140f, cone = 75f,
+                        walker = w => { w.strideLength = 4.6f; w.bounce = 1f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 12.5f; w.acceleration = 4.5f; w.turnRate = 1.2f; w.jetAccel = 28f; w.fuelDrain = 34f; w.sprintBoost = true; w.sprintMultiplier = 1.9f; },
+                        yawSpeed = 95f, pitchSpeed = 50f, maxYaw = 140f, maxDown = 20f, cone = 75f,
                         armScale = 0.72f, shoulderScale = 0.75f, backScale = 0.7f,
                         detach = new[] { "ChestL", "Antenna", "ChestR" }
                     };
@@ -140,8 +141,8 @@ namespace RobotArena
                     {
                         mass = 68000f, health = 4600f, size = 2.9f,
                         boxes = new[] { new Vector3(0f, 5.0f, -0.6f), new Vector3(7.4f, 6.6f, 7.0f), new Vector3(0f, -1.2f, 0f), new Vector3(6.4f, 4.0f, 3.2f) },
-                        walker = w => { w.strideLength = 5.8f; w.stepDuration = 0.55f; w.walkSpeed = 6.5f; w.acceleration = 2.4f; w.turnRate = 0.55f; w.jetAccel = 16f; w.fuelDrain = 18f; w.sprintBoost = true; },
-                        yawSpeed = 45f, pitchSpeed = 26f, maxYaw = 100f, cone = 75f,
+                        walker = w => { w.strideLength = 5.8f; w.bounce = 0.1f; w.stepDuration = 0.55f; w.walkSpeed = 6.5f; w.acceleration = 2.4f; w.turnRate = 0.55f; w.jetAccel = 16f; w.fuelDrain = 18f; w.sprintBoost = true; },
+                        yawSpeed = 45f, pitchSpeed = 26f, maxYaw = 100f, maxDown = 20f, cone = 75f,
                         armScale = 1.15f, shoulderScale = 1.1f, backScale = 1.1f,
                         detach = new[] { "PauldronL", "ChestL", "Antenna", "PauldronR", "ChestR" }
                     };
@@ -150,13 +151,13 @@ namespace RobotArena
                     {
                         mass = 46000f, health = 3200f, size = 2.4f,
                         boxes = new[] { new Vector3(0f, 1.2f, -0.4f), new Vector3(6.0f, 4.6f, 12.4f) },
-                        walker = w => { w.strideLength = 4.2f; w.stepDuration = 0.42f; w.stepHeight = 1.3f; w.walkSpeed = 8.5f; w.acceleration = 3.6f; w.turnRate = 0.9f; w.jetAccel = 20f; w.fuelDrain = 22f; w.sprintBoost = true; },
-                        yawSpeed = 70f, pitchSpeed = 38f, maxYaw = 170f, maxPitch = 40f, cone = 80f,
+                        walker = w => { w.strideLength = 4.2f; w.bounce = 0.3f; w.stepDuration = 0.42f; w.stepHeight = 1.3f; w.walkSpeed = 8.5f; w.acceleration = 3.6f; w.turnRate = 0.9f; w.jetAccel = 20f; w.fuelDrain = 22f; w.sprintBoost = true; },
+                        yawSpeed = 70f, pitchSpeed = 38f, maxYaw = 125f, maxPitch = 14f, maxDown = 10f, cone = 80f,
                         armScale = 0.85f, shoulderScale = 0.85f, backScale = 0.95f,
                         detach = new[] { "ChestL", "Antenna", "ChestR" }
                     };
                 case RobotType.Raptor:
-                    return Wheeled(30000f, true, 2000f, 2f, 0.3f, new Vector3(0f, 2.35f, -0.6f), 0.85f, new Vector3(0f, 0.8f, 0.2f), new Vector3(5.4f, 2.0f, 10.4f),
+                    return Wheeled(30000f, true, 2000f, 2f, 0.3f, new Vector3(0f, 2.85f, -0.6f), 0.85f, new Vector3(0f, 0.8f, 0.2f), new Vector3(5.4f, 2.0f, 10.4f),
                         new Vector3(0f, 0.3f, 0.2f), d => { d.extraAirGravity = 0.6f; d.wheelRadius = 1.4f; d.suspensionTravel = 1.1f; }, 90f, 45f, 150f);
                 case RobotType.Hornet:
                     return Wheeled(18000f, true, 1500f, 1.6f, 0.5f, new Vector3(0f, 2.05f, -0.5f), 0.68f, new Vector3(0f, 0.7f, 0f), new Vector3(4.4f, 1.6f, 8.4f),
@@ -166,7 +167,7 @@ namespace RobotArena
                             d.turnRate = 1.7f; d.lateralGrip = 8f; d.boostAccel = 30f; d.boostMaxSpeed = 74f;
                         }, 120f, 60f, 170f);
                 case RobotType.Juggernaut:
-                    return Wheeled(45000f, false, 3100f, 2.6f, 0.35f, new Vector3(0f, 2.85f, -0.9f), 1.05f, new Vector3(0f, 1.0f, 0.4f), new Vector3(6.4f, 2.6f, 13.4f),
+                    return Wheeled(45000f, false, 3100f, 2.6f, 0.35f, new Vector3(0f, 3.75f, -0.9f), 1.05f, new Vector3(0f, 1.0f, 0.4f), new Vector3(6.4f, 2.6f, 13.4f),
                         new Vector3(0f, 0.3f, 0.3f), d =>
                         {
                             d.extraAirGravity = 0.7f; d.wheelRadius = 1.5f; d.suspensionTravel = 1.2f; d.driveAccel = 7f; d.maxSpeed = 19f;
@@ -178,20 +179,20 @@ namespace RobotArena
                         {
                             d.extraAirGravity = 0.6f; d.wheelRadius = 1.35f; d.suspensionTravel = 0.9f; d.driveAccel = 8f; d.maxSpeed = 22f;
                             d.turnRate = 1.0f; d.lateralGrip = 9f; d.boostAccel = 18f; d.boostMaxSpeed = 42f;
-                        }, 55f, 30f, 180f);
+                        }, 55f, 30f, 180f, 6f);
             }
             return null;
         }
 
         static ModelSpec Wheeled(float mass, bool fast, float health, float size, float front, Vector3 waist, float k, Vector3 hullC, Vector3 hullS,
-            Vector3 com, System.Action<WheeledLocomotion> drive, float yaw, float pitch, float maxYaw)
+            Vector3 com, System.Action<WheeledLocomotion> drive, float yaw, float pitch, float maxYaw, float maxDown = 12f)
         {
             return new ModelSpec
             {
                 mass = mass, fast = fast, health = health, size = size, frontArmor = front,
                 boxes = new[] { hullC, hullS, waist + new Vector3(0f, 2.3f, -0.3f) * k, new Vector3(4.4f, 4.4f, 3.6f) * k },
                 wheeled = drive, centerOfMass = com, setCenterOfMass = true,
-                yawSpeed = yaw, pitchSpeed = pitch, maxYaw = maxYaw, cone = 80f,
+                yawSpeed = yaw, pitchSpeed = pitch, maxYaw = maxYaw, maxDown = maxDown, cone = 80f,
                 armScale = 0.82f * k, shoulderScale = 0.82f * k, backScale = 0.8f * k
             };
         }
@@ -286,6 +287,7 @@ namespace RobotArena
             turret.pitchSpeed = spec.pitchSpeed;
             turret.maxYaw = spec.maxYaw;
             if (spec.maxPitch > 0f) turret.maxPitch = spec.maxPitch;
+            turret.minPitch = -spec.maxDown;
             turret.acquireCone = player ? spec.cone : 180f;
 
             return new Chassis

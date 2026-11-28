@@ -47,6 +47,7 @@ namespace RobotArena
         AudioSource thrustAudio;
         float upsideDownTime;
         int groundedCount;
+        float airTime, lastVy;
 
         public override bool IsGrounded => groundedCount > 0;
 
@@ -92,10 +93,12 @@ namespace RobotArena
             Vector3 velocity = Compat.GetVelocity(rb);
             float forwardSpeed = Vector3.Dot(velocity, transform.forward);
             float massShare = rb.mass / Mathf.Max(1, wheels.Length);
+            bool wasAirborne = groundedCount == 0;
             groundedCount = 0;
 
-            foreach (var w in wheels)
+            for (int wi = 0; wi < wheels.Length; wi++)
             {
+                var w = wheels[wi];
                 if (w.anchor == null) continue;
                 Vector3 origin = w.anchor.position;
                 float rayLength = suspensionTravel + wheelRadius;
@@ -112,6 +115,8 @@ namespace RobotArena
                 w.compression = Mathf.Clamp(rayLength - hit.distance, 0f, suspensionTravel);
                 float compressionSpeed = (w.compression - w.lastCompression) / dt;
                 float springAccel = Mathf.Max(0f, springStiffness * w.compression + springDamping * compressionSpeed);
+                // Destroyed: the suspension gives out and the hull sags, more on one side.
+                if (collapsing) springAccel *= Mathf.Lerp(1f, CollapseSag(wi), Mathf.Clamp01((Time.time - collapseTime) / 0.6f));
                 float normalForce = springAccel * massShare;
                 rb.AddForceAtPosition(up * normalForce, origin, ForceMode.Force);
 
@@ -134,7 +139,7 @@ namespace RobotArena
                 else
                 {
                     float along = Vector3.Dot(pointVel, fwd);
-                    rb.AddForceAtPosition(-fwd * along * rollingBrake * massShare, hit.point, ForceMode.Force);
+                    rb.AddForceAtPosition(-fwd * along * rollingBrake * (collapsing ? 4f : 1f) * massShare, hit.point, ForceMode.Force);
                 }
             }
 
@@ -166,6 +171,10 @@ namespace RobotArena
             }
 
             ApplyExtraGravity(groundedCount > 0);
+            // Touchdown after a jump or a drop off a ledge: the harder the landing, the bigger the impact.
+            if (groundedCount > 0 && wasAirborne && airTime > 0.3f && !collapsing) Touchdown(-lastVy);
+            airTime = groundedCount == 0 ? airTime + dt : 0f;
+            lastVy = velocity.y;
             UpdateAutoRight(velocity);
         }
 
@@ -192,6 +201,37 @@ namespace RobotArena
                 thrustAudio.volume = Mathf.MoveTowards(thrustAudio.volume, IsBoosting ? 1f : 0f, Time.deltaTime * 4f);
 
             if (IsBoosting) FollowCamera.Shake(0.02f, transform.position, 40f);
+        }
+
+        int brokenSide;
+        public override void Collapse(Vector3 awayFromHit)
+        {
+            base.Collapse(awayFromHit);
+            brokenSide = Vector3.Dot(awayFromHit, transform.right) >= 0f ? 1 : -1;
+        }
+
+        /// <summary>How much spring a wheel keeps once the robot is destroyed.</summary>
+        float CollapseSag(int index)
+        {
+            var w = wheels[index];
+            if (w.anchor == null) return 0.5f;
+            float side = Vector3.Dot(w.anchor.position - transform.position, transform.right);
+            return side * brokenSide > 0f ? 0.32f : 0.62f;
+        }
+
+        void Touchdown(float fallSpeed)
+        {
+            if (fallSpeed < 4f) return;
+            float strength = Mathf.Clamp01((fallSpeed - 4f) / 22f);
+            Vector3 pos = rb.position;
+            if (GroundProbe.Cast(pos + Vector3.up, Vector3.down, 12f, rb, out RaycastHit g, true)) pos = g.point;
+            GameAudio.Play(Sfx.Landing, pos, Mathf.Lerp(0.5f, 1f, strength), Mathf.Lerp(1.1f, 0.8f, strength));
+            if (strength > 0.45f) GameAudio.Play(Sfx.Debris, pos, 0.5f * strength, 0.85f);
+            Fx.ImpactDust(pos, 1.5f, strength);
+            FollowCamera.Shake(Mathf.Lerp(0.25f, 1.1f, strength), pos, 150f + 60f * strength);
+            if (strength > 0.25f)
+                foreach (var w in wheels)
+                    if (w.anchor != null && w.grounded) Fx.GroundCrack(w.anchor.position - transform.up * (suspensionTravel + wheelRadius * 0.5f), Mathf.Lerp(1.2f, 2.4f, strength));
         }
 
         void UpdateAutoRight(Vector3 velocity)

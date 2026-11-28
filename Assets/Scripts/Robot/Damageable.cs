@@ -191,6 +191,10 @@ namespace RobotArena
                 col = box;
             }
             col.enabled = true;
+            // The part starts inside the hull: never let it collide with the robot it came
+            // from, or the overlap shoves both apart and the wreck goes flying.
+            foreach (var own in GetComponentsInChildren<Collider>())
+                if (own != col) Physics.IgnoreCollision(col, own, true);
             var rb = part.gameObject.GetComponent<Rigidbody>();
             if (rb == null) rb = part.gameObject.AddComponent<Rigidbody>();
             rb.mass = Mathf.Max(200f, part.lossyScale.x * part.lossyScale.y * part.lossyScale.z * 400f);
@@ -210,6 +214,34 @@ namespace RobotArena
             IsDead = true;
             Health = 0f;
 
+            // Everything that fights or thinks stops now. A robot's legs or wheels keep
+            // running a little longer: they carry the wreck down to the ground.
+            var loco = GetComponent<Locomotion>();
+            foreach (var behaviour in GetComponents<MonoBehaviour>())
+            {
+                if (behaviour == this || behaviour == loco) continue;
+                if (behaviour is IDisableOnDeath) behaviour.enabled = false;
+            }
+            var commands = GetComponent<RobotCommands>();
+            if (commands != null) commands.Clear();
+
+            if (loco != null && loco.enabled) DeathSequence.Begin(this, loco);
+            else
+            {
+                if (loco != null) loco.enabled = false;
+                Explode();
+            }
+
+            Died?.Invoke(this);
+        }
+
+        /// <summary>
+        /// The final blast: fireball, the remaining armour and a few of the robot's own parts
+        /// thrown off, the wreck burnt black and smoking. The hull itself is not thrown:
+        /// it stays where it is and slumps (see DeathSequence).
+        /// </summary>
+        public void Explode()
+        {
             Vector3 c = Center;
             Fx.Explosion(c, 3.5f * size);
             Fx.Explosion(c + Random.insideUnitSphere * 3f * size, 2f * size);
@@ -239,21 +271,6 @@ namespace RobotArena
 
             if (damageSmoke == null && smokePoint != null)
                 damageSmoke = Fx.SmokeTrail(smokePoint, 3f * size, new Color(0.08f, 0.08f, 0.08f, 0.8f));
-
-            // Let physics take over: the wreck slumps and tips.
-            if (Body != null)
-            {
-                Body.AddForce(Vector3.up * 6f, ForceMode.VelocityChange);
-                Body.AddTorque(Random.insideUnitSphere * 1.5f, ForceMode.VelocityChange);
-            }
-
-            foreach (var behaviour in GetComponents<MonoBehaviour>())
-            {
-                if (behaviour == this) continue;
-                if (behaviour is IDisableOnDeath) behaviour.enabled = false;
-            }
-
-            Died?.Invoke(this);
         }
 
         /// <summary>

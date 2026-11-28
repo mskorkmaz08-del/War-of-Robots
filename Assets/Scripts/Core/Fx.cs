@@ -365,6 +365,113 @@ namespace RobotArena
             mark.Begin();
         }
 
+        // Broken ground from heavy landings: pooled decals like the scorch marks, kept longer.
+        static readonly System.Collections.Generic.List<ScorchMark> cracks = new System.Collections.Generic.List<ScorchMark>();
+        static int nextCrack;
+
+        /// <summary>Cracked, crushed ground under a heavy landing. size is roughly the radius in metres.</summary>
+        public static void GroundCrack(Vector3 pos, float size)
+        {
+            if (!Physics.Raycast(pos + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 6f, ~0, QueryTriggerInteraction.Ignore)) return;
+            if (hit.rigidbody != null) return;
+            var assets = GameAssets.Get();
+            if (assets == null) return;
+            cracks.RemoveAll(c => c == null);
+            ScorchMark mark;
+            if (cracks.Count < 16)
+            {
+                var go = new GameObject("GroundCrack");
+                go.AddComponent<MeshFilter>().sharedMesh = QuadMesh();
+                var r = go.AddComponent<MeshRenderer>();
+                r.sharedMaterial = assets.GroundCrack();
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                mark = go.AddComponent<ScorchMark>();
+                mark.life = 24f;
+                cracks.Add(mark);
+            }
+            else
+            {
+                mark = cracks[nextCrack % cracks.Count];
+                nextCrack++;
+            }
+            float s = 2f * size * Random.Range(0.85f, 1.15f);
+            mark.transform.SetPositionAndRotation(hit.point + hit.normal * 0.06f,
+                Quaternion.LookRotation(hit.normal) * Quaternion.Euler(0f, 0f, Random.Range(0f, 360f)));
+            mark.transform.localScale = new Vector3(s, s, 1f);
+            mark.Begin();
+        }
+
+        /// <summary>
+        /// The dust of a heavy landing, scaled by how hard it was (0..1): a fast ring of dust
+        /// rolling out along the ground, a slower cloud rising behind it, grit and clods.
+        /// </summary>
+        public static void ImpactDust(Vector3 pos, float size, float strength)
+        {
+            float k = Mathf.Lerp(0.6f, 1.6f, strength);
+            Dust(pos, size * k);
+            var assets = GameAssets.Get();
+            if (assets == null) return;
+            if (FxPool.TryAcquire("DustRing", out var ring, out bool isNew))
+            {
+                Place(ring, pos + Vector3.up * 0.2f, Quaternion.identity);
+                if (isNew)
+                {
+                    Setup(ring, assets.SmokeBillow());
+                    Billows(ring);
+                    AlphaFade(ring, new Color(0.4f, 0.37f, 0.33f));
+                    SizeCurve(ring, 0.5f, 1.8f);
+                    Drag(ring, 2.6f);
+                    Spin(ring, 0.3f);
+                }
+                var m = ring.main;
+                m.startLifetime = new ParticleSystem.MinMaxCurve(0.9f, 1.8f);
+                m.startSpeed = new ParticleSystem.MinMaxCurve(14f * size * k, 24f * size * k);
+                m.startSize = new ParticleSystem.MinMaxCurve(0.9f * size, 1.9f * size);
+                Color dc = DustTint;
+                m.startColor = new ParticleSystem.MinMaxGradient(new Color(dc.r * 1.05f, dc.g * 1.05f, dc.b * 1.05f, 0.7f), new Color(dc.r * 0.8f, dc.g * 0.8f, dc.b * 0.8f, 0.55f));
+                m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                m.gravityModifier = 0f;
+                var shape = ring.shape;
+                shape.enabled = true;
+                shape.shapeType = ParticleSystemShapeType.Circle;
+                shape.radius = 0.6f * size;
+                shape.rotation = new Vector3(-90f, 0f, 0f);
+                shape.radiusThickness = 0f;
+                Burst(ring, Mathf.RoundToInt(Mathf.Lerp(18f, 44f, strength)));
+                Play(ring, 2.5f);
+            }
+            if (strength > 0.3f && FxPool.TryAcquire("DustPlume", out var plume, out bool plumeNew))
+            {
+                Place(plume, pos + Vector3.up * 0.5f, Quaternion.identity);
+                if (plumeNew)
+                {
+                    Setup(plume, assets.SmokeBillow());
+                    Billows(plume);
+                    AlphaFade(plume, new Color(0.42f, 0.39f, 0.35f));
+                    SizeCurve(plume, 0.7f, 2.6f);
+                    Drag(plume, 1.5f);
+                    Spin(plume, 0.25f);
+                }
+                var m = plume.main;
+                m.startLifetime = new ParticleSystem.MinMaxCurve(2.2f, 4f);
+                m.startSpeed = new ParticleSystem.MinMaxCurve(3f * size * k, 7f * size * k);
+                m.startSize = new ParticleSystem.MinMaxCurve(2f * size, 4f * size);
+                Color dc = DustTint;
+                m.startColor = new ParticleSystem.MinMaxGradient(new Color(dc.r, dc.g, dc.b, 0.55f), new Color(dc.r * 0.85f, dc.g * 0.85f, dc.b * 0.85f, 0.4f));
+                m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                m.gravityModifier = -0.02f;
+                var shape = plume.shape;
+                shape.enabled = true;
+                shape.shapeType = ParticleSystemShapeType.Hemisphere;
+                shape.radius = 1.2f * size;
+                shape.rotation = new Vector3(-90f, 0f, 0f);
+                Burst(plume, Mathf.RoundToInt(Mathf.Lerp(8f, 22f, strength)));
+                Play(plume, 5f);
+            }
+            if (strength > 0.35f) GroundClods(pos, size * Mathf.Lerp(0.6f, 1.3f, strength));
+        }
+
         static Mesh quad;
 
         static Mesh QuadMesh()
@@ -723,7 +830,7 @@ namespace RobotArena
     /// <summary>A burn mark that slowly fades away.</summary>
     public class ScorchMark : MonoBehaviour
     {
-        const float Life = 14f;
+        public float life = 14f;
         float age;
         MeshRenderer r;
         MaterialPropertyBlock block;
@@ -740,11 +847,11 @@ namespace RobotArena
         void Update()
         {
             age += Time.deltaTime;
-            float a = Mathf.Clamp01((Life - age) / 4f);
+            float a = Mathf.Clamp01((life - age) / 4f);
             if (block == null) block = new MaterialPropertyBlock();
             block.SetColor(TintId, new Color(0.5f, 0.5f, 0.5f, 0.5f * a));
             r.SetPropertyBlock(block);
-            if (age >= Life)
+            if (age >= life)
             {
                 r.enabled = false;
                 enabled = false;

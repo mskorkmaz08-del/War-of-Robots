@@ -16,7 +16,7 @@ reset()
 STAND = 6.5
 THIGH, SHIN, ANKLE_Z = 6.0, 6.8, 0.9
 UPPER = Vector((0, 1.0, 8.1))
-ARMS = Vector((0, 1.6, 8.8))
+ARMS = Vector((0, 1.6, 9.25))
 R = Rig('Arachne', STAND)
 
 B = 'Hull'
@@ -76,31 +76,32 @@ R.rigid('Torso', UPPER, 'Upper')
 A = 'Arms'
 cyl(A, 'Dark', ARMS + Vector((0, 0.4, 0)), (1, 0, 0), 0.42, 3.9, segs=20, name='Axle')
 for s in (-1, 1):
-    m = Vector((s * 1.75, 2.1, 8.8))
+    m = Vector((s * 1.75, 2.1, ARMS.z))
     drum(A, Vector((s * 1.75, ARMS.y + 0.4, ARMS.z)), (1, 0, 0), 0.7, 0.8, bolts=8)
     loft_y(A, 'Secondary', [(m.y - 1.1, 0.6, 0.62, 0.2, m.x, m.z - ARMS.z + ARMS.z), (m.y + 0.25, 0.55, 0.58, 0.18, m.x, m.z)], bevel=0.05, seam_min=0.4, name='Cradle')
     lathe(A, 'Dark', m + Vector((0, 0.15, 0)), (0, 1, 0), [(0.45, 0), (0.72, 0), (0.72, 0.3), (0.45, 0.3)], segs=28, name='CradleRing')
     R.anchor('Mount' + ('L' if s < 0 else 'R'), m, 'Arms')
-armour(A, 'Dark', boxpts((0.45, 0.6, 0.5), ch=0.1), Mx((0, 2.2, ARMS.z - 0.75)), bevel=0.03, seams=False, groove=None, name='ArmLug')
+armour(A, 'Dark', boxpts((0.45, 0.6, 0.5), ch=0.1), Mx((0, 2.2, ARMS.z - 0.55)), bevel=0.03, seams=False, groove=None, name='ArmLug')
 armour(T, 'Dark', boxpts((0.45, 0.6, 0.5), ch=0.1), Mx((0, 1.9, UPPER.z + 0.35)), bevel=0.03, seams=False, groove=None, name='ShLug')
 R.rigid('Arms', ARMS, 'Arms')
-shoulder_rams(R, [((0, 1.9, UPPER.z + 0.35), (0, 2.2, ARMS.z - 0.75))], k=0.6)
+shoulder_rams(R, [((0, 1.9, UPPER.z + 0.35), (0, 2.2, ARMS.z - 0.55))], k=0.6)
 
 # ---- Detachables ----
+# Side skirts between the hips, low on the flanks under the guns' sweep
 for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
-    cc = Vector((s * 1.9, 1.6, 8.15))
-    armour(nm, 'Primary', [(s * x, y, z) for x, y, z in ((0.0, -1.1, 0.0), (0.0, 1.2, 0.0), (1.0, -1.0, -0.15), (1.0, 1.0, -0.15),
-                                                       (0.0, -1.0, 0.3), (0.0, 1.05, 0.3), (0.8, -0.85, 0.12), (0.8, 0.85, 0.12))], Mx(cc), bevel=0.04, seam_min=0.4, name='Plate')
-    stripe(nm, Mx(cc + Vector((s * 0.4, 0, 0.27)), (90, 0, 0)), 0.5, 1.4)
+    cc = Vector((s * 2.2, -0.35, 7.75))
+    armour(nm, 'Primary', [(s * x, y, z) for x, y, z in ((0.0, -0.95, 0.05), (0.0, 0.95, 0.05), (0.95, -0.85, -0.2), (0.95, 0.85, -0.2),
+                                                       (0.0, -0.9, 0.35), (0.0, 0.9, 0.35), (0.8, -0.75, 0.05), (0.8, 0.75, 0.05))], Mx(cc), bevel=0.04, seam_min=0.4, name='Plate')
+    stripe(nm, Mx(cc + Vector((s * 0.42, 0, 0.23)), (90, 0, 0)), 0.45, 1.2)
     R.rigid(nm, cc, 'Root')
-mast = Vector((1.4, -1.2, 8.35))
+mast = Vector((0, -4.55, 8.3))  # on the power module, behind the guns' reach
 armour('Antenna', 'Dark', boxpts((0.35, 0.35, 0.45), ch=0.08), Mx(mast + Vector((0, 0, 0.22))), bevel=0.03, seams=False, groove=None, name='MastBase')
 lathe('Antenna', 'Dark', mast, (0, 0, 1), [(0.07, 0.45), (0.05, 2.4), (0.0, 2.5)], segs=8, name='Mast')
 lathe('Antenna', 'Glow', mast + Vector((0, 0, 2.4)), (0, 0, 1), [(0, 0), (0.07, 0), (0, 0.12)], segs=10, name='Tip')
 R.rigid('Antenna', mast, 'Root')
 
 R.anchor('Back', (0, -3.0, 8.95), 'Root')
-R.anchor('Shoulder', (0, 1.4, 9.65), 'Arms')
+R.anchor("Shoulder", (0, 1.4, ARMS.z + 0.85), "Arms")
 R.anchor('Smoke', (0, -2.4, 8.7), 'Root')
 
 for sx, sy in corners:
@@ -108,7 +109,9 @@ for sx, sy in corners:
     hp = Vector((sx * 2.6, sy * 1.8 - 0.4, 6.5))
     ank = hp + Vector((sx * 4.6, sy * 3.0, 0)); ank.z = ANKLE_Z
     knee, Mt2, Ms2 = spider_leg(R, tag, hp, ank, THIGH, SHIN, ANKLE_Z, (sx * 0.5, sy * 0.3, 1), k=1.6, claws=3)
-    live_ram(R, 'RamHip' + tag, Matrix.Identity(4), hp + Vector((-sx * 0.6, 0, 1.55)), 'Hull', Mt2, (0, 0.9, THIGH / 2 - 1.6), 'Thigh' + tag, 0.16)
+    for xs in (-1, 1):
+        armour('Thigh' + tag, 'Dark', boxpts((0.1, 0.75, 0.5), ch=0.03), Mt2 @ Mx((xs * 0.22, 1.05, THIGH / 2 - 1.6)), bevel=0.02, seams=False, groove=None, name='RamPost')
+    live_ram(R, 'RamHip' + tag, Matrix.Identity(4), hp + Vector((-sx * 0.6, 0, 1.55)), 'Hull', Mt2, (0, 1.4, THIGH / 2 - 1.6), 'Thigh' + tag, 0.16)
 
 R.extra.update({'thigh': THIGH, 'shin': SHIN, 'ankle': ANKLE_Z, 'footOut': 0, 'upper': list(U(UPPER)), 'arms': list(U(ARMS))})
 run(R, os.path.dirname(os.path.abspath(__file__)), 5.0, 44)

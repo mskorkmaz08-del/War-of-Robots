@@ -242,7 +242,7 @@ namespace RobotArena
                 case RobotType.Arachne: return "POUNCE: leaps onto the target and lands with a shockwave";
                 case RobotType.Hornet: return "EMP BURST: jams every enemy gun nearby for a few seconds";
                 case RobotType.Juggernaut: return "BULLDOZE: an armoured charge that knocks robots off their feet";
-                case RobotType.Lancer: return "SKY PERCH: jets high into the air and hovers for a sniper's view";
+                case RobotType.Lancer: return "SKY PERCH: rockets high into the sky, then glides down sniping";
                 case RobotType.Bastion: return "DOZER SHIELD: an energy wall over the blade stops fire from the front";
                 case RobotType.Vanguard: return "AEGIS: a shield bubble soaks up a heavy beating";
                 case RobotType.Mammoth: return "QUAKE STOMP: rears up and slams down, flattening everything near";
@@ -451,7 +451,7 @@ namespace RobotArena
             else if (commands.hasMove && commands.move.sqrMagnitude > 0.04f) dir = Flat(commands.move).normalized;
             dist = Mathf.Clamp(dist, 10f, 48f);
             float g = Mathf.Abs(Physics.gravity.y) * (1f + walker.extraAirGravity);
-            float vy = 15f;
+            float vy = 19f;
             float flight = 2f * vy / g;
             Vector3 v = Compat.GetVelocity(rb);
             Vector3 want = dir * (dist / flight) + Vector3.up * vy;
@@ -572,7 +572,10 @@ namespace RobotArena
     // ======================================================================
     public class SkyPerch : Superpower
     {
-        float riseTime = 1.4f;
+        // A rocket jump, not a hover: the jets throw it high and keep it climbing, then
+        // brake a long, slow glide back down while it keeps its momentum and can steer.
+        const float Crouch = 0.3f, Launch = 1.1f, Climb = 1.2f;
+        bool airborne;
 
         protected override void Awake()
         {
@@ -584,6 +587,7 @@ namespace RobotArena
 
         protected override void Begin()
         {
+            airborne = false;
             loco.powerThrust = true;
             self.DamageDealtMul = 1.2f;
             GameAudio.Play(Sfx.Whoosh, transform.position, 1f, 0.7f);
@@ -592,17 +596,36 @@ namespace RobotArena
         protected override void FixedTick(float dt)
         {
             if (rb == null) return;
+            float t = Elapsed;
+            if (t < Crouch) return; // the crouch before lift-off
             Vector3 v = Compat.GetVelocity(rb);
-            if (Elapsed < 0.3f) return; // the crouch before lift-off
-            if (Elapsed < 0.3f + riseTime)
-                v.y = Mathf.MoveTowards(v.y, 15f, 45f * dt);
+            if (!airborne && t > Crouch + 0.25f && !walker.IsGrounded) airborne = true;
+            if (airborne && walker.IsGrounded) { Stop(); return; }
+
+            Vector3 steer = commands.hasMove ? Vector3.ClampMagnitude(new Vector3(commands.move.x, 0f, commands.move.z), 1f) : Vector3.zero;
+            Vector3 flat = new Vector3(v.x, 0f, v.z);
+            if (t < Crouch + Launch)
+            {
+                // Lift-off: a hard kick that builds to a fast climb.
+                v.y = Mathf.MoveTowards(v.y, 24f, 75f * dt);
+                flat = Vector3.MoveTowards(flat, flat + steer * 9f, 10f * dt);
+            }
+            else if (t < Crouch + Launch + Climb)
+            {
+                // Still gaining height, slowing toward the top of the arc.
+                v.y = Mathf.MoveTowards(v.y, 6f, 16f * dt);
+                flat = Vector3.MoveTowards(flat, steer * 16f, 6f * dt);
+            }
             else
             {
-                // Hover: hold height, damp the drift so the rifle stays steady.
-                v.y = Mathf.MoveTowards(v.y, 0f, 30f * dt);
-                v.x *= 1f - 1.5f * dt;
-                v.z *= 1f - 1.5f * dt;
+                // Glide: the jets only brake the fall, which gets faster as they tire.
+                // Momentum carries on; the stick steers the drift.
+                float k = Mathf.Clamp01((t - Crouch - Launch - Climb) / Mathf.Max(0.1f, duration - Crouch - Launch - Climb));
+                float sink = Mathf.Lerp(3.5f, 9f, k);
+                v.y = Mathf.MoveTowards(v.y, -sink, 14f * dt);
+                flat = Vector3.MoveTowards(flat, steer * 14f, (steer.sqrMagnitude > 0.01f ? 5f : 1.2f) * dt);
             }
+            v.x = flat.x; v.z = flat.z;
             Compat.SetVelocity(rb, v);
         }
 

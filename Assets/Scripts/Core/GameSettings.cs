@@ -14,6 +14,8 @@ namespace RobotArena
         static bool cameraShake = true;
         static Quality quality = Quality.Medium;
         static bool showFps;
+        static float cameraZoom = 1f;
+        static float cameraHeight = 1f;
 
         public static event System.Action Changed;
 
@@ -22,6 +24,10 @@ namespace RobotArena
         public static float LookSensitivity { get { Load(); return lookSensitivity; } set { lookSensitivity = Mathf.Clamp(value, 0.2f, 3f); Save(); } }
         public static bool CameraShake { get { Load(); return cameraShake; } set { cameraShake = value; Save(); } }
         public static Quality GraphicsQuality { get { Load(); return quality; } set { quality = value; Save(); } }
+        /// <summary>Camera distance from the robot: below 1 closer, above 1 further back.</summary>
+        public static float CameraZoom { get { Load(); return cameraZoom; } set { cameraZoom = Mathf.Clamp(value, 0.6f, 1.7f); Save(); } }
+        /// <summary>How high the camera sits above the robot: above 1 looks down more steeply.</summary>
+        public static float CameraHeight { get { Load(); return cameraHeight; } set { cameraHeight = Mathf.Clamp(value, 0.3f, 3f); Save(); } }
         public static bool ShowFps { get { Load(); return showFps; } set { showFps = value; Save(); } }
 
         static void Load()
@@ -35,6 +41,8 @@ namespace RobotArena
                 musicVolume = PlayerPrefs.GetFloat("music", 0.6f);
                 cameraShake = PlayerPrefs.GetInt("shake", 1) == 1;
                 showFps = PlayerPrefs.GetInt("fps", 0) == 1;
+                cameraZoom = Mathf.Clamp(PlayerPrefs.GetFloat("camZoom", 1f), 0.6f, 1.7f);
+                cameraHeight = Mathf.Clamp(PlayerPrefs.GetFloat("camHeight", 1f), 0.3f, 3f);
                 int q = PlayerPrefs.GetInt("quality", -1);
                 quality = q < 0 ? (Application.isMobilePlatform ? Quality.Medium : Quality.High) : (Quality)Mathf.Clamp(q, 0, 2);
             }
@@ -50,6 +58,8 @@ namespace RobotArena
                 PlayerPrefs.SetFloat("music", musicVolume);
                 PlayerPrefs.SetInt("shake", cameraShake ? 1 : 0);
                 PlayerPrefs.SetInt("fps", showFps ? 1 : 0);
+                PlayerPrefs.SetFloat("camZoom", cameraZoom);
+                PlayerPrefs.SetFloat("camHeight", cameraHeight);
                 PlayerPrefs.SetInt("quality", (int)quality);
                 PlayerPrefs.Save();
             }

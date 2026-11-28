@@ -236,11 +236,11 @@ def walker_leg(R, s, hip, ank, thigh_len, shin_len, ankle_z, k=1.0, st=None, tag
     nk = o['knee_rams']
     xs_k = (0,) if nk == 1 else (-0.4 * k, 0.4 * k)
     for i, xo in enumerate(xs_k):
-        live_ram(R, 'RamKnee%s%d' % (L, i), Mt, (xo, -0.75 * k, ht - 0.7), T, Ms, (xo, -0.75 * k, hs - 1.1 * k), S_, 0.2 * k)
+        live_ram(R, 'RamKnee%s%d' % (L, i), Mt, (xo, -0.9 * k, ht - 0.7), T, Ms, (xo, -0.9 * k, hs - 1.1 * k), S_, 0.2 * k)
     na = o['ankle_rams']
     xs_a = (0,) if na == 1 else (-0.5 * k, 0.5 * k)
     for i, xo in enumerate(xs_a):
-        live_ram(R, 'RamAnkle%s%d' % (L, i), Ms, (xo, -0.85 * k, 0.1 * hs), S_,
+        live_ram(R, 'RamAnkle%s%d' % (L, i), Ms, (xo, -0.97 * k, 0.1 * hs), S_,
                  Matrix.Translation(ank), (xo, -0.95 * k * o['foot_len'] * fy, -ankle_z + 1.0 * k), F, 0.15 * k)
     R.anchor('Hip' + L, hip, 'Root')
     R.leg(L, hip, ank, o['bend'])
@@ -283,13 +283,24 @@ def pelvis(R, hip_x, hip_z, k=1.0, ring_r=None, legs=None):
 
 
 def hip_ram(R, s, hip, Mt, thigh_len, k=1.0, tag=None):
-    """Working hip-pitch cylinder: a lug above and behind the hip to the back of the thigh."""
+    """
+    Working hip-pitch cylinder behind the hip. It hangs from a clevis bracket bolted to
+    the back of the pelvis and pushes on a bracket standing off the back of the thigh,
+    far enough behind the hip bearing that it clears the drum through the whole stride.
+    """
     L = tag or ('L' if s < 0 else 'R')
     hip = V(hip)
     f = -1 if Mt.determinant() < 0 else 1
-    a = hip + Vector((0, -1.25 * k * f, 1.05 * k))
-    armour('Hull', 'Dark', boxpts((0.5 * k, 0.7 * k, 0.8 * k), ch=0.15 * k), Mx(a + Vector((0, 0.15 * k * f, 0.25 * k))), bevel=0.04, seams=False, groove=None, name='HipLug')
-    live_ram(R, 'RamHip' + L, Matrix.Identity(4), a, 'Hull', Mt, (0, -0.95 * k, thigh_len / 2 - 1.9 * k), 'Thigh' + L, 0.17 * k)
+    a = hip + Vector((0, -2.0 * k * f, 0.6 * k))
+    # Pelvis bracket: two cheek plates either side of the pin and a crossbar back to the pelvis
+    for xs in (-1, 1):
+        armour('Hull', 'Dark', boxpts((0.12 * k, 0.95 * k, 0.6 * k), ch=0.05 * k), Mx(a + Vector((xs * 0.28 * k, 0.4 * k * f, 0))), bevel=0.03, seams=False, groove=None, name='HipLug')
+    armour('Hull', 'Secondary', boxpts((0.7 * k, 0.32 * k, 0.62 * k), ch=0.08 * k), Mx(a + Vector((0, 0.78 * k * f, 0))), bevel=0.03, seams=False, groove=None, name='HipLugBase')
+    # Thigh bracket: twin plates standing off the back of the thigh web
+    zt = thigh_len / 2 - 1.9 * k
+    for xs in (-1, 1):
+        armour('Thigh' + L, 'Dark', boxpts((0.12 * k, 1.15 * k, 0.55 * k), ch=0.05 * k), Mt @ Mx((xs * 0.28 * k, -1.08 * k, zt)), bevel=0.03, seams=False, groove=None, name='RamBracket')
+    live_ram(R, 'RamHip' + L, Matrix.Identity(4), a, 'Hull', Mt, (0, -1.6 * k, zt), 'Thigh' + L, 0.17 * k)
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +393,20 @@ def _up_in(M):
     return u.normalized()
 
 
+def hanger(part, base, pin, along, k=1.0, w=0.21, t=0.08):
+    """Twin plates standing from base out to a cylinder pin (world points), the pin between them."""
+    off = (pin - base); L = off.length; off.normalize()
+    side = along.cross(off).normalized()
+    for xs in (-1, 1):
+        pts = []
+        for e in (0.0, L + 0.22 * k):
+            for a_ in (-0.22 * k, 0.22 * k):
+                for sw in (w - t / 2, w + t / 2):
+                    pts.append(tuple(base + off * e + along * a_ + side * xs * sw * k))
+        armour(part, 'Dark', pts, bevel=0.02, seams=False, groove=None, name='RamHanger')
+
+
+
 def spider_leg(R, tag, hip, ank, thigh_len, shin_len, ankle_z, bend, k=1.0, claws=3):
     """
     A long hard-surface leg: box-section beams with armour spines on top, exposed
@@ -460,7 +485,19 @@ def spider_leg(R, tag, hip, ank, thigh_len, shin_len, ankle_z, bend, k=1.0, claw
     transform_new(F, 0, Matrix.Translation(ank))
     R.frames[F] = frame_identity(U(ank)); R.parents[F] = F
 
-    live_ram(R, 'RamKnee%s' % tag, Mt2, (0, 1.15 * k, ht * 0.1), T, Ms2, (0, 0.95 * k, hs * 0.6), S_, 0.17 * k)
+    # Knee cylinder inside the bend of the knee, where it has room to work: from a hanger
+    # under the thigh to a lug on the inner face of the shin (worked out in world space so
+    # it is right however steep the leg is).
+    tdir = (knee - hip).normalized(); sdir = (ank - knee).normalized()
+    pa_axis = (hip + knee) / 2 - tdir * ht * 0.1
+    down = Vector((0, 0, -1)) - tdir * (-tdir.z); down.normalize()
+    pa = pa_axis + down * 1.15 * k
+    pb_axis = (knee + ank) / 2 - sdir * hs * 0.55
+    inward = Vector((hip.x - knee.x, hip.y - knee.y, 0)); inward -= sdir * inward.dot(sdir); inward.normalize()
+    pb = pb_axis + inward * 0.98 * k
+    hanger(T, pa_axis + down * 0.35 * k, pa, tdir, k)
+    hanger(S_, pb_axis + inward * 0.3 * k, pb, sdir, k)
+    live_ram(R, 'RamKnee%s' % tag, Matrix.Identity(4), pa, T, Matrix.Identity(4), pb, S_, 0.17 * k)
     R.anchor('Hip' + tag, hip, 'Root')
     R.leg(tag, hip, ank, bend)
     return knee, Mt2, Ms2

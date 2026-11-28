@@ -222,6 +222,99 @@ namespace RobotArena
             return scorchMat;
         }
 
+        Material crackMat;
+
+        /// <summary>
+        /// Ground broken by a heavy landing: a crushed, darkened centre and jagged cracks
+        /// running out from it, with forks, drawn once into a texture. Dark, alpha-blended.
+        /// </summary>
+        public Material GroundCrack()
+        {
+            if (crackMat != null) return crackMat;
+            const int size = 256;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, name = "GroundCrack" };
+            var alpha = new float[size * size];
+            var shade = new float[size * size];
+            var rng = new System.Random(23);
+            float R() => (float)rng.NextDouble();
+            // Crushed centre: a rough dark patch with grit.
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f, dy = (y + 0.5f) / size * 2f - 1f;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float ang = Mathf.Atan2(dy, dx);
+                float edge = 0.3f + 0.05f * Mathf.Sin(ang * 5f + 0.7f) + 0.04f * Mathf.Sin(ang * 11f);
+                float a = Mathf.Clamp01((edge - d) / 0.22f);
+                a *= 0.45f + 0.3f * R();
+                alpha[y * size + x] = a;
+                shade[y * size + x] = 0.55f + 0.25f * R();
+            }
+            // Cracks: jagged polylines from near the centre outward, thinning, with forks.
+            void Line(float x0, float y0, float ang, float len, float width, int depth)
+            {
+                float x = x0, y = y0;
+                int steps = Mathf.Max(4, (int)(len / 5f));
+                for (int i = 0; i < steps; i++)
+                {
+                    ang += (R() - 0.5f) * 0.7f;
+                    float seg = len / steps;
+                    float nx = x + Mathf.Cos(ang) * seg, ny = y + Mathf.Sin(ang) * seg;
+                    float w = width * (1f - 0.75f * i / steps);
+                    // Stamp the segment: dark core, a softer shoulder either side.
+                    int n = Mathf.CeilToInt(seg * 2f);
+                    for (int k = 0; k <= n; k++)
+                    {
+                        float px = Mathf.Lerp(x, nx, k / (float)n), py = Mathf.Lerp(y, ny, k / (float)n);
+                        int r = Mathf.CeilToInt(w + 1.5f);
+                        for (int oy = -r; oy <= r; oy++)
+                        for (int ox = -r; ox <= r; ox++)
+                        {
+                            int ix = (int)px + ox, iy = (int)py + oy;
+                            if (ix < 1 || iy < 1 || ix >= size - 1 || iy >= size - 1) continue;
+                            float dd = Mathf.Sqrt(ox * ox + oy * oy);
+                            float a = Mathf.Clamp01(1f - (dd - w * 0.5f) / 1.5f);
+                            int idx = iy * size + ix;
+                            if (a > alpha[idx]) { alpha[idx] = a; shade[idx] = dd < w * 0.5f ? 0.05f : 0.3f; }
+                        }
+                    }
+                    if (depth < 2 && R() < 0.22f)
+                        Line(nx, ny, ang + (R() < 0.5f ? -1f : 1f) * (0.5f + 0.5f * R()), len * (0.25f + 0.25f * R()), w * 0.7f, depth + 1);
+                    x = nx; y = ny;
+                }
+            }
+            int cracks = 9;
+            for (int c = 0; c < cracks; c++)
+            {
+                float a0 = (c + R() * 0.6f) / cracks * Mathf.PI * 2f;
+                float r0 = size * (0.08f + 0.06f * R());
+                Line(size / 2f + Mathf.Cos(a0) * r0, size / 2f + Mathf.Sin(a0) * r0, a0, size * (0.3f + 0.15f * R()), 3.2f + 1.5f * R(), 0);
+            }
+            // A ring of short cracks around the rim of the crushed patch.
+            for (int c = 0; c < 14; c++)
+            {
+                float a0 = R() * Mathf.PI * 2f;
+                float r0 = size * 0.15f;
+                Line(size / 2f + Mathf.Cos(a0) * r0, size / 2f + Mathf.Sin(a0) * r0, a0 + Mathf.PI * 0.5f * (R() < 0.5f ? 1f : -1f), size * 0.07f, 1.6f, 2);
+            }
+            var px = new Color32[size * size];
+            for (int i = 0; i < px.Length; i++)
+            {
+                float sh = shade[i];
+                // Fade everything out toward the edge of the quad so it never shows a square.
+                int x = i % size, y = i / size;
+                float dx = (x + 0.5f) / size * 2f - 1f, dy = (y + 0.5f) / size * 2f - 1f;
+                float rim = Mathf.Clamp01((1f - Mathf.Sqrt(dx * dx + dy * dy)) / 0.18f);
+                byte g = (byte)(sh * 40f);
+                px[i] = new Color32(g, (byte)(g * 0.94f), (byte)(g * 0.88f), (byte)(Mathf.Clamp01(alpha[i]) * rim * 245f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true);
+            crackMat = new Material(particleAlpha) { name = "GroundCrack", mainTexture = tex };
+            if (crackMat.HasProperty("_TintColor")) crackMat.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+            return crackMat;
+        }
+
         // ---------- Generated textures ----------
 
         public Texture2D SoftDot()

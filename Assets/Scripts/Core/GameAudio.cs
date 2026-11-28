@@ -60,7 +60,7 @@ namespace RobotArena
             { Sfx.UiClick, new[] { "ui_click" } },
             { Sfx.Debris, new[] { "debris_0", "debris_1", "debris_2" } },
             { Sfx.Whoosh, new[] { "boost_0" } },
-            { Sfx.Alarm, new string[0] },
+            { Sfx.Alarm, new[] { "alarm_0" } }, // generated warning beep (Tools/make_alarm.py), used when a robot is about to blow
             { Sfx.LockOn, new string[0] },
             { Sfx.Victory, new[] { "victory" } },
             { Sfx.Defeat, new[] { "defeat" } },

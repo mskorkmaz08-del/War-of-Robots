@@ -131,24 +131,27 @@ namespace RobotArena
             fade.offsetMin = new Vector2(-400f, -400f); fade.offsetMax = new Vector2(400f, 0f);
             UiKit.Image(fade, UiKit.VGrad, new Color(0.01f, 0.015f, 0.025f, 0.85f));
 
-            var top = UiKit.Rect("Over", menuPanel.transform, new Vector2(0.5f, 0.86f), Vector2.zero, new Vector2(1200f, 60f));
-            UiKit.Label(top, UiKit.Spaced("GIANT ROBOT BATTLES"), 34, UiKit.Orange, TextAnchor.MiddleCenter, true);
-            var title = UiKit.Rect("Title", menuPanel.transform, new Vector2(0.5f, 0.73f), Vector2.zero, new Vector2(1700f, 200f));
-            var titleText = UiKit.Title(title, "WAR OF ROBOTS", 160, UiKit.TextBright);
-            // The game logo sits left of the name; the pair is centred together.
-            var logo = Resources.Load<Sprite>("UI/Logo");
-            if (logo != null)
+            // The game logo: one finished title image (badge + lettering). Falls back to
+            // plain text if the image is missing.
+            var lockup = Resources.Load<Sprite>("UI/LogoTitle");
+            if (lockup != null)
             {
-                const float logoSize = 230f, gap = 30f;
-                float w = Mathf.Min(titleText.preferredWidth, 1500f);
-                title.anchoredPosition = new Vector2((logoSize + gap) * 0.5f, 0f);
-                var mark = UiKit.Rect("Logo", menuPanel.transform, new Vector2(0.5f, 0.73f), new Vector2(-(w + gap) * 0.5f, 0f), new Vector2(logoSize, logoSize));
-                UiKit.Image(mark, logo, Color.white).preserveAspect = true;
+                float h = 330f, w = h * lockup.rect.width / lockup.rect.height;
+                if (w > 1500f) { h *= 1500f / w; w = 1500f; }
+                var mark = UiKit.Rect("Logo", menuPanel.transform, new Vector2(0.5f, 0.785f), Vector2.zero, new Vector2(w, h));
+                UiKit.Image(mark, lockup, Color.white).preserveAspect = true;
             }
-            var line = UiKit.Rect("Line", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(900f, 2f));
-            UiKit.Image(line, null, new Color(1f, 1f, 1f, 0.25f));
-            var lineMid = UiKit.Rect("LineMid", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(160f, 6f));
-            UiKit.Image(lineMid, null, UiKit.Orange);
+            else
+            {
+                var top = UiKit.Rect("Over", menuPanel.transform, new Vector2(0.5f, 0.86f), Vector2.zero, new Vector2(1200f, 60f));
+                UiKit.Label(top, UiKit.Spaced("GIANT ROBOT BATTLES"), 34, UiKit.Orange, TextAnchor.MiddleCenter, true);
+                var title = UiKit.Rect("Title", menuPanel.transform, new Vector2(0.5f, 0.73f), Vector2.zero, new Vector2(1700f, 200f));
+                UiKit.Title(title, "WAR OF ROBOTS", 160, UiKit.TextBright);
+                var line = UiKit.Rect("Line", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(900f, 2f));
+                UiKit.Image(line, null, new Color(1f, 1f, 1f, 0.25f));
+                var lineMid = UiKit.Rect("LineMid", menuPanel.transform, new Vector2(0.5f, 0.615f), Vector2.zero, new Vector2(160f, 6f));
+                UiKit.Image(lineMid, null, UiKit.Orange);
+            }
 
             UiKit.Button(menuPanel.transform, "PLAY", new Vector2(0.5f, 0.45f), Vector2.zero, new Vector2(560f, 124f), UiKit.ButtonStyle.Primary, () => ShowModeSelect(), 64);
             UiKit.Button(menuPanel.transform, "PLAY ONLINE", new Vector2(0.5f, 0.31f), Vector2.zero, new Vector2(560f, 100f), UiKit.ButtonStyle.Secondary, () => ShowOnline(), 42);

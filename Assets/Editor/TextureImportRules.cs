@@ -46,7 +46,8 @@ namespace RobotArena.EditorTools
                 ti.alphaIsTransparency = true;
                 ti.wrapMode = TextureWrapMode.Clamp;
                 ti.mipmapEnabled = true;
-                ti.maxTextureSize = 512;
+                // The full title logo is wide and must stay sharp on big screens.
+                ti.maxTextureSize = p.EndsWith("LogoTitle.png") ? 2048 : 512;
                 ti.textureCompression = TextureImporterCompression.CompressedHQ;
             }
             else if (p == "Assets/Art/AppIcon.png")

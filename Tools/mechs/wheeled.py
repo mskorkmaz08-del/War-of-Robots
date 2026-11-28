@@ -305,42 +305,49 @@ def hull_raptor():
 
 
 def hull_hornet():
-    """A slim racing pod on outrigger wishbones with a segmented wasp tail."""
+    """A slim rally-raid pod on outrigger wishbones: splitter nose, engine deck, a strut-mounted rear wing."""
     pod_x = 1.15
-    pod = hsec(hl * 1.1, 0.45, -hh * 0.3, hh * 0.15, 0.3) + hsec(hl * 0.6, pod_x, -hh * 0.75, hh * 0.75, 0.75) + \
-          hsec(-hl * 0.55, pod_x, -hh * 0.8, hh * 0.8, 0.75) + hsec(-hl * 0.98, 0.8, -hh * 0.55, hh * 0.6, 0.5)
+    pod = hsec(hl * 1.1, 0.85, -hh * 0.35, hh * 0.25, 0.5) + hsec(hl * 0.6, pod_x, -hh * 0.75, hh * 0.75, 0.75) + \
+          hsec(-hl * 0.55, pod_x, -hh * 0.8, hh * 0.8, 0.75) + hsec(-hl * 1.05, 0.95, -hh * 0.6, hh * 0.7, 0.6)
     armour(H, 'Dark', pod, MH, bevel=0.06, seams=False, groove=None, name='Pod')
-    # Top shell and a long tapered beak
-    shell = [(x, y, z) for (y, w, z) in ((hl * 1.18, 0.25, hh * 0.05), (hl * 0.65, pod_x * 1.05, hh * 0.95), (-hl * 0.6, pod_x * 1.05, hh * 1.05), (-hl * 1.0, 0.7, hh * 0.75)) for x in (-w, w)]
+    # Top shell: a blunt, faceted bonnet sloping down to the nose
+    shell = [(x, y, z) for (y, w, z) in ((hl * 1.16, 0.78, hh * 0.22), (hl * 0.65, pod_x * 1.05, hh * 0.95), (-hl * 0.6, pod_x * 1.05, hh * 1.05), (-hl * 0.95, 0.9, hh * 0.95)) for x in (-w, w)]
     shell += [(x * 0.95, y, z - 0.42) for (x, y, z) in shell]
     armour(H, 'Primary', shell, MH, bevel=0.05, seam_min=0.7, name='PodShell')
     for x in (-0.3, 0.3):
         stripe(H, Mx(hc + Vector((x, -hl * 0.1, hh * 1.06)), (90, 0, 0)), 0.16, hl * 1.2)
-    # Sensor prongs (mandibles) and eye lamps on the beak
+    # Front splitter: a wide flat blade under the nose, with a light bar above it
+    split = [(x, y, -hh * 0.5) for (x, y) in ((-1.35, hl * 0.95), (1.35, hl * 0.95), (-1.15, hl * 1.32), (1.15, hl * 1.32), (-1.25, hl * 0.7), (1.25, hl * 0.7))]
+    split += [(x, y, z + 0.14) for (x, y, z) in split]
+    armour(H, 'Secondary', split, MH, bevel=0.03, seam_min=0.5, name='Splitter')
+    hazard(H, Mx(hc + Vector((0, hl * 1.33, -hh * 0.43))), 2.2, 0.12, n=7)
+    lamp(H, Mx(hc + Vector((0, hl * 1.14, hh * 0.02)), (-10, 0, 0)), 0.95, 0.07)
     for s in (-1, 1):
-        armour(H, 'Secondary', [(s * 0.35, hl * 1.0, -hh * 0.2), (s * 0.7, hl * 0.85, -hh * 0.1), (s * 0.55, hl * 0.9, -hh * 0.45), (s * 0.18, hl * 1.55, -hh * 0.3), (s * 0.22, hl * 1.5, -hh * 0.15)],
-               MH, bevel=0.03, seams=False, groove=None, name='Prong')
-        lamp(H, Mx(hc + Vector((s * 0.42, hl * 1.06, hh * 0.18)), (-25, 0, s * 18)), 0.22, 0.12)
+        # Tow hooks either side of the nose
+        armour(H, 'Metal', boxpts((0.14, 0.3, 0.14), ch=0.04), Mx(hc + Vector((s * 0.9, hl * 1.1, -hh * 0.2))), bevel=0.02, seams=False, groove=None, name='TowHook')
     # Side intakes
     for s in (-1, 1):
         grille(H, Mx(hc + Vector((s * pod_x * 1.0, -hl * 0.1, hh * 0.2)), (0, 0, -s * 90)), hl * 0.6, hh * 0.7, slats=4, depth=0.06)
-    # Wasp tail: three armoured segments rising behind, joined by dark rings, boosters in the sting
-    segs = [(-hl * 0.92, hh * 0.3, 0.95), (-hl - 1.0, hh * 0.9, 1.0), (-hl - 2.2, hh * 1.55, 0.9), (-hl - 3.2, hh * 2.0, 0.68), (-hl - 3.95, hh * 2.25, 0.45)]
-    for j in range(4):
-        (y0, z0, r0), (y1, z1, r1) = segs[j], segs[j + 1]
-        gap = 0.12
-        armour(H, 'Primary' if j % 2 == 0 else 'Secondary', ring_xz(y0 - gap, 0, z0, r0, sx=1.3) + ring_xz(y1 + gap, 0, z1, r1 * 1.02, sx=1.3) + ring_xz((y0 + y1) / 2, 0, (z0 + z1) / 2, max(r0, r1) * 1.08, sx=1.3), MH, bevel=0.05, seam_min=0.5, name='TailSeg')
-        armour(H, 'Dark', ring_xz(y1 + gap + 0.02, 0, z1, r1 * 0.9, sx=1.3) + ring_xz(y1 - gap - 0.02, 0, z1, r1 * 0.88, sx=1.3), MH, bevel=0.02, seams=False, groove=None, name='TailJoint')
-        tilt = math.degrees(math.atan2(z0 - z1, y0 - y1))
-        stripe(H, Mx(hc + Vector((0, (y0 + y1) / 2, (z0 + z1) / 2 + (r0 + r1) / 2 * 0.93)), (90 + tilt, 0, 0)), 0.55, 0.5, t=0.03)
-    ye, ze, re = segs[-1]
-    tail_end = hc + Vector((0, ye - 0.15, ze))
-    for i, x in enumerate((-0.32, 0.32)):
-        booster(tail_end + Vector((x, 0.1, 0)), 0.62, i, housing=False)
-    # Tail fins
+    # Engine deck at the back: a raised block with a top grille and two exhausts
+    deck = [(x, y, z) for (y, w) in ((-hl * 0.5, 0.95), (-hl * 1.22, 0.85)) for x in (-w, w) for z in (hh * 0.4, hh * 1.25)]
+    deck += [(x * 0.8, y, hh * 1.4) for (x, y, z) in deck if z > hh]
+    armour(H, 'Secondary', deck, MH, bevel=0.05, seam_min=0.5, name='EngineDeck')
+    grille(H, Mx(hc + Vector((0, -hl * 0.86, hh * 1.41)), (90, 0, 0)), 1.1, hl * 0.42, slats=5, depth=0.06)
     for s in (-1, 1):
-        armour(H, 'Secondary', [tuple(hc + Vector(p)) for p in ((s * 0.4, ye + 0.9, ze + 0.2), (s * 1.3, ye + 0.3, ze + 0.75), (s * 1.25, ye - 0.1, ze + 0.7), (s * 0.4, ye + 0.1, ze + 0.2),
-                                                               (s * 0.45, ye + 0.9, ze + 0.12), (s * 0.45, ye + 0.1, ze + 0.12))], bevel=0.02, seams=False, groove=None, name='Fin')
+        lathe(H, 'Dark', hc + Vector((s * 0.6, -hl * 1.2, hh * 1.0)), (0, -1, 0), [(0, 0), (0.17, 0), (0.17, 0.55), (0.2, 0.6), (0.2, 0.75), (0.14, 0.75), (0, 0.6)], segs=16, name='Exhaust')
+    # Twin boosters under the deck
+    for i, x in enumerate((-0.42, 0.42)):
+        booster(hc + Vector((x, -hl * 1.28, hh * 0.05)), 0.62, i, housing=False)
+    # Rear wing on two swan-neck struts, with endplates and a stripe
+    wy, wz = -hl * 1.12, hh * 2.35
+    for s in (-1, 1):
+        bar(H, 'Dark', hc + Vector((s * 0.55, -hl * 0.98, hh * 1.3)), hc + Vector((s * 0.55, wy, wz - 0.05)), 0.14, name='WingStrut')
+    wing = [(x, y, z) for x in (-1.7, 1.7) for (y, z) in ((wy + 0.55, wz + 0.08), (wy - 0.5, wz + 0.22), (wy - 0.45, wz + 0.02), (wy + 0.5, wz - 0.06))]
+    armour(H, 'Primary', [tuple(hc + Vector(q)) for q in wing], bevel=0.02, seam_min=0.5, name='RearWing')
+    stripe(H, Mx(hc + Vector((0, wy, wz + 0.16)), (82, 0, 0)), 2.6, 0.18, t=0.03)
+    for s in (-1, 1):
+        armour(H, 'Secondary', [tuple(hc + Vector(q)) for x in (s * 1.7, s * 1.78) for q in ((x, wy + 0.65, wz - 0.25), (x, wy - 0.65, wz - 0.15), (x, wy - 0.6, wz + 0.45), (x, wy + 0.5, wz + 0.3))],
+               bevel=0.02, seams=False, groove=None, name='Endplate')
     build_wheels('wishbone', pod_x)
     # Aero wheel pods over each tyre (detachable)
     for i, s, wz, hub in wheels:
@@ -519,49 +526,46 @@ def torso_gunner():
                 back=(Wp(-1.45, 3.85, -1.8), Wp(1.45, 3.85, -1.8)), shoulder=Wp(-2.8, 4.25, -0.2), smoke=Wp(0, 2.4, -1.2))
 
 
-def torso_insect():
-    """Hornet: a slim thorax under a carapace, a low insect head with compound eyes, wing cases, feelers."""
+def torso_raider():
+    """Hornet: a compact armoured cab with a wraparound visor helmet, side radiators and boxy lamp pods."""
     slew_top(0.85)
     c = Wp(0, 0, 0)
-    armour(T, 'Dark', K(sec(1.0, 0.85, 0.8, 0.3) + sec(1.8, 1.3, 1.15, 0.42, 0, 0.15) + sec(2.9, 1.15, 1.0, 0.38, 0, 0.3) + sec(3.4, 0.72, 0.62, 0.22, 0, 0.35)), Mx(c), bevel=0.05, seams=False, groove=None, name='Thorax')
-    # Carapace: a ridged shell over the thorax, the ridge running front to back
-    armour(T, 'Primary', K(sec(2.05, 1.45, 1.3, 0.55, 0, 0.1) + sec(3.15, 1.1, 1.2, 0.45, 0, 0.25) + [(0, 1.1, 3.55), (0, -0.9, 3.5)]), Mx(c), bevel=0.05, seam_min=0.5, name='Carapace')
+    armour(T, 'Dark', K(sec(1.0, 0.95, 0.85, 0.28) + sec(2.0, 1.25, 1.05, 0.35) + sec(3.1, 1.2, 1.0, 0.35) + sec(3.45, 0.9, 0.78, 0.25)), Mx(c), bevel=0.05, seams=False, groove=None, name='Cab')
+    # Breastplate: two faceted halves meeting on a centre keel
     for s in (-1, 1):
-        armour(T, 'Secondary', K([(s * x, y, z) for x, y, z in ((1.35, 0.9, 1.4), (1.5, -0.7, 1.5), (1.55, 0.6, 2.6), (1.45, -0.6, 2.7), (1.1, 0.9, 1.4), (1.2, -0.7, 1.5), (1.25, 0.6, 2.7), (1.2, -0.6, 2.8))]),
-               Mx(c), bevel=0.04, seam_min=0.4, name='ThoraxSide')
-    # Head: low and forward on a neck, a wedge with mandibles and two compound eyes
-    hp = Wp(0, 2.75, 1.55)
-    armour(T, 'Dark', K(sec(-0.2, 0.45, 0.45, 0.15, 0, -0.55) + sec(0.25, 0.4, 0.4, 0.12, 0, -0.5)), Mx(hp), bevel=0.03, seams=False, groove=None, name='Neck')
-    armour(T, 'Primary', K(sec(-0.35, 0.72, 0.55, 0.22) + sec(0.3, 0.62, 0.5, 0.2, 0, -0.08) + [(0, 0.95, -0.25), (0.3, 0.85, -0.3), (-0.3, 0.85, -0.3), (0, 0.6, 0.45)]),
-           Mx(hp), bevel=0.04, seam_min=0.3, name='Head')
+        armour(T, 'Primary', K([(s * x, y, z) for x, y, z in ((0.04, 1.3, 1.35), (1.2, 1.0, 1.55), (1.32, 1.1, 2.95), (0.04, 1.42, 3.2),
+                                                         (0.04, 0.95, 1.35), (1.15, 0.7, 1.55), (1.25, 0.75, 2.95), (0.04, 1.0, 3.2))]), Mx(c), bevel=0.05, seam_min=0.5, name='Breast')
+        armour(T, 'Secondary', K([(s * x, y, z) for x in (1.2, 1.42) for y in (-0.95, 0.85) for z in (1.6, 3.0)]), Mx(c), bevel=0.04, seam_min=0.6, name='CabSide')
+        grille(T, Mx(Wp(s * 1.43, 2.3, -0.05), (0, 0, -s * 90)), 1.15 * k, 0.85 * k, slats=5, depth=0.06)
+    stripe(T, Mx(Wp(0.55, 2.2, 1.43), (0, 0, -12)), 0.14 * k, 1.1 * k)
+    armour(T, 'Metal', boxpts((0.12 * k, 0.12, 1.45 * k)), Mx(Wp(0, 2.25, 1.47)), bevel=0.02, seams=False, groove=None, name='Keel')
+    # Back: a power pack with a vented cover
+    armour(T, 'Secondary', K([(x, y, z) for x in (-0.95, 0.95) for y in (-0.9, -1.45) for z in (1.4, 3.15)]), Mx(c), bevel=0.04, seam_min=0.5, name='PowerPack')
+    grille(T, Mx(Wp(0, 2.25, -0.99), (0, 0, 180)), 1.3 * k, 1.2 * k, slats=5, depth=0.06)
+    # Helmet head: rounded crown, a wraparound glowing visor, a chin guard and cheek vents
+    hp = Wp(0, 3.55, 0.5)
+    armour(T, 'Dark', K(sec(-0.45, 0.42, 0.42, 0.12) + sec(-0.1, 0.45, 0.45, 0.12)), Mx(hp), bevel=0.03, seams=False, groove=None, name='Neck')
+    armour(T, 'Primary', K(sec(-0.15, 0.6, 0.62, 0.2, 0, 0.05) + sec(0.3, 0.62, 0.6, 0.22) + sec(0.6, 0.5, 0.48, 0.18, 0, -0.04) + sec(0.72, 0.3, 0.3, 0.1, 0, -0.06)),
+           Mx(hp), bevel=0.04, seam_min=0.3, name='Helmet')
+    armour(T, 'Black', K([(x, y, z) for x in (-0.58, 0.58) for y in (0.3, 0.66) for z in (0.12, 0.34)] + [(x, 0.05, z) for x in (-0.64, 0.64) for z in (0.14, 0.32)]), Mx(hp), bevel=0.02, seams=False, groove=None, name='VisorBand')
+    armour(T, 'Glow', K([(x, y, z) for x in (-0.5, 0.5) for y in (0.62, 0.69) for z in (0.19, 0.27)] + [(x, 0.3, z) for x in (-0.6, 0.6) for z in (0.19, 0.27)]), Mx(hp), bevel=0, seams=False, groove=None, name='Visor')
+    armour(T, 'Secondary', K([(x, y, z) for x in (-0.38, 0.38) for (y, z) in ((0.68, -0.05), (0.55, -0.3), (0.2, -0.3), (0.3, 0.08))]), Mx(hp), bevel=0.03, seam_min=0.3, name='ChinGuard')
     for s in (-1, 1):
-        e = hp + Vector((s * 0.58, 0.32, 0.05)) * k
-        n = Vector((s * 0.8, 0.6, 0.1)).normalized()
-        lathe(T, 'Black', e, n, [(0, -0.1), (0.36 * k, -0.1), (0.38 * k, 0.04), (0, 0.06)], segs=20, name='EyeSocket')
-        a = n.orthogonal().normalized(); b = n.cross(a)
-        for j, (u, v) in enumerate(((0, 0), (1, 0), (0.5, 0.87), (-0.5, 0.87), (-1, 0), (-0.5, -0.87), (0.5, -0.87))):
-            p = e + n * 0.05 + (a * u + b * v) * 0.2 * k
-            lathe(T, 'Glow', p, n, [(0, 0), (0.095 * k, 0), (0.07 * k, 0.07 * k), (0, 0.09 * k)], segs=10, name='Ommatidium')
-        armour(T, 'Secondary', K([(s * x, y, z) for x, y, z in ((0.25, 0.7, -0.45), (0.45, 0.6, -0.4), (0.3, 1.25, -0.55), (0.12, 1.15, -0.6), (0.3, 0.75, -0.6))]), Mx(hp), bevel=0.02, seams=False, groove=None, name='Mandible')
+        grille(T, Mx(hp + Vector((s * 0.62, 0.0, 0.0)) * 1.0, (0, 0, -s * 90)), 0.45 * k, 0.32 * k, slats=3, depth=0.04)
     R.rigid('Torso', W, 'Upper')
-    # Wing cases on the back (the detachable "pauldrons")
+    # Shoulder pods: boxy, a sloped top, a lamp on the front and a stripe
     for s, nm in ((-1, 'PauldronL'), (1, 'PauldronR')):
-        cc = Wp(s * 0.9, 3.3, -0.6)
-        pts = [(s * x, y, z) for x, y, z in ((0.1, 0.9, 0.25), (1.15, 0.6, 0.0), (1.35, -1.2, -0.7), (0.9, -2.3, -1.6), (0.15, -2.1, -1.4), (0.12, -0.5, 0.1))]
-        pts += [(x, y, z - 0.2) for x, y, z in pts]
-        armour(nm, 'Primary', K(pts), Mx(cc), bevel=0.04, seam_min=0.4, stripe=((s * 0.3, 0, 1), 0.85), name='WingCase')
-        armour(nm, 'Glow', K([(s * x, y, z) for x, y, z in ((0.55, -0.4, 0.05), (0.75, -0.5, 0.0), (0.6, -1.6, -0.75), (0.45, -1.5, -0.7))] + [(s * x, y, z - 0.03) for x, y, z in ((0.55, -0.4, 0.05), (0.6, -1.6, -0.75))]),
-               Mx(cc), bevel=0, seams=False, groove=None, name='WingVein')
+        cc = Wp(s * 1.75, 3.2, 0.25)
+        M = Mx(cc)
+        armour(nm, 'Primary', K([(x, y, z) for x in (-0.55, 0.6) for y in (-0.95, 1.05) for z in (-0.55, 0.3)] + [(-s * 0.4, y, 0.55) for y in (-0.85, 0.95)] + [(s * 0.7, y, -0.75) for y in (-0.85, 0.9)]),
+               M, bevel=0.05, seam_min=0.5, name='Pod')
+        lamp(nm, M @ Mx((s * 0.05 * k, 1.06 * k, -0.12 * k)), 0.38 * k, 0.16 * k)
+        stripe(nm, M @ Mx((s * 0.61 * k, 0.0, -0.1 * k), (0, 0, s * 90)), 1.5 * k, 0.13)
         R.rigid(nm, cc, 'Upper')
     for s in (-1, 1):
         arm(R, s, Wp(s * 2.15, 2.4, 0.3), Wp(s * 2.25, 0.85, 0.4), Wp(s * 2.25, 0.7, 1.45), k=0.7 * k, gauntlet=(0.75, 1.0, 0.8))
     rams = [(Wp(s * 1.45, 1.5, -0.8), Wp(s * 1.9, 2.15, -1.2)) for s in (-1, 1)]
-    # Feelers (the detachable antenna)
-    for s in (-1, 1):
-        base = hp + Vector((s * 0.25, 0.35, 0.42)) * k
-        hose('Antenna', [base, base + Vector((s * 0.3, 0.4, 0.9)) * k, base + Vector((s * 0.6, 1.4, 1.5)) * k, base + Vector((s * 0.75, 2.4, 1.3)) * k], 0.045, mat='Dark')
-        lathe('Antenna', 'Glow', base + Vector((s * 0.75, 2.4, 1.3)) * k, (0, 1, 0), [(0, -0.06), (0.07, 0), (0, 0.08)], segs=10, name='Tip')
-    R.rigid('Antenna', hp, 'Upper')
+    antenna(Wp(-0.75, 3.3, -1.25), 2.0)
     return dict(arms=Wp(0, 2.4, 0.3), rams=rams, lug=lambda s: Wp(s * 1.45, 1.5, -0.8), armlug=lambda s: Wp(s * 1.9, 2.15, -1.2),
                 back=(Wp(-1.15, 3.5, -1.6), Wp(1.15, 3.5, -1.6)), shoulder=Wp(-2.2, 3.7, -0.2), smoke=Wp(0, 2.2, -1.2))
 
@@ -673,7 +677,7 @@ def antenna(mast, h):
 column()
 R.rigid('Hull', (0, 0, STAND), 'Root')
 
-tor = {'Raptor': torso_gunner, 'Hornet': torso_insect, 'Juggernaut': torso_brute, 'Bastion': torso_tower}[NAME]()
+tor = {'Raptor': torso_gunner, 'Hornet': torso_raider, 'Juggernaut': torso_brute, 'Bastion': torso_tower}[NAME]()
 for s in (-1, 1):
     armour(T, 'Dark', boxpts((0.45 * k, 0.6 * k, 0.6 * k), ch=0.12 * k), Mx(tor['lug'](s)), bevel=0.04, seams=False, groove=None, name='ShLug')
     armour('Arms', 'Dark', boxpts((0.45 * k, 0.6 * k, 0.6 * k), ch=0.12 * k), Mx(tor['armlug'](s)), bevel=0.04, seams=False, groove=None, name='ArmLug')

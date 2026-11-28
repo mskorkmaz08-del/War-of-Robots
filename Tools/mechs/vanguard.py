@@ -50,13 +50,19 @@ for s in (-1, 1):
 armour(T, 'Secondary', sec(13.4, 2.1, 1.45, 0.5) + sec(13.85, 1.7, 1.15, 0.4, 0, -0.05), bevel=0.05, seam_min=0.8, name='Deck')
 # Head: low wedge under a heavy brow, twin round eyes
 H = Vector((0, 1.15, 14.1))
-armour(T, 'Primary', sec(-0.45, 0.95, 0.75, 0.3) + sec(0.35, 0.85, 0.65, 0.3, 0, -0.05) + [(0, 0.95, -0.25), (0.55, 0.85, -0.2), (-0.55, 0.85, -0.2)], Mx(H), bevel=0.05, seam_min=0.4, name='Head')
-armour(T, 'Secondary', sec(0, 1.1, 0.55, 0.2, 0, 0.25) + sec(0.25, 0.95, 0.75, 0.25, 0, 0.3) + [(0, 1.15, 0.05)], Mx(H + Vector((0, 0, 0.35))), bevel=0.04, seam_min=0.4, name='Brow')
+# Knight's helm: a tall faceted helm with a ridged face, a T-visor and a crest fin
+armour(T, 'Primary', sec(-0.55, 0.85, 0.78, 0.32) + sec(0.5, 0.8, 0.72, 0.32, 0, -0.05) + sec(0.85, 0.55, 0.55, 0.22, 0, -0.1) + [(0, 1.08, -0.15), (0, 1.0, 0.45)],
+       Mx(H), bevel=0.05, seam_min=0.35, name='Helm')
+armour(T, 'Secondary', [(x, y, z) for x in (-0.08, 0.08) for (y, z) in ((0.75, 0.75), (-0.95, 0.7), (-0.75, 1.45), (0.35, 1.25))], Mx(H), bevel=0.02, seams=False, groove=None, name='Crest')
+armour(T, 'Accent', [(x, y, z) for x in (-0.1, 0.1) for (y, z) in ((0.45, 1.2), (-0.7, 1.38), (-0.6, 1.5), (0.35, 1.31))], Mx(H), bevel=0.0, seams=False, groove=None, name='CrestStripe')
+armour(T, 'Black', boxpts((1.25, 0.34, 0.2), ch=0.05), Mx(H + Vector((0, 0.82, 0.2))), bevel=0.02, seams=False, groove=None, name='VisorBar')
+armour(T, 'Black', boxpts((0.24, 0.34, 0.7), ch=0.05), Mx(H + Vector((0, 0.9, -0.15))), bevel=0.02, seams=False, groove=None, name='VisorStem')
+armour(T, 'Glow', boxpts((1.1, 0.1, 0.08)), Mx(H + Vector((0, 0.98, 0.2))), bevel=0.0, seams=False, groove=None, name='Visor')
+armour(T, 'Glow', boxpts((0.08, 0.1, 0.5)), Mx(H + Vector((0, 1.05, -0.15))), bevel=0.0, seams=False, groove=None, name='VisorStemGlow')
 for s in (-1, 1):
-    e = H + Vector((s * 0.4, 0.82, -0.02))
-    lathe(T, 'Black', e, (0, 1, 0), [(0, -0.1), (0.24, -0.1), (0.26, 0.06), (0, 0.06)], segs=20, name='EyeRing')
-    lathe(T, 'Glow', e, (0, 1, 0), [(0, 0.03), (0.17, 0.03), (0.12, 0.09), (0, 0.1)], segs=20, name='Eye')
-    cyl(T, 'Dark', H + Vector((s * 1.0, 0.0, -0.1)), (1, 0, 0), 0.25, 0.25, segs=14, name='HeadPivot')
+    for kk in range(3):
+        armour(T, 'Dark', boxpts((0.05, 0.3, 0.06)), Mx(H + Vector((s * 0.55, 0.85, -0.35 - kk * 0.13)), (0, 0, s * 25)), bevel=0, seams=False, groove=None, name='Breather')
+    cyl(T, 'Dark', H + Vector((s * 0.95, 0.0, -0.1)), (1, 0, 0), 0.25, 0.25, segs=14, name='HeadPivot')
 # Jump pack: a tall faceted housing with two big lift thrusters and radiators
 pack = sec(10.0, 1.55, 0.75, 0.3, 0, -1.85) + sec(13.4, 1.75, 0.85, 0.3, 0, -1.95) + sec(13.9, 1.4, 0.7, 0.25, 0, -1.8)
 armour(T, 'Primary', pack, bevel=0.06, seam_min=0.9, name='JumpPack')
@@ -84,6 +90,19 @@ for s, nm in ((-1, 'ChestL'), (1, 'ChestR')):
 for s in (-1, 1):
     arm(R, s, (s * 3.25, 0.1, 12.1), (s * 3.3, 0.35, 10.2), (s * 3.3, 1.55, 9.75), k=0.88, gauntlet=(1.05, 1.0, 1.0))
     armour('Arms', 'Dark', boxpts((0.45, 0.6, 0.6), ch=0.12), Mx((s * 2.85, -1.35, 11.45)), bevel=0.04, seams=False, groove=None, name='ArmLug')
+# Kite shield on the left forearm, braced to the gauntlet
+SX = -4.55
+kite = [(-0.6, 11.35), (2.0, 11.35), (2.35, 10.3), (0.9, 7.3), (-0.85, 10.3)]
+armour('Arms', 'Dark', [(SX + 0.12, y * 1.0, z) for y, z in kite] + [(SX + 0.02, y * 1.04 + 0.02, (z - 10.0) * 1.05 + 10.0) for y, z in kite], bevel=0.04, seams=False, groove=None, name='ShieldBack')
+armour('Arms', 'Primary', [(SX - 0.02, y, z) for y, z in kite] + [(SX - 0.2, y * 0.92 + 0.05, (z - 10.0) * 0.92 + 10.0) for y, z in kite] + [(SX - 0.34, 0.75, 10.15)],
+       bevel=0.05, seam_min=10, name='Shield')
+armour('Arms', 'Metal', [(x, y, z) for x in (SX - 0.04, SX + 0.04) for (y, z) in ((-0.68, 11.42), (2.08, 11.42), (2.08, 11.28), (-0.68, 11.28))], bevel=0.0, seams=False, groove=None, name='ShieldRim')
+# A chevron emblem (V for Vanguard) on the shield face
+for (ya, za) in ((-0.2, 10.95), (1.7, 10.95)):
+    armour('Arms', 'Accent', [(x, y, z) for x in (SX - 0.36, SX - 0.3) for (y, z) in ((ya - 0.17, za), (ya + 0.17, za), (0.75 + 0.17, 8.65), (0.75 - 0.17, 8.65))], bevel=0.0, seams=False, groove=None, name='Chevron')
+for yy in (0.15, 1.25):
+    armour('Arms', 'Dark', [(x, y, z) for x in (-4.05, SX + 0.12) for y in (yy - 0.15, yy + 0.15) for z in (9.6, 9.9)], bevel=0.02, seams=False, groove=None, name='ShieldStrut')
+    lathe('Arms', 'Metal', (SX - 0.24, yy, 9.75), (-1, 0, 0), [(0, 0), (0.12, 0), (0.1, 0.06), (0, 0.08)], segs=8, name='Rivet')
 R.rigid('Arms', ARMS, 'Arms')
 shoulder_rams(R, [((s * 2.4, -1.25, 10.3), (s * 2.85, -1.35, 11.45)) for s in (-1, 1)], k=0.85)
 

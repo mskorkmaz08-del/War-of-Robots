@@ -90,6 +90,16 @@ for s in (-1, 1):
 armour(T, 'Dark', boxpts((1.0, 1.0, 0.16), ch=0.15), Mx((-0.7, -0.6, 15.45)), bevel=0.03, seams=False, groove=None, name='Hatch')
 for s in (-1, 1):
     tube(T, 'Metal', [(s * 1.5, -1.6, 15.35), (s * 1.5, -1.6, 15.85), (s * 1.5, 0.4, 15.85), (s * 1.5, 0.4, 15.35)], 0.05, segs=6)
+# Fortress roof: a parapet of merlons round the deck and two searchlights
+for x in (-1.75, -1.15, 1.15, 1.75):
+    armour(T, 'Secondary', boxpts((0.42, 0.42, 0.62), ch=0.06, endch=0.04), Mx((x, 1.05, 15.85)), bevel=0.03, seam_min=10, name='Merlon')
+for s in (-1, 1):
+    for y in (-1.1, -0.3, 0.45):
+        armour(T, 'Secondary', boxpts((0.42, 0.42, 0.62), ch=0.06, endch=0.04), Mx((s * 1.95, y, 15.85)), bevel=0.03, seam_min=10, name='Merlon')
+    lp = Vector((s * 1.2, -0.15, 16.0))
+    armour(T, 'Dark', boxpts((0.5, 0.5, 0.35), ch=0.08), Mx(lp + Vector((0, 0, -0.18))), bevel=0.03, seams=False, groove=None, name='LightMount')
+    lathe(T, 'Secondary', lp + Vector((0, -0.35, 0.25)), (0, 1, 0), [(0, 0), (0.28, 0), (0.36, 0.25), (0.36, 0.7), (0.3, 0.72), (0, 0.72)], segs=18, name='Searchlight')
+    lathe(T, 'Glow', lp + Vector((0, 0.36, 0.25)), (0, 1, 0), [(0, 0), (0.3, 0), (0, 0.03)], segs=18, name='SearchLens')
 R.rigid('Torso', UPPER, 'Upper')
 
 # Detachable glacis plates

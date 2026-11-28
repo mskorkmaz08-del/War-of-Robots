@@ -1,0 +1,22 @@
+{
+  "id": "./",
+  "name": "War of Robots",
+  "short_name": "War of Robots",
+  "description": "Giant robot battles: build your machine, pick a map and fight.",
+  "start_url": "./?source=homescreen",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#07090c",
+  "theme_color": "#07090c",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "TemplateData/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "TemplateData/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "TemplateData/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "TemplateData/screenshot-wide.jpg", "sizes": "1280x590", "type": "image/jpeg", "form_factor": "wide", "label": "Main menu in the hangar" }
+  ]
+}

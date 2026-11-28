@@ -7,6 +7,8 @@ The game is built **in the cloud** by GitHub Actions, so you don't need Unity on
 ## Play it
 
 - **In the browser (iPhone or PC):** the GitHub Pages link for this repository, shown under *Settings > Pages* once the first build has finished. On iPhone, open it in Safari, tap **Share**, then **Add to Home Screen** for a full-screen app.
+- **Install it like an app (Android, iPhone, iPad, PC/Mac):** open the game link, then tap **INSTALL** in the top-right corner of the main menu (Android, Chrome or Edge open the install sheet; iPhone and iPad show the **Share > Add to Home Screen** steps). The installed game opens full screen and sideways from its own icon, starts faster, and works offline after the first launch.
+- **As an Android app (.apk):** on the phone, download [WarOfRobots.apk](https://github.com/mskorkmaz08-del/War-of-Robots/releases/download/android-latest/WarOfRobots.apk), open it and allow installing from that source when Android asks. Every cloud build replaces this file; installing a newer one keeps your progress.
 - **As an iPhone app:** open the latest run under the **Actions** tab and download the `WarOfRobots-ipa` file. Install it with [Sideloadly](https://sideloadly.io) using your Apple ID. With a free Apple ID the app has to be re-installed every 7 days.
 
 ## One-time setup

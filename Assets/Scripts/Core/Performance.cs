@@ -43,8 +43,40 @@ namespace RobotArena
 #if UNITY_WEBGL && !UNITY_EDITOR
             float r = q == GameSettings.Quality.Low ? 1f : q == GameSettings.Quality.Medium ? 1.5f : 2f;
             try { WorSetPixelRatio(r); } catch (System.Exception) { }
+#elif UNITY_ANDROID && !UNITY_EDITOR
+            ApplyNativeResolution(q);
 #endif
         }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        static int nativeW, nativeH;
+
+        /// <summary>
+        /// The Android app renders at the same sharpness as the browser version: 1x, 1.5x
+        /// or 2x of the screen's "normal" pixel size (160 dpi), instead of the panel's full
+        /// 3x-4x density, which costs many times the work for detail nobody can see.
+        /// </summary>
+        static void ApplyNativeResolution(GameSettings.Quality q)
+        {
+            if (nativeW == 0)
+            {
+                nativeW = Display.main.systemWidth > 0 ? Display.main.systemWidth : UnityEngine.Screen.width;
+                nativeH = Display.main.systemHeight > 0 ? Display.main.systemHeight : UnityEngine.Screen.height;
+                // The game only runs sideways.
+                if (nativeW < nativeH) { int t = nativeW; nativeW = nativeH; nativeH = t; }
+            }
+            if (nativeW <= 0 || nativeH <= 0) return;
+            float ratio = q == GameSettings.Quality.Low ? 1f : q == GameSettings.Quality.Medium ? 1.5f : 2f;
+            float density = UnityEngine.Screen.dpi > 0f ? UnityEngine.Screen.dpi / 160f : 2.5f;
+            float scale = Mathf.Clamp(ratio / Mathf.Max(1f, density), 0.35f, 1f);
+            // Never go below 720 lines on the short side, so text stays crisp on small phones.
+            float shortSide = Mathf.Min(nativeW, nativeH);
+            scale = Mathf.Max(scale, Mathf.Min(1f, 720f / shortSide));
+            int w = Mathf.RoundToInt(nativeW * scale), h = Mathf.RoundToInt(nativeH * scale);
+            if (w == UnityEngine.Screen.width && h == UnityEngine.Screen.height) return;
+            UnityEngine.Screen.SetResolution(w, h, FullScreenMode.FullScreenWindow);
+        }
+#endif
 
         public static void ApplyQuality(GameSettings.Quality q)
         {

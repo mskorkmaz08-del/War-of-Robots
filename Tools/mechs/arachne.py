@@ -1,10 +1,9 @@
 """
-ARACHNE - four-legged spider walker (about 36 t), second-generation model.
+ARACHNE - four-legged artillery walker (about 36 t), second-generation model.
 
-A low armoured thorax of faceted plate with a segmented abdomen of overlapping
-armour bands, slung between four long box-beam legs with high geared knees. Each
+A low armoured hull of faceted plate with a squared rear power module, slung between four long box-beam legs with high geared knees. Each
 leg has a working knee cylinder and a hip cylinder from the body. The weapons ride
-a faceted sensor turret at the front with a cluster of lit lenses.
+a faceted sensor turret at the front with a visor slit and a rangefinder.
 """
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -29,18 +28,19 @@ for s in (-1, 1):
     side_plate(B, 'Secondary', [(-2.4, 0.5), (2.6, 0.5), (2.2, -0.6), (-2.0, -0.6)], 0.2, (s * 2.75, 0.2, 7.2), s, 10, stripe_at=0.25, stripe_h=0.14, bevel=0.04, seam_min=0.6, name='SideArmour')
     grille(B, Mx((s * 2.55, -1.4, 6.45), (0, 0, -s * 90)), 1.2, 0.45, slats=3, depth=0.1)
     hose(B, [(s * 1.6, -1.6, 8.2), (s * 2.3, -0.6, 7.9), (s * 2.6, 0.9, 7.2)], 0.12)
-# Segmented abdomen: overlapping faceted bands
-for i in range(4):
-    y = -2.4 - i * 0.8
-    w = 2.3 - i * 0.3; d = 1.35 - i * 0.12; z = 7.25 + i * 0.05
-    armour(B, 'Primary' if i % 2 == 0 else 'Secondary', [(x * w, y + yy, z + zz * d) for x, zz in ((1, 0.6), (-1, 0.6), (0.6, 1), (-0.6, 1), (1, -0.5), (-1, -0.5), (0.6, -0.9), (-0.6, -0.9))
-                                                        for yy in (0.05, -0.75)], bevel=0.05, seam_min=0.8, name='Segment')
-armour(B, 'Dark', boxpts((1.6, 0.8, 1.2), ch=0.3), Mx((0, -5.65, 7.4)), bevel=0.04, seams=False, groove=None, name='Tail')
-lamp(B, Mx((0, -6.05, 7.55), (0, 0, 180)), 0.4, 0.12)
+# Rear power module: a squared engine bay with radiators, exhaust stacks and a tow frame
+armour(B, 'Secondary', [(x, y, z) for x in (-2.1, 2.1) for y in (-2.2, -5.2) for z in (6.55, 8.0)] + [(x, y, 8.3) for x in (-1.7, 1.7) for y in (-2.4, -4.9)],
+       bevel=0.06, seam_min=0.8, name='PowerModule')
+grille(B, Mx((0, -3.75, 8.31), (90, 0, 0)), 2.6, 2.0, slats=7, depth=0.08)
+for s in (-1, 1):
+    grille(B, Mx((s * 2.11, -3.7, 7.25), (0, 0, -s * 90)), 2.2, 0.9, slats=5, depth=0.08)
+    lathe(B, 'Dark', (s * 1.35, -4.75, 8.25), (0, 0, 1), [(0, 0), (0.24, 0), (0.24, 1.1), (0.3, 1.15), (0.3, 1.3), (0, 1.3)], segs=12, name='Exhaust')
+armour(B, 'Dark', [(x, y, z) for x in (-1.6, 1.6) for y in (-5.2, -5.7) for z in (6.7, 7.7)], bevel=0.04, seams=False, groove=None, name='RearBumper')
+lamp(B, Mx((0, -5.72, 7.45), (0, 0, 180)), 0.9, 0.1)
+hazard(B, Mx((0, -5.71, 6.95), (0, 0, 180)), 2.8, 0.26, n=7)
 # Front armour: a sloped glacis under the turret with lamps
 armour(B, 'Primary', sec(6.0, 1.5, 0.15, 0.1, 0, 2.95) + sec(7.6, 1.9, 0.15, 0.1, 0, 3.25) + [(0, 3.6, 6.8)], bevel=0.05, seam_min=0.6, name='Glacis')
-for s in (-1, 1):
-    lamp(B, Mx((s * 1.1, 3.35, 6.6), (-20, 0, 0)), 0.35, 0.14)
+lamp(B, Mx((0, 3.35, 6.6), (-20, 0, 0)), 1.6, 0.1)
 hazard(B, Mx((0, -3.2, 8.62), (90, 0, 0)), 2.6, 0.3, n=6)
 # Belly keel and jets
 armour(B, 'Dark', sec(5.8, 1.0, 2.4, 0.4, 0, 0.0) + sec(6.3, 1.5, 3.0, 0.5, 0, 0.0), bevel=0.04, seams=False, groove=None, name='Keel')
@@ -63,11 +63,11 @@ lathe(T, 'Metal', UPPER + Vector((0, 0, 0.05)), (0, 0, 1), [(0, 0), (1.65, 0), (
 c = UPPER
 armour(T, 'Secondary', sec(0.25, 1.5, 1.6, 0.6, 0, 0.0) + sec(1.0, 1.75, 1.75, 0.7, 0, 0.0) + sec(1.55, 1.2, 1.3, 0.5, 0, -0.2) + [(0, 2.05, 0.6)], Mx(c), bevel=0.06, seam_min=0.7, name='Turret')
 armour(T, 'Primary', sec(1.5, 1.05, 1.2, 0.45, 0, -0.2) + sec(1.85, 0.8, 0.95, 0.35, 0, -0.35), Mx(c), bevel=0.05, seam_min=0.5, name='TurretTop')
-eyes = [(-0.42, 0.75, 0.22), (0.42, 0.75, 0.22), (-0.95, 0.5, 0.13), (0.95, 0.5, 0.13), (-0.3, 0.4, 0.1), (0.3, 0.4, 0.1)]
-for x, z, r in eyes:
-    e = c + Vector((x, 1.72 - abs(x) * 0.25, z))
-    lathe(T, 'Dark', e, (x * 0.4, 1, 0), [(0, -0.15), (r * 1.35, -0.15), (r * 1.4, 0.08), (0, 0.1)], segs=18, name='EyeRing')
-    lathe(T, 'Glow', e, (x * 0.4, 1, 0), [(0, 0.06), (r, 0.06), (r * 0.7, 0.13), (0, 0.14)], segs=18, name='Eye')
+# Sensor head: a recessed visor band with a single glowing slit and a rangefinder lens
+armour(T, 'Black', [(x, y, z) for x in (-1.25, 1.25) for (y, z) in ((1.55, 0.25), (1.55, 0.95), (1.95, 0.35), (1.95, 0.85))], Mx(c), bevel=0.02, seams=False, groove=None, name='VisorBand')
+armour(T, 'Glow', boxpts((2.1, 0.06, 0.12)), Mx(c + Vector((0, 1.97, 0.62))), bevel=0, seams=False, groove=None, name='Visor')
+lathe(T, 'Dark', c + Vector((0.85, 1.9, 1.25)), (0, 1, 0), [(0, -0.3), (0.3, -0.3), (0.32, 0.0), (0.3, 0.25), (0, 0.25)], segs=20, name='RangeHousing')
+lathe(T, 'Glow', c + Vector((0.85, 2.16, 1.25)), (0, 1, 0), [(0, 0), (0.2, 0), (0, 0.05)], segs=18, name='RangeLens')
 for s in (-1, 1):
     grille(T, Mx(c + Vector((s * 1.62, -0.5, 0.75)), (0, 0, -s * 90)), 1.0, 0.45, slats=3, depth=0.08)
 R.rigid('Torso', UPPER, 'Upper')

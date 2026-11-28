@@ -1,11 +1,10 @@
 """
 SCARAB - six-legged armoured artillery crawler (about 46 t).
 
-A low, wide beetle of a machine: a segmented carapace of overlapping armour bands
-over a dark frame, carried on six geared legs that always keep three feet planted,
-so it is the steadiest firing platform on the field. A heavy sensor face with a
-cluster of lenses at the front, a squat two-gun turret on the back of the thorax,
-ammunition drums and a mortar cradle on the abdomen, and a radar that keeps
+A low, wide armoured crawler: a stepped hull and engine deck over a dark frame, carried on six geared legs that always keep three feet planted,
+so it is the steadiest firing platform on the field. A driver's vision band and push
+bar at the front, a squat two-gun turret on the back of the thorax,
+ammunition drums along the flanks, and a radar that keeps
 sweeping. Every leg has a working knee cylinder and a hip cylinder from the body.
 """
 import sys, os, math
@@ -32,28 +31,29 @@ armour(B, 'Secondary', sec(6.3, 2.75, 2.2, 0.9, 0, 0.3) + sec(7.1, 2.45, 2.0, 0.
 # Head section: a heavy wedge with a sensor face
 armour(B, 'Primary', [(x * w, y, z) for (y, w, zb, zt) in ((5.6, 1.1, 5.2, 6.3), (4.6, 2.0, 4.9, 6.9), (2.7, 2.3, 5.0, 7.0)) for x in (-1, 1) for z in (zb, zt)],
        bevel=0.07, seam_min=0.9, name='Head')
-armour(B, 'Black', [(x * w, y, z) for (y, w, z) in ((5.75, 1.0, 5.45), (5.75, 1.0, 6.15), (5.2, 1.55, 5.25), (5.2, 1.55, 6.45)) for x in (-1, 1)],
-       bevel=0.02, seams=False, groove=None, name='Face')
-for (x, z, r) in ((0, 5.85, 0.3), (-0.6, 5.95, 0.2), (0.6, 5.95, 0.2), (-0.95, 5.55, 0.14), (0.95, 5.55, 0.14), (-0.35, 5.45, 0.12), (0.35, 5.45, 0.12)):
-    e = Vector((x, 5.72 - abs(x) * 0.25, z))
-    lathe(B, 'Dark', e, (0, 1, 0), [(0, -0.1), (r * 1.3, -0.1), (r * 1.35, 0.08), (0, 0.08)], segs=18, name='LensRing')
-    lathe(B, 'Glow', e + Vector((0, 0.06, 0)), (0, 1, 0), [(0, 0), (r, 0), (r * 0.65, 0.08), (0, 0.09)], segs=18, name='Lens')
-# Mandible guards either side of the face
+# Driver's vision band across the front: armoured glass, a glowing slit and two periscope blocks
+armour(B, 'Black', [(x * w, y, z) for (y, w, z) in ((5.7, 1.05, 6.0), (5.7, 1.05, 6.3), (4.9, 1.75, 6.55), (4.9, 1.75, 6.85)) for x in (-1, 1)],
+       bevel=0.02, seams=False, groove=None, name='VisionBand')
+armour(B, 'Glow', boxpts((1.9, 0.06, 0.1)), Mx((0, 5.69, 6.15), (-32, 0, 0)), bevel=0, seams=False, groove=None, name='VisionSlit')
 for s in (-1, 1):
-    armour(B, 'Secondary', [(s * x, y, z) for (x, y, z) in ((1.2, 6.3, 5.0), (1.5, 5.2, 4.8), (2.1, 4.3, 5.2), (1.25, 6.1, 5.7), (1.7, 5.0, 6.1), (2.2, 4.2, 6.2),
-                                                           (0.95, 6.0, 5.3), (1.3, 5.0, 5.1))], bevel=0.04, seam_min=0.6, name='Mandible')
+    armour(B, 'Dark', boxpts((0.5, 0.45, 0.35), ch=0.08), Mx((s * 0.7, 4.5, 7.15)), bevel=0.03, seams=False, groove=None, name='Periscope')
+    armour(B, 'Glow', boxpts((0.36, 0.05, 0.12)), Mx((s * 0.7, 4.74, 7.17)), bevel=0, seams=False, groove=None, name='PeriscopeGlass')
+# Front bumper: a heavy flat push bar with tow eyes, and corner guards
+armour(B, 'Secondary', [(x, y, z) for x in (-2.1, 2.1) for (y, z) in ((5.9, 4.75), (6.15, 5.15), (5.5, 4.7), (5.6, 5.25))], bevel=0.04, seam_min=0.6, name='Bumper')
+hazard(B, Mx((0, 6.16, 4.95)), 3.6, 0.22, n=9)
+for s in (-1, 1):
+    armour(B, 'Metal', boxpts((0.22, 0.3, 0.22), ch=0.05), Mx((s * 1.2, 6.25, 4.95)), bevel=0.02, seams=False, groove=None, name='TowEye')
+    armour(B, 'Secondary', [(s * x, y, z) for (x, y, z) in ((2.05, 4.3, 5.0), (2.3, 3.4, 5.1), (2.1, 4.25, 6.3), (2.35, 3.3, 6.4), (1.8, 4.6, 5.1), (1.8, 4.55, 6.3))],
+           bevel=0.04, seam_min=0.6, name='CornerGuard')
     lamp(B, Mx((s * 1.7, 4.95, 6.6), (-15, 0, s * 25)), 0.3, 0.12)
     armour(B, 'Dark', boxpts((0.7, 0.5, 0.3), ch=0.1), Mx((s * 1.6, 4.0, 7.05)), bevel=0.03, seams=False, groove=None, name='HeadVent')
-# Abdomen: overlapping bands, each a separate plate, stepping down to the tail
-for i in range(5):
-    y = -1.6 - i * 0.95
-    w = 2.55 - i * 0.2
-    zt = 7.25 - i * 0.22
-    armour(B, 'Primary' if i % 2 == 0 else 'Secondary',
-           sec(zt - 1.6, w * 0.82, 0.55, 0.25, 0, y) + sec(zt - 0.45, w, 0.6, 0.35, 0, y - 0.05) + sec(zt, w * 0.78, 0.5, 0.3, 0, y - 0.1),
-           bevel=0.05, seam_min=0.9, name='Band')
-    for s in (-1, 1):
-        bolts_line(B, (s * w * 0.7, y + 0.3, zt + 0.02), (s * w * 0.2, y + 0.3, zt + 0.05), 3, (0, 0, 1), 0.05)
+# Rear deck: a long armoured engine deck in two stepped boxes, bolted hatches and a top grille
+armour(B, 'Primary', [(x, y, z) for x in (-2.55, 2.55) for (y, z) in ((-1.4, 7.25), (-3.7, 7.05))] + [(x, y, 5.5) for x in (-2.4, 2.4) for y in (-1.4, -3.7)], bevel=0.06, seam_min=0.9, name='DeckFront')
+armour(B, 'Secondary', [(x, y, z) for x in (-2.35, 2.35) for (y, z) in ((-3.6, 6.75), (-5.8, 6.45))] + [(x, y, 5.3) for x in (-2.2, 2.2) for y in (-3.6, -5.8)], bevel=0.06, seam_min=0.9, name='DeckRear')
+grille(B, Mx((0, -2.55, 7.2), (90, 0, 0)), 2.6, 1.6, slats=6, depth=0.08)
+for s in (-1, 1):
+    armour(B, 'Dark', boxpts((0.9, 0.9, 0.1), ch=0.12), Mx((s * 1.2, -4.7, 6.62)), bevel=0.03, seams=False, groove=None, name='Hatch')
+    bolts_line(B, (s * 2.2, -1.6, 7.24), (s * 2.2, -3.5, 7.07), 5, (0, 0, 1), 0.05)
 hazard(B, Mx((0, -6.15, 5.8), (0, 0, 180)), 2.6, 0.3, n=7)
 # Tail block: engine and exhaust
 armour(B, 'Dark', boxpts((2.6, 1.0, 1.5), ch=0.3), Mx((0, -6.2, 5.3)), bevel=0.05, seams=False, groove=None, name='Tail')

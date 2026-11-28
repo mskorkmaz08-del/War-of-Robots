@@ -136,9 +136,9 @@ namespace RobotArena
             var lockup = Resources.Load<Sprite>("UI/LogoTitle");
             if (lockup != null)
             {
-                float h = 300f, w = h * lockup.rect.width / lockup.rect.height;
+                float h = 330f, w = h * lockup.rect.width / lockup.rect.height;
                 if (w > 1500f) { h *= 1500f / w; w = 1500f; }
-                var mark = UiKit.Rect("Logo", menuPanel.transform, new Vector2(0.5f, 0.775f), Vector2.zero, new Vector2(w, h));
+                var mark = UiKit.Rect("Logo", menuPanel.transform, new Vector2(0.5f, 0.785f), Vector2.zero, new Vector2(w, h));
                 UiKit.Image(mark, lockup, Color.white).preserveAspect = true;
             }
             else

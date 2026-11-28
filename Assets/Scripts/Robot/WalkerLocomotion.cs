@@ -171,7 +171,7 @@ namespace RobotArena
         void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
-            bool boosting = UpdateBoost(commands.boost);
+            bool boosting = UpdateBoost(BoostInput);
             Vector3 velocity = Compat.GetVelocity(rb);
 
             // Find the ground under the hull.
@@ -287,6 +287,7 @@ namespace RobotArena
                 if (wanted.sqrMagnitude < 0.01f) wanted = flatForward * walkSpeed;
                 wanted *= Mathf.Lerp(1f, sprintMultiplier, jetThrottle);
             }
+            wanted *= moveScale;
             float control = grounded ? acceleration : acceleration * 0.35f;
             // After a hard landing the legs are busy absorbing it: barely any drive for a moment.
             if (landStun > 0f) control *= 0.25f;
@@ -305,9 +306,10 @@ namespace RobotArena
             rb.AddTorque(Vector3.up * (wantedYaw - yawRate) * 3f, ForceMode.Acceleration);
 
             // Jump jets: a short crouch first, then lift off.
-            bool pressed = commands.boost && !boostHeld;
-            boostHeld = commands.boost;
-            if (!sprintBoost && pressed && grounded && Fuel01 > 0.2f && landStun <= 0f)
+            bool boostIn = BoostInput;
+            bool pressed = boostIn && !boostHeld;
+            boostHeld = boostIn;
+            if (!sprintBoost && pressed && grounded && (power != null || Fuel01 > 0.2f) && landStun <= 0f)
             {
                 // Anticipation: a heavy machine sinks deep into its knees before it can leave the ground.
                 jumpCrouch = 0.2f + 0.08f * SizeScale;

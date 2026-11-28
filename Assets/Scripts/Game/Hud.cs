@@ -46,6 +46,8 @@ namespace RobotArena
         GameObject touchControls;
         VirtualJoystick joystick;
         TouchButton fireButton, specialButton, boostButton;
+        Text powerLabel;
+        Superpower playerPower;
         Image specialCharge, boostCharge, fireCharge;
         Damageable turretOwner;
         Turret playerTurret;
@@ -206,7 +208,12 @@ namespace RobotArena
 
             hPrimary = WeaponPicker(card, "MAIN", 0.37f, false);
             hSpecial = WeaponPicker(card, "SPECIAL", 0.31f, true);
-            hMobility = WeaponRow(card, "MOVE", 0.255f);
+            hMobility = WeaponRow(card, "POWER", 0.255f);
+            // A power's name and what it does: shrink to fit on one or two lines.
+            hMobility.resizeTextForBestFit = true;
+            hMobility.resizeTextMinSize = 15;
+            hMobility.resizeTextMaxSize = 26;
+            hMobility.rectTransform.sizeDelta = new Vector2(470f, 52f);
             hWeaponInfo = UiKit.Label(Place(card, 0.5f, 0.207f, 640f, 40f), "", 22, UiKit.TextDim, TextAnchor.MiddleCenter);
 
             // Upgrade the weapon shown above with credits earned in battle.
@@ -311,7 +318,7 @@ namespace RobotArena
             hDesc.text = info.description;
             hLoadout = Loadout.ForPlayer(info.type);
             ShowLoadout(hLoadout.primary);
-            hMobility.text = info.mobility;
+            hMobility.text = Superpower.Describe(info.type);
             hCount.text = (hangarIndex + 1) + " / " + RobotCatalog.All.Count;
             UiKit.SetSegments(sArmour, Balance.Health(info.type) / 4000f, UiKit.Green);
             UiKit.SetSegments(sSpeed, info.speed, UiKit.Cyan);
@@ -343,7 +350,8 @@ namespace RobotArena
             playerName.alignment = TextAnchor.MiddleLeft;
             healthText = UiKit.Label(Place(status, 0.78f, 0.82f, 200f, 50f), "", 30, Color.white, TextAnchor.MiddleRight, true);
             healthFill = UiKit.Bar(status, new Vector2(0.5f, 0.57f), Vector2.zero, new Vector2(510f, 40f), UiKit.Green, out healthImg);
-            UiKit.Label(Place(status, 0.14f, 0.32f, 120f, 30f), "BOOST", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+            powerLabel = UiKit.Label(Place(status, 0.14f, 0.32f, 120f, 30f), "POWER", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
+            powerLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
             fuelFill = UiKit.Bar(status, new Vector2(0.6f, 0.32f), Vector2.zero, new Vector2(370f, 22f), UiKit.Cyan, out _);
             specialLabel = UiKit.Label(Place(status, 0.14f, 0.12f, 120f, 30f), "", 22, UiKit.TextDim, TextAnchor.MiddleLeft, true);
             specialLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -389,7 +397,7 @@ namespace RobotArena
             if (!ShowTouch)
             {
                 var hint = UiKit.Rect("Hint", fightPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 40f), new Vector2(1800f, 40f));
-                UiKit.Label(hint, "CLICK to aim with mouse   WASD move   LEFT CLICK fire   RIGHT CLICK special   SHIFT boost   ESC pause", 26, UiKit.TextDim);
+                UiKit.Label(hint, "CLICK to aim with mouse   WASD move   LEFT CLICK fire   RIGHT CLICK special   SHIFT power   ESC pause", 26, UiKit.TextDim);
             }
 
             BuildTouchControls();
@@ -482,6 +490,19 @@ namespace RobotArena
             if (p != null)
             {
                 playerLoco = p.GetComponent<Locomotion>();
+                playerPower = p.GetComponent<Superpower>();
+                string powerName = playerPower != null ? playerPower.button : "BOOST";
+                if (boostButton != null)
+                {
+                    var label = boostButton.GetComponentInChildren<Text>();
+                    if (label != null)
+                    {
+                        label.text = powerName;
+                        label.resizeTextForBestFit = true;
+                        label.resizeTextMinSize = 14;
+                        label.resizeTextMaxSize = 29;
+                    }
+                }
                 foreach (var w in p.GetComponents<Weapon>())
                 {
                     if (w.slot == Weapon.Slot.Special) special = w;
@@ -551,7 +572,15 @@ namespace RobotArena
                 if (playerLoco != null)
                 {
                     SetFill(fuelFill, playerLoco.Fuel01);
-                    if (boostCharge != null) boostCharge.fillAmount = playerLoco.Fuel01;
+                    if (boostCharge != null)
+                    {
+                        boostCharge.fillAmount = playerLoco.Fuel01;
+                        // Bright while the power is ready or running, dim while it recharges.
+                        bool live = playerPower == null || playerPower.Active || playerPower.IsReady;
+                        var c = boostCharge.color;
+                        c.a = live ? 1f : 0.45f;
+                        boostCharge.color = c;
+                    }
                 }
 
                 UpdateAmmo();

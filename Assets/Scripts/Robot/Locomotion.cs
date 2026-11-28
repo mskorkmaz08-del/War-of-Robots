@@ -22,7 +22,15 @@ namespace RobotArena
         protected float fuel;
         protected bool boostLocked;
 
-        public float Fuel01 => Mathf.Clamp01(fuel / maxFuel);
+        /// <summary>The robot's superpower. When set, the power button drives it, and the
+        /// power decides when the thrusters fire (powerThrust) instead of a fuel tank.</summary>
+        [System.NonSerialized] public Superpower power;
+        [System.NonSerialized] public bool powerThrust;
+        /// <summary>Superpowers: 0 roots the robot in place (fortress mode), 1 normal.</summary>
+        [System.NonSerialized] public float moveScale = 1f;
+        protected bool BoostInput => power != null ? powerThrust : commands.boost;
+
+        public float Fuel01 => power != null ? power.Ready01 : Mathf.Clamp01(fuel / maxFuel);
         public bool IsBoosting { get; protected set; }
         public abstract bool IsGrounded { get; }
 
@@ -37,6 +45,11 @@ namespace RobotArena
         protected bool UpdateBoost(bool wanted)
         {
             float dt = Time.fixedDeltaTime;
+            if (power != null)
+            {
+                IsBoosting = wanted;
+                return wanted;
+            }
             if (boostLocked && fuel >= fuelRestart) boostLocked = false;
 
             bool active = wanted && !boostLocked && fuel > 0f;

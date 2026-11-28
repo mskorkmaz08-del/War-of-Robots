@@ -10,6 +10,9 @@ namespace RobotArena
     {
         public Vector3 axis = Vector3.up;
         public float speed = 90f;
+        /// <summary>Superpowers spin turbines and radars up (overdrive, sprint).</summary>
+        [System.NonSerialized] public float boost = 1f;
+        float shownBoost = 1f;
         Damageable owner;
         float rate = 1f;
 
@@ -27,7 +30,8 @@ namespace RobotArena
             bool dead = owner != null && owner.IsDead;
             rate = Mathf.MoveTowards(rate, dead ? 0f : 1f, Time.deltaTime * (dead ? 0.25f : 1f));
             if (rate <= 0f) return;
-            transform.localRotation *= Quaternion.AngleAxis(speed * rate * Time.deltaTime, axis);
+            shownBoost = Mathf.MoveTowards(shownBoost, boost, Time.deltaTime * 2.5f);
+            transform.localRotation *= Quaternion.AngleAxis(speed * rate * shownBoost * Time.deltaTime, axis);
         }
     }
 }

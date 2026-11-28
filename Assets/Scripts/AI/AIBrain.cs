@@ -46,6 +46,8 @@ namespace RobotArena
         Damageable self;
         Weapon[] weapons;
         Locomotion locomotion;
+        Superpower power;
+        float powerWait;
         bool walker;
         int clearance = 2;
 
@@ -251,7 +253,23 @@ namespace RobotArena
                 default: Idle(); break;
             }
             Shoot();
+            UsePower();
             if (jumpCooldown > 0f) jumpCooldown -= Time.deltaTime;
+        }
+
+        /// <summary>
+        /// The robot's superpower replaces the old boost: each power says when it pays off
+        /// (a ram lined up, a shield when hurt, a stomp up close). A short random delay keeps
+        /// it from firing the very frame it becomes possible.
+        /// </summary>
+        void UsePower()
+        {
+            if (power == null) power = GetComponent<Superpower>();
+            if (power == null || !power.IsReady) { powerWait = Random.Range(0.2f, 0.9f); return; }
+            float d = target != null && !target.IsDead ? Vector3.Distance(Flat(target.Center), Flat(transform.position)) : float.MaxValue;
+            if (!power.AiWants(target != null && !target.IsDead ? target : null, d)) return;
+            powerWait -= Time.deltaTime;
+            if (powerWait <= 0f) commands.boost = true;
         }
 
         void Think()
@@ -536,7 +554,7 @@ namespace RobotArena
             {
                 bool far = Flat(travelDest - pos).magnitude > 140f;
                 var wl = locomotion as WalkerLocomotion;
-                if (far && locomotion.Fuel01 > 0.6f && (usesBoostToCharge || (wl != null && wl.sprintBoost))) commands.boost = true;
+                if (power == null && far && locomotion.Fuel01 > 0.6f && (usesBoostToCharge || (wl != null && wl.sprintBoost))) commands.boost = true;
             }
             return true;
         }
@@ -600,7 +618,7 @@ namespace RobotArena
                 if (dist < preferredRange * 0.5f) circle = (Vector3.Cross(Vector3.up, dirTo) * strafeSign - dirTo * 0.6f).normalized;
                 if (!NavGrid.Walkable(pos + circle * 20f, 1)) { strafeSign = -strafeSign; circle = Vector3.Reflect(circle, dirTo); }
                 Steer(circle, 0.65f + aggression * 0.35f, circle);
-                if (usesBoostToCharge && dist > preferredRange * 1.3f && locomotion != null && locomotion.Fuel01 > 0.6f
+                if (power == null && usesBoostToCharge && dist > preferredRange * 1.3f && locomotion != null && locomotion.Fuel01 > 0.6f
                     && Vector3.Angle(Flat(transform.forward), dirTo) < 15f) commands.boost = true;
             }
         }
@@ -685,7 +703,7 @@ namespace RobotArena
                 stuckTimer = 0f;
                 repathTimer = 0f;
                 hasRoute = false;
-                if (walker && jumpCooldown <= 0f && locomotion != null && locomotion.Fuel01 > 0.5f)
+                if (power == null && walker && jumpCooldown <= 0f && locomotion != null && locomotion.Fuel01 > 0.5f)
                 {
                     commands.boost = true;   // step up and over
                     jumpCooldown = 6f;

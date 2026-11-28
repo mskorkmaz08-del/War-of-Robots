@@ -114,6 +114,13 @@ namespace RobotArena
             ApplyDamage(amount, point, attacker);
         }
 
+        /// <summary>Superpowers: incoming damage is multiplied by this (shields, fortress mode).</summary>
+        [System.NonSerialized] public float DamageTakenMul = 1f;
+        /// <summary>Superpowers: damage this robot deals is multiplied by this (overdrive).</summary>
+        [System.NonSerialized] public float DamageDealtMul = 1f;
+        /// <summary>Superpowers: a shield that soaks up damage. Gets the damage and the hit point, returns what gets through.</summary>
+        public System.Func<float, Vector3, float> Absorb;
+
         /// <summary>Online clients: the host says this is the robot's health now.</summary>
         public void NetSetHealth(float health)
         {
@@ -128,6 +135,13 @@ namespace RobotArena
             if (attacker != null && attacker.team == team && attacker != this) return;
             if (!raw && Shielded) return;
             if (!raw && team == 0 && attacker != null && attacker.team != 0) amount *= EnemyDamageToPlayer;
+            if (!raw)
+            {
+                if (attacker != null && attacker != this) amount *= attacker.DamageDealtMul;
+                amount *= DamageTakenMul;
+                if (Absorb != null) amount = Absorb(amount, point);
+                if (amount <= 0f) return;
+            }
             if (attacker != null && attacker != this) LastAttacker = attacker;
 
             Health -= amount;

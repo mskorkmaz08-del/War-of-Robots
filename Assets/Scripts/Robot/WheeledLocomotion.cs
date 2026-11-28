@@ -82,11 +82,11 @@ namespace RobotArena
         void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
-            float throttle = commands.throttle;
+            float throttle = commands.throttle * moveScale;
             // Ease the steering in so a flick of the stick doesn't snap the hull around.
             smoothSteer = Mathf.MoveTowards(smoothSteer, commands.steer, dt * 3.5f);
             float steer = smoothSteer;
-            bool boosting = UpdateBoost(commands.boost);
+            bool boosting = UpdateBoost(BoostInput);
 
             Vector3 up = transform.up;
             Vector3 velocity = Compat.GetVelocity(rb);

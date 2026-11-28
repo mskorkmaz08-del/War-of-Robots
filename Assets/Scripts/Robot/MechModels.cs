@@ -130,7 +130,7 @@ namespace RobotArena
                     {
                         mass = 22000f, health = 1900f, size = 1.5f,
                         boxes = new[] { new Vector3(0f, 2.4f, -0.3f), new Vector3(3.4f, 2.6f, 7.0f), new Vector3(0f, -2.5f, 0f), new Vector3(3.0f, 4.5f, 2.5f) },
-                        walker = w => { w.strideLength = 4.6f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 12.5f; w.acceleration = 4.5f; w.turnRate = 1.2f; w.jetAccel = 28f; w.fuelDrain = 34f; },
+                        walker = w => { w.strideLength = 4.6f; w.stepDuration = 0.36f; w.stepHeight = 1.6f; w.walkSpeed = 12.5f; w.acceleration = 4.5f; w.turnRate = 1.2f; w.jetAccel = 28f; w.fuelDrain = 34f; w.sprintBoost = true; w.sprintMultiplier = 1.9f; },
                         yawSpeed = 95f, pitchSpeed = 50f, maxYaw = 140f, cone = 75f,
                         armScale = 0.72f, shoulderScale = 0.75f, backScale = 0.7f,
                         detach = new[] { "ChestL", "Antenna", "ChestR" }

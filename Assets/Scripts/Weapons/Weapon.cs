@@ -39,8 +39,9 @@ namespace RobotArena
         float reloadEnd = -1f;
         bool reloadPending;
 
-        public float Ready01 => Mathf.Clamp01((Time.time - lastFire) / Mathf.Max(0.01f, cooldown));
-        public bool IsReady => Time.time >= lastFire + cooldown && !Reloading;
+        float Cooldown => cooldown / Mathf.Max(0.1f, RateMul);
+        public float Ready01 => Mathf.Clamp01((Time.time - lastFire) / Mathf.Max(0.01f, Cooldown));
+        public bool IsReady => Time.time >= lastFire + Cooldown && !Reloading;
         bool? isPlayer;
         protected bool IsPlayer => isPlayer ??= GetComponent<RobotInput>() != null;
 
@@ -54,7 +55,13 @@ namespace RobotArena
             Ammo = magazine;
         }
 
-        protected bool Triggered => slot == Slot.Primary ? commands.primary : commands.special;
+        /// <summary>Jammed by an EMP until then: the trigger does nothing.</summary>
+        [System.NonSerialized] public float JammedUntil = -1f;
+        /// <summary>Superpowers: fire and reload rate multiplier (overdrive).</summary>
+        [System.NonSerialized] public float RateMul = 1f;
+        public bool Jammed => Time.time < JammedUntil;
+
+        protected bool Triggered => !Jammed && (slot == Slot.Primary ? commands.primary : commands.special);
 
         protected virtual void Update()
         {
@@ -101,7 +108,7 @@ namespace RobotArena
             if (!HasMagazine || Reloading || Ammo >= magazine) return;
             // A partly used magazine reloads faster than an empty one.
             float k = Mathf.Lerp(0.5f, 1f, 1f - Ammo / (float)magazine);
-            reloadEnd = Time.time + reloadTime * k;
+            reloadEnd = Time.time + reloadTime * k / Mathf.Max(0.1f, RateMul);
             reloadPending = true;
             if (muzzles.Length > 0 && muzzles[0] != null)
                 GameAudio.Play(Sfx.Servo, muzzles[0].position, IsPlayer ? 0.5f : 0.3f, 0.8f);

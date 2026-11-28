@@ -115,6 +115,7 @@ namespace RobotArena
                 WeaponStats.Apply(w, id, level);
             }
             if (!player) AimLikeAPerson(go);
+            Superpower.Attach(go, type);
             return go;
         }
 

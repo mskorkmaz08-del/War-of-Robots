@@ -1,8 +1,10 @@
 name: Build game
 
 # Builds the game in the cloud on every push to main (and on demand):
-#  - WebGL: published to GitHub Pages, playable in Safari on iPhone
-#  - iOS:   an unsigned .ipa to install with Sideloadly (free Apple ID)
+#  - WebGL:   published to GitHub Pages, playable in any modern browser and
+#             installable to the home screen (Android, iPhone, iPad, desktop)
+#  - iOS:     an unsigned .ipa to install with Sideloadly (free Apple ID)
+#  - Android: an .apk, attached to the "android-latest" release for a fixed download link
 #
 # Needs these repository secrets (Settings > Secrets and variables > Actions):
 #   UNITY_LICENSE   contents of your Unity_lic.ulf file
@@ -82,6 +84,14 @@ jobs:
           targetPlatform: WebGL
           buildMethod: ${{ env.BUILD_METHOD }}
           buildName: WarOfRobots
+
+      # A new id for the offline cache, so installed copies switch to this build
+      # in one piece the next time they start.
+      - name: Stamp the offline cache with this build
+        run: |
+          id="${GITHUB_SHA::12}-${GITHUB_RUN_NUMBER}"
+          sudo sed -i "s/__WOR_BUILD__/$id/" build/WebGL/WarOfRobots/sw.js
+          grep -n "var BUILD" build/WebGL/WarOfRobots/sw.js
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -181,3 +191,77 @@ jobs:
           name: WarOfRobots-ipa
           path: WarOfRobots.ipa
           retention-days: 14
+
+  android:
+    name: Build Android app (.apk)
+    needs: check-secrets
+    if: needs.check-secrets.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-Android-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-Android-
+
+      # IL2CPP compiles the game for two phone chip types; extra swap keeps it from running out of memory.
+      - name: Add swap for the IL2CPP compiler
+        run: |
+          sudo fallocate -l 8G /mnt/extra.swap || sudo dd if=/dev/zero of=/mnt/extra.swap bs=1M count=8192
+          sudo chmod 600 /mnt/extra.swap
+          sudo mkswap /mnt/extra.swap
+          sudo swapon /mnt/extra.swap
+          df -h / /mnt
+
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE || secrets.UNITY_LICENCE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: ${{ env.BUILD_METHOD }}
+          buildName: WarOfRobots
+          versioning: None
+          androidExportType: androidPackage
+          androidVersionCode: ${{ github.run_number }}
+
+      - name: Find the .apk
+        run: |
+          APK=$(sudo find build/Android -maxdepth 2 -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then echo "::error::No .apk produced"; exit 1; fi
+          sudo cp "$APK" WarOfRobots.apk
+          sudo chown "$(id -u)" WarOfRobots.apk
+          ls -lh WarOfRobots.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WarOfRobots-apk
+          path: WarOfRobots.apk
+          retention-days: 14
+
+      # Same download link every time:
+      # https://github.com/<owner>/<repo>/releases/download/android-latest/WarOfRobots.apk
+      - name: Publish to the android-latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Android version of War of Robots, built from ${GITHUB_SHA::7} (build ${GITHUB_RUN_NUMBER}).
+          Download WarOfRobots.apk on the phone, open it, and allow installing from this source when Android asks.
+          New builds install over the old one and keep your progress."
+          if ! gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create android-latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "War of Robots for Android" --notes "$notes" --latest=false
+          else
+            gh release edit android-latest --repo "$GITHUB_REPOSITORY" --notes "$notes"
+          fi
+          gh release upload android-latest WarOfRobots.apk --repo "$GITHUB_REPOSITORY" --clobber

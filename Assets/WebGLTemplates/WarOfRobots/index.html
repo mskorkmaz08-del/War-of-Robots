@@ -11,6 +11,7 @@
     <title>{{{ PRODUCT_NAME }}}</title>
     <link rel="icon" type="image/png" href="TemplateData/favicon.png">
     <link rel="apple-touch-icon" href="TemplateData/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#07090c">
     <style>
       @font-face { font-family: "Orbitron"; src: url("TemplateData/Orbitron-Black.ttf") format("truetype"); font-weight: 900; font-display: swap; }
@@ -129,6 +130,66 @@
       document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
       document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 
+      // ---------------------------------------------------------------------
+      // Installing to the home screen (Android, iPhone/iPad, desktop Chrome/Edge)
+      // ---------------------------------------------------------------------
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      function installed() {
+        return navigator.standalone === true ||
+          (window.matchMedia && (matchMedia("(display-mode: fullscreen)").matches ||
+            matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: minimal-ui)").matches)) ||
+          /source=homescreen/.test(location.search);
+      }
+      var installPrompt = null;
+      window.addEventListener("beforeinstallprompt", function (e) {
+        // Keep the browser's own offer for the game's INSTALL button in the menu.
+        e.preventDefault();
+        installPrompt = e;
+      });
+      window.addEventListener("appinstalled", function () { installPrompt = null; });
+      // Read by the game (WorBridge.jslib):
+      //   0 nothing to show, 1 the browser can install it now, 2 iPhone/iPad: show the
+      //   Share > Add to Home Screen steps, 3 Android without an install offer: show the
+      //   menu > Install app steps.
+      window.worInstall = {
+        state: function () {
+          if (installed()) return 0;
+          if (installPrompt) return 1;
+          if (isIOS) return 2;
+          if (isAndroid) return 3;
+          return 0;
+        },
+        prompt: function () {
+          if (!installPrompt) return;
+          var p = installPrompt;
+          installPrompt = null;
+          p.prompt();
+          if (p.userChoice) p.userChoice.then(function (c) { if (c && c.outcome !== "accepted") installPrompt = null; });
+        }
+      };
+
+      // Offline cache, so the installed game starts fast and without a signal.
+      if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("sw.js").catch(function () {});
+        });
+      }
+
+      // Android browser tab (not installed): the first tap goes full screen and
+      // locks the screen sideways, so the address bar doesn't eat the view.
+      if (isAndroid && !installed() && document.documentElement.requestFullscreen) {
+        var goFull = function () {
+          document.removeEventListener("touchend", goFull, true);
+          if (document.fullscreenElement) return;
+          document.documentElement.requestFullscreen({ navigationUI: "hide" }).then(function () {
+            if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {});
+          }).catch(function () {});
+        };
+        document.addEventListener("touchend", goFull, true);
+      }
+
       window.worConfig = config;
       window.worResize = function () { window.dispatchEvent(new Event("resize")); };
 
@@ -171,7 +232,7 @@
         }
         if (!network) {
           document.querySelector(".err .head").textContent = "COULD NOT START";
-          document.querySelector("#errmsg").textContent = "Something went wrong while starting the game. Try again, and if it keeps happening, restart Safari.";
+          document.querySelector("#errmsg").textContent = "Something went wrong while starting the game. Try again, and if it keeps happening, restart the browser.";
         }
         document.querySelector("#loading").classList.add("failed");
       }
@@ -180,6 +241,18 @@
         location.reload();
       });
 
+      // Very old browsers can't run the game at all: say so plainly.
+      var gl2 = false;
+      try { gl2 = !!document.createElement("canvas").getContext("webgl2"); } catch (e) {}
+      if (!gl2) {
+        clearInterval(tipTimer);
+        document.querySelector(".err .head").textContent = "3D NOT SUPPORTED";
+        document.querySelector("#errmsg").textContent = isIOS
+          ? "This device needs iOS 15 or newer to run the game. Update iOS in Settings > General > Software Update."
+          : "This browser can't run 3D games (WebGL 2 is off or missing). Update the browser, or try Chrome, Edge, Firefox or Safari.";
+        document.querySelector("#retry").style.display = "none";
+        document.querySelector("#loading").classList.add("failed");
+      } else {
       var script = document.createElement("script");
       script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
       script.onerror = function () { failed("Could not download the loader (network)."); };
@@ -194,6 +267,7 @@
         }).catch(failed);
       };
       document.body.appendChild(script);
+      }
     </script>
   </body>
 </html>

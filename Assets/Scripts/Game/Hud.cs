@@ -83,6 +83,7 @@ namespace RobotArena
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 1f;
+            this.scaler = scaler;
 
             var flash = UiKit.Fill("DamageFlash", canvas.transform);
             damageFlash = UiKit.Image(flash, null, new Color(1f, 0.1f, 0f, 0f));
@@ -100,7 +101,9 @@ namespace RobotArena
             BuildDeploying();
             BuildSettings();
             BuildRotate();
+            BuildInstall();
             HideAll();
+            FitScreenShape();
         }
 
         GameObject Screen(string name, bool safe = true)
@@ -112,7 +115,7 @@ namespace RobotArena
 
         void HideAll()
         {
-            foreach (var p in new[] { menuPanel, modePanel, mapPanel, missionPanel, onlinePanel, lobbyPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel })
+            foreach (var p in new[] { menuPanel, modePanel, mapPanel, missionPanel, onlinePanel, lobbyPanel, hangarPanel, fightPanel, pausePanel, settingsPanel, endPanel, deployPanel, installPanel })
                 p.SetActive(false);
         }
 
@@ -552,6 +555,7 @@ namespace RobotArena
             // Landscape only: ask the player to turn the phone if it's upright.
             bool portrait = UnityEngine.Screen.height > UnityEngine.Screen.width;
             if (rotatePanel.activeSelf != portrait) rotatePanel.SetActive(portrait);
+            UpdateInstall();
 
             var fc = damageFlash.color;
             if (fc.a > 0f)
@@ -884,8 +888,8 @@ namespace RobotArena
             rotatePanel = Screen("Rotate", false);
             rotatePanel.transform.SetAsLastSibling();
             UiKit.Image(rotatePanel.transform, null, new Color(0.02f, 0.03f, 0.07f, 1f), true);
-            UiKit.Title(Place(rotatePanel.transform, 0.5f, 0.55f, 1800f, 200f), "TURN YOUR PHONE", 110, UiKit.Orange);
-            UiKit.Label(Place(rotatePanel.transform, 0.5f, 0.42f, 1800f, 80f), "War of Robots is played sideways", 50, Color.white);
+            rotateTitle = UiKit.Title(Place(rotatePanel.transform, 0.5f, 0.55f, 1800f, 200f), "TURN YOUR PHONE", 110, UiKit.Orange);
+            rotateSub = UiKit.Label(Place(rotatePanel.transform, 0.5f, 0.42f, 1800f, 80f), "War of Robots is played sideways", 50, Color.white);
             rotatePanel.SetActive(false);
         }
     }

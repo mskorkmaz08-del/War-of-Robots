@@ -213,7 +213,9 @@ namespace RobotArena
             hMobility.resizeTextForBestFit = true;
             hMobility.resizeTextMinSize = 15;
             hMobility.resizeTextMaxSize = 26;
-            hMobility.rectTransform.sizeDelta = new Vector2(470f, 52f);
+            hMobility.verticalOverflow = VerticalWrapMode.Truncate;
+            // The label stretches over its slot, so size the slot, not the label.
+            ((RectTransform)hMobility.transform.parent).sizeDelta = new Vector2(470f, 56f);
             hWeaponInfo = UiKit.Label(Place(card, 0.5f, 0.207f, 640f, 40f), "", 22, UiKit.TextDim, TextAnchor.MiddleCenter);
 
             // Upgrade the weapon shown above with credits earned in battle.
